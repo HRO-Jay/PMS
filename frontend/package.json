@@ -29,7 +29,7 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "lint": "react-scripts build",
-    "vercel-build": "npm install --legacy-peer-deps && react-scripts build"
+    "vercel-build": "CI=false react-scripts build"
   },
   "browserslist": {
     "production": [">0.2%", "not dead", "not op_mini all"],
