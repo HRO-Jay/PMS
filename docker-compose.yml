@@ -1,0 +1,57 @@
+# payroll-system Docker Compose — Local Development
+# Starts: PostgreSQL 15 + pgAdmin + Redis 7
+#
+# Usage:
+#   docker-compose up -d
+#   docker-compose down
+
+version: "3.9"
+
+services:
+  # ====== PostgreSQL 15 (simulates Supabase local) ======
+  postgres:
+    image: postgres:15-alpine
+    container_name: payroll-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: payroll_dev
+      POSTGRES_DB: payroll_system
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./supabase/seed.sql:/docker-entrypoint-initdb.d/01_seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ====== Redis 7 ======
+  redis:
+    image: redis:7-alpine
+    container_name: payroll-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    command: redis-server --appendonly yes
+
+  # ====== pgAdmin (optional) ======
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: payroll-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@kaiyi.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+
+volumes:
+  pgdata:
+  redisdata:
