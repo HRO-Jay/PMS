@@ -14,7 +14,8 @@
     "ag-grid-react": "^32.3.0",
     "ag-grid-community": "^32.3.0",
     "echarts": "^5.5.0",
-    "echarts-for-react": "^3.0.0"
+    "echarts-for-react": "^3.0.0",
+    "@supabase/supabase-js": "^2.46.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.0",
@@ -27,7 +28,8 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "lint": "react-scripts build"
+    "lint": "react-scripts build",
+    "vercel-build": "npm install --legacy-peer-deps && react-scripts build"
   },
   "browserslist": {
     "production": [">0.2%", "not dead", "not op_mini all"],
