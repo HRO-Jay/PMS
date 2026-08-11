@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
@@ -15,7 +15,7 @@ api.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${token}`;
   }
   // 也加上 apikey header（Supabase REST 需要）
-  const apikey = process.env.REACT_APP_SUPABASE_ANON_KEY;
+  const apikey = import.meta.env.VITE_SUPABASE_ANON_KEY;
   if (apikey) {
     config.headers.apikey = apikey;
   }
