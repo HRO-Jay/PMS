@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Card, Col, Row, Statistic, Table, Select, DatePicker, Button, Tag, Space, message, Modal, Spin, Progress } from 'antd';
+import { Card, Col, Row, Statistic, Table, Select, DatePicker, Button, Tag, Space, message, Modal, Progress } from 'antd';
 import { PlayCircleOutlined, DownloadOutlined, CalculatorOutlined, TeamOutlined, DollarOutlined, PieChartOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { fetchEmployees, fetchSalaryRecords, runPayroll, exportSalary, fetchCompanySummary } from '../api/endpoints';
