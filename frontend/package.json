@@ -12,8 +12,7 @@
     "zustand": "5.0.14",
     "dayjs": "1.11.10",
     "@supabase/supabase-js": "2.39.0",
-    "react-scripts": "5.0.1",
-    "ajv": "8.17.1"
+    "react-scripts": "5.0.1"
   },
   "devDependencies": {
     "@types/react": "18.2.45",
@@ -23,11 +22,11 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
+    "build": "SKIP_PREFLIGHT_CHECK=true react-scripts build",
     "test": "react-scripts test"
   },
   "engines": {
-    "node": "18.x"
+    "node": "24.x"
   },
   "browserslist": {
     "production": [">0.2%", "not dead", "not op_mini all"],
