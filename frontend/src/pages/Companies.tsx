@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Card, Tag, Space, Descriptions, message } from 'antd';
+import { Table, Card, Tag, Space, message } from 'antd';
 import { fetchCompanies, fetchSocialPolicies } from '../api/endpoints';
 import { formatPercent } from '../utils/format';
 import type { SocialPolicy } from '../types';

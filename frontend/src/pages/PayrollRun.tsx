@@ -21,6 +21,8 @@ const PayrollPage: React.FC = () => {
   const [running, setRunning] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<SalaryRecord | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const selectedCompanyName = '';
 
   useEffect(() => {
     fetchCompanies().then(res => {

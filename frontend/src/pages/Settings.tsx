@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Card, Switch, Form, Input, Button, Typography, Divider, Space, message } from 'antd';
+import { Card, Button, Typography, Space, message } from 'antd';
 
 const SettingsPage: React.FC = () => {
   const [apiTestResult, setApiTestResult] = useState<string>('');

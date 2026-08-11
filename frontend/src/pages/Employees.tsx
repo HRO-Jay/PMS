@@ -5,7 +5,7 @@ import { fetchEmployees, createEmployee, updateEmployee, deleteEmployee } from '
 import { fetchCompanies } from '../api/endpoints';
 import { useStore } from '../stores/appStore';
 import { taxTypeLabel, socialStatusLabel } from '../utils/format';
-import type { Employee, Company } from '../types';
+import type { Employee } from '../types';
 
 const EmployeesPage: React.FC = () => {
   const { companies, setCompanies } = useStore();
