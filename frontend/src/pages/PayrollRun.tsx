@@ -21,8 +21,6 @@ const PayrollPage: React.FC = () => {
   const [running, setRunning] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<SalaryRecord | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const selectedCompanyName = '';
 
   useEffect(() => {
     fetchCompanies().then(res => {
@@ -101,7 +99,7 @@ const PayrollPage: React.FC = () => {
     },
   ];
 
-  const selectedCompanyName = companies.find(c => c.code === selectedCompany)?.full_name || '';
+  const companyName = companies.find(c => c.code === selectedCompany)?.full_name || '';
 
   return (
     <div>
