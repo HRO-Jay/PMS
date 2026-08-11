@@ -1,15 +1,12 @@
 import axios from 'axios';
 
-// 直接调用 Supabase PostgREST API，不需要 Python 后端
-const SUPABASE_URL = 'https://avuldnywmiflbmmlgmas.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2dWxkbnl3bWlmbGJtbWxnbWFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzMzY0NDgsImV4cCI6MjEwMTkxMjQ0OH0.8qqzH3zMc274Di-TK_6huMhrOWppJI1L3tjIfcBV2ts';
-
+// 用相对路径，由 Vercel rewrites 转发到 Supabase，绕过 supabase.co 域名被封问题
 const api = axios.create({
-  baseURL: `${SUPABASE_URL}/rest/v1`,
+  baseURL: '/api/data',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
-    'apikey': SUPABASE_ANON_KEY,
+    'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2dWxkbnl3bWlmbGJtbWxnbWFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzMzY0NDgsImV4cCI6MjEwMTkxMjQ0OH0.8qqzH3zMc274Di-TK_6huMhrOWppJI1L3tjIfcBV2ts',
   },
 });
 

@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { Form, Input, Button, Card, Typography, message, Space } from 'antd';
 import { UserOutlined, LockOutlined, DollarOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { createClient } from '@supabase/supabase-js';
+import axios from 'axios';
 
-const supabaseUrl = 'https://avuldnywmiflbmmlgmas.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2dWxkbnl3bWlmbGJtbWxnbWFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzMzY0NDgsImV4cCI6MjEwMTkxMjQ0OH0.8qqzH3zMc274Di-TK_6huMhrOWppJI1L3tjIfcBV2ts';
+const AUTH_URL = '/api/auth';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2dWxkbnl3bWlmbGJtbWxnbWFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzMzY0NDgsImV4cCI6MjEwMTkxMjQ0OH0.8qqzH3zMc274Di-TK_6huMhrOWppJI1L3tjIfcBV2ts';
 
 const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -14,21 +14,21 @@ const LoginPage: React.FC = () => {
   const onFinish = async (values: { email: string; password: string }) => {
     setLoading(true);
     try {
-      const supabase = createClient(supabaseUrl, supabaseAnonKey);
-      const { data, error } = await supabase.auth.signInWithPassword({
+      // 直接用 axios 调 Supabase Auth API，不依赖 supabase-js
+      const res = await axios.post(`${AUTH_URL}/token?grant_type=password`, {
         email: values.email,
         password: values.password,
+      }, {
+        headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
       });
 
-      if (error) throw error;
-
-      if (data.session) {
-        localStorage.setItem('supabase_token', data.session.access_token);
+      if (res.data.access_token) {
+        localStorage.setItem('supabase_token', res.data.access_token);
         message.success('登录成功');
         navigate('/');
       }
     } catch (err: any) {
-      message.error(err.message || '登录失败');
+      message.error(err.response?.data?.error_description || err.message || '登录失败');
     } finally {
       setLoading(false);
     }

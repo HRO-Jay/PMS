@@ -3,5 +3,18 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "installCommand": "npm install",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "source": "/api/auth/(.*)",
+      "destination": "https://avuldnywmiflbmmlgmas.supabase.co/auth/v1/$1"
+    },
+    {
+      "source": "/api/data/(.*)",
+      "destination": "https://avuldnywmiflbmmlgmas.supabase.co/rest/v1/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
