@@ -1,16 +1,17 @@
 import axios from 'axios';
 
-// 用相对路径，由 Vercel rewrites 转发到 Supabase，绕过 supabase.co 域名被封问题
+const SUPABASE_URL = 'https://avuldnywmiflbmmlgmas.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2dWxkbnl3bWlmbGJtbWxnbWFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzMzY0NDgsImV4cCI6MjEwMTkxMjQ0OH0.8qqzH3zMc274Di-TK_6huMhrOWppJI1L3tjIfcBV2ts';
+
 const api = axios.create({
-  baseURL: '/api/data',
+  baseURL: `${SUPABASE_URL}/rest/v1`,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
-    'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2dWxkbnl3bWlmbGJtbWxnbWFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzMzY0NDgsImV4cCI6MjEwMTkxMjQ0OH0.8qqzH3zMc274Di-TK_6huMhrOWppJI1L3tjIfcBV2ts',
+    'apikey': SUPABASE_ANON_KEY,
   },
 });
 
-// 请求拦截：自动附加 Supabase JWT token
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('supabase_token');
   if (token) {
@@ -19,7 +20,6 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// 响应拦截：401 自动跳登录
 api.interceptors.response.use(
   (response) => response,
   (error) => {
