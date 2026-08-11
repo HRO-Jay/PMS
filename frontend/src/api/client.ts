@@ -1,10 +1,15 @@
 import axios from 'axios';
 
+// 直接调用 Supabase PostgREST API，不需要 Python 后端
+const SUPABASE_URL = 'https://avuldnywmiflbmmlgmas.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2dWxkbnl3bWlmbGJtbWxnbWFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzMzY0NDgsImV4cCI6MjEwMTkxMjQ0OH0.8qqzH3zMc274Di-TK_6huMhrOWppJI1L3tjIfcBV2ts';
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
+  baseURL: `${SUPABASE_URL}/rest/v1`,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
+    'apikey': SUPABASE_ANON_KEY,
   },
 });
 
@@ -13,11 +18,6 @@ api.interceptors.request.use((config) => {
   const token = localStorage.getItem('supabase_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
-  }
-  // 也加上 apikey header（Supabase REST 需要）
-  const apikey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2dWxkbnl3bWlmbGJtbWxnbWFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzMzY0NDgsImV4cCI6MjEwMTkxMjQ0OH0.8qqzH3zMc274Di-TK_6huMhrOWppJI1L3tjIfcBV2ts';
-  if (apikey) {
-    config.headers.apikey = apikey;
   }
   return config;
 });
@@ -35,3 +35,4 @@ api.interceptors.response.use(
 );
 
 export default api;
+

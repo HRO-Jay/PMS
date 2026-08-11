@@ -2,18 +2,17 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Card, Col, Row, Statistic, Table, Select, DatePicker, Button, Tag, Space, message, Modal, Progress } from 'antd';
 import { PlayCircleOutlined, DownloadOutlined, CalculatorOutlined, TeamOutlined, DollarOutlined, PieChartOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { fetchEmployees, fetchSalaryRecords, runPayroll, exportSalary, fetchCompanySummary } from '../api/endpoints';
+import { fetchEmployees, fetchSalaryRecords, runPayroll, exportSalary } from '../api/endpoints';
 import { fetchCompanies } from '../api/endpoints';
 import { useStore } from '../stores/appStore';
 import { formatMoney, regionColor } from '../utils/format';
-import type { Employee, SalaryRecord, CompanySummaryItem } from '../types';
+import type { Employee, SalaryRecord } from '../types';
 
 const Dashboard: React.FC = () => {
   const { companies, setCompanies, employees, setEmployees, currentPeriod, setCurrentPeriod, selectedCompany, setSelectedCompany } = useStore();
   const [records, setRecords] = useState<SalaryRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
-  const [summary, setSummary] = useState<CompanySummaryItem[]>([]);
   const [runModalVisible, setRunModalVisible] = useState(false);
   const [runProgress, setRunProgress] = useState(0);
 
@@ -41,15 +40,14 @@ const Dashboard: React.FC = () => {
     if (!selectedCompany) return;
     setLoading(true);
     try {
-      const [empRes, recRes, sumRes] = await Promise.all([
-        fetchEmployees({ company_code: selectedCompany, is_active: true }),
-        fetchSalaryRecords(currentPeriod, selectedCompany),
-        fetchCompanySummary(currentPeriod),
-      ]);
+      // Use Supabase join to get salary records filtered by company
+      const empRes = await fetchEmployees({ company_code: selectedCompany, is_active: true });
       setEmployees(empRes.data);
+
+      const recRes = await fetchSalaryRecords(currentPeriod, selectedCompany);
       setRecords(recRes.data);
-      setSummary(sumRes.data.companies.filter(c => c.company_code === selectedCompany));
     } catch (e) {
+      console.error(e);
       message.error('加载数据失败');
     } finally {
       setLoading(false);

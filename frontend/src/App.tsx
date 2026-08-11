@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
-import zhCN from 'antd/locale/zh_CN';
+import zhCN from 'antd/lib/locale/zh_CN';
 import AppLayout from './components/AppLayout';
 import LoginPage from './pages/Login';
 import Dashboard from './pages/Dashboard';
