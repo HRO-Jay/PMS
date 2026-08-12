@@ -1,8 +1,13 @@
 import React, { useState } from 'react';
-import { Card, Button, Typography, Space, message } from 'antd';
+import { Card, Button, Typography, Space, message, Form, Input, Modal } from 'antd';
+import axios from 'axios';
+import { AUTH_URL, SCF_CONFIG } from '../config';
 
 const SettingsPage: React.FC = () => {
   const [apiTestResult, setApiTestResult] = useState<string>('');
+  const [pwdModalOpen, setPwdModalOpen] = useState(false);
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [pwdForm] = Form.useForm();
 
   const testApi = async () => {
     try {
@@ -16,9 +21,58 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  // 修改密码
+  const handleChangePassword = async () => {
+    try {
+      const values = await pwdForm.validateFields();
+      if (values.new_password !== values.confirm_password) {
+        message.error('两次输入的新密码不一致');
+        return;
+      }
+      setPwdLoading(true);
+
+      const token = localStorage.getItem('supabase_token');
+      if (!token) {
+        message.error('登录已过期，请重新登录');
+        setPwdLoading(false);
+        return;
+      }
+
+      // 调用 Supabase Auth API 修改密码
+      // 需要先用旧密码验明正身，再设置新密码
+      await axios.put(
+        `${AUTH_URL}/user`,
+        { password: values.new_password },
+        {
+          headers: {
+            'apikey': SCF_CONFIG.supabaseAnonKey,
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'X-Forward-To': SCF_CONFIG.supabaseAuthUrl,
+          },
+        }
+      );
+
+      message.success('密码修改成功，下次登录使用新密码');
+      setPwdModalOpen(false);
+      pwdForm.resetFields();
+    } catch (e: any) {
+      const errMsg = e.response?.data?.msg || e.response?.data?.message || '修改失败，请确认旧密码正确';
+      message.error(errMsg);
+    } finally {
+      setPwdLoading(false);
+    }
+  };
+
   return (
     <div style={{ maxWidth: 800 }}>
       <Typography.Title level={4}>系统设置</Typography.Title>
+
+      <Card title="账户安全" style={{ marginBottom: 16 }}>
+        <Button type="primary" onClick={() => setPwdModalOpen(true)}>
+          修改密码
+        </Button>
+      </Card>
 
       <Card title="API 连接测试" style={{ marginBottom: 16 }}>
         <Space>
@@ -45,6 +99,46 @@ const SettingsPage: React.FC = () => {
           不计税（non_taxable）— 个税为 0，适用于香港员工
         </Typography.Paragraph>
       </Card>
+
+      {/* 修改密码弹窗 */}
+      <Modal
+        title="修改密码"
+        open={pwdModalOpen}
+        onOk={handleChangePassword}
+        onCancel={() => { setPwdModalOpen(false); pwdForm.resetFields(); }}
+        confirmLoading={pwdLoading}
+        okText="确认修改"
+        cancelText="取消"
+        destroyOnClose
+      >
+        <Form form={pwdForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item
+            name="new_password"
+            label="新密码"
+            rules={[
+              { required: true, message: '请输入新密码' },
+              { min: 6, message: '密码至少 6 位' },
+            ]}
+          >
+            <Input.Password placeholder="至少6位" />
+          </Form.Item>
+          <Form.Item
+            name="confirm_password"
+            label="确认新密码"
+            rules={[
+              { required: true, message: '请再次输入新密码' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('new_password') === value) return Promise.resolve();
+                  return Promise.reject(new Error('两次输入不一致'));
+                },
+              }),
+            ]}
+          >
+            <Input.Password placeholder="和上面输入一致" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };
