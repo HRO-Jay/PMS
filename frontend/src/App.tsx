@@ -6,10 +6,9 @@ import AppLayout from './components/AppLayout';
 import LoginPage from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import EmployeesPage from './pages/Employees';
-import PayrollPage from './pages/PayrollRun';
+import SocialPage from './pages/Social';
 import AttendancePage from './pages/Attendance';
-import CompaniesPage from './pages/Companies';
-import ReportsPage from './pages/Reports';
+import PayrollPage from './pages/PayrollRun';
 import SettingsPage from './pages/Settings';
 
 // 简单的认证守卫
@@ -27,7 +26,7 @@ const App: React.FC = () => {
         borderRadius: 6,
       },
     }}>
-      <BrowserRouter>
+      <BrowserRouter basename="/PMS">
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/*" element={
@@ -36,10 +35,9 @@ const App: React.FC = () => {
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/employees" element={<EmployeesPage />} />
+                  <Route path="/social/*" element={<SocialPage />} />
                   <Route path="/payroll" element={<PayrollPage />} />
                   <Route path="/attendance" element={<AttendancePage />} />
-                  <Route path="/companies" element={<CompaniesPage />} />
-                  <Route path="/reports" element={<ReportsPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>

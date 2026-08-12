@@ -1,7 +1,29 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Card, Button, Space, Input, message, InputNumber } from 'antd';
-import { SaveOutlined } from '@ant-design/icons';
+import { Table, Card, Button, Space, Input, message, InputNumber, Upload } from 'antd';
+import { SaveOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import api from '../api/client';
+import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
+
+// 表头定义
+const EXPORT_DEF: ExportDef = {
+  module: '考勤管理',
+  columns: [
+    { key: 'unique_hash', label: '唯一值', hidden: true },
+    { key: 'sick_days', label: '病假(天)' },
+    { key: 'sick_adjust', label: '病假金额' },
+    { key: 'personal_days', label: '事假(天)' },
+    { key: 'personal_adjust', label: '事假金额' },
+    { key: 'annual_leave', label: '年假' },
+    { key: 'compensatory_leave', label: '调休' },
+    { key: 'absenteeism_days', label: '旷工' },
+    { key: 'funeral_leave', label: '丧假' },
+    { key: 'parental_leave', label: '育儿假' },
+    { key: 'marriage_leave', label: '婚假' },
+    { key: 'maternity_leave', label: '产假' },
+    { key: 'overtime_days', label: '加班' },
+    { key: 'on_off_adjust', label: '入离职调整' },
+  ],
+};
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
@@ -148,12 +170,42 @@ const AttendancePage: React.FC = () => {
     },
   ];
 
+  // 导出
+  const handleExport = () => exportXlsx(EXPORT_DEF, records, period);
+
+  // 导入
+  const handleImport = async (file: File) => {
+    try {
+      const { data, import_errors } = await importXlsx(EXPORT_DEF, file);
+      if (import_errors.length > 0) message.warning(`有 ${import_errors.length} 行数据存在问题`);
+      if (data.length === 0) { message.info('未找到有效数据'); return; }
+      let success = 0;
+      for (const row of data) {
+        try {
+          const existing = await api.get(`/attendance_records?unique_hash=eq.${row.unique_hash}&period=eq.${period}`);
+          if (existing.data.length > 0) {
+            await api.patch(`/attendance_records?id=eq.${existing.data[0].id}`, { ...row, period });
+          } else {
+            await api.post('/attendance_records', { ...row, period });
+          }
+          success++;
+        } catch { /* skip */ }
+      }
+      message.success(`导入完成：${success} / ${data.length} 条`);
+      loadData();
+    } catch (e: any) { message.error(e.message || '导入失败'); }
+  };
+
   return (
     <div>
       <Card size="small" style={{ marginBottom: 16 }}>
         <Space>
           <span>月份：</span>
           <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 200 }} />
+          <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
+          <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
+            <Button icon={<UploadOutlined />}>导入</Button>
+          </Upload>
         </Space>
       </Card>
       <Table

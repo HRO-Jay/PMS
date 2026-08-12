@@ -1,10 +1,34 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, Select, Space, message, Card, InputNumber } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { Table, Button, Modal, Form, Input, Select, Space, message, Card, InputNumber, Upload } from 'antd';
+import { PlusOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import type { SocialRecord, Employee } from '../../types';
 
 // 直接用原始 fetch 工具，Supabase PostgREST 查询
 import api from '../../api/client';
+import { exportXlsx, importXlsx, type ExportDef } from '../../utils/importExport';
+
+// 表头定义
+const EXPORT_DEF: ExportDef = {
+  module: '员工社保管理',
+  columns: [
+    { key: 'unique_hash', label: '唯一值', hidden: true },
+    { key: 'welfare_set', label: '福利套', required: true },
+    { key: 'social_base', label: '社保基数' },
+    { key: 'housing_fund_base', label: '公积金基数' },
+    { key: 'pension_p', label: '个人养老' },
+    { key: 'medical_p', label: '个人医疗' },
+    { key: 'unemployment_p', label: '个人失业' },
+    { key: 'housing_fund_p', label: '个人公积金' },
+    { key: 'supp_housing_p', label: '个人补充公积金' },
+    { key: 'pension_c', label: '公司养老' },
+    { key: 'medical_c', label: '公司医疗' },
+    { key: 'unemployment_c', label: '公司失业' },
+    { key: 'injury_c', label: '公司工伤' },
+    { key: 'maternity_c', label: '公司生育' },
+    { key: 'housing_fund_c', label: '公司公积金' },
+    { key: 'supp_housing_c', label: '公司补充公积金' },
+  ],
+};
 
 const EmployeeSocial: React.FC = () => {
   const [records, setRecords] = useState<any[]>([]);
@@ -70,6 +94,33 @@ const EmployeeSocial: React.FC = () => {
     } catch { message.error('操作失败'); }
   };
 
+  // 导出
+  const handleExport = () => exportXlsx(EXPORT_DEF, records, period);
+
+  // 导入
+  const handleImport = async (file: File) => {
+    try {
+      const { data, import_errors } = await importXlsx(EXPORT_DEF, file);
+      if (import_errors.length > 0) message.warning(`有 ${import_errors.length} 行数据存在问题`);
+      if (data.length === 0) { message.info('未找到有效数据'); return; }
+      let success = 0;
+      for (const row of data) {
+        try {
+          // upsert: 先查是否已存在，有则更新
+          const existing = await api.get(`/social_records?unique_hash=eq.${row.unique_hash}&period=eq.${period}`);
+          if (existing.data.length > 0) {
+            await api.patch(`/social_records?id=eq.${existing.data[0].id}`, { ...row, period });
+          } else {
+            await api.post('/social_records', { ...row, period });
+          }
+          success++;
+        } catch { /* skip */ }
+      }
+      message.success(`导入完成：${success} / ${data.length} 条`);
+      loadData();
+    } catch (e: any) { message.error(e.message || '导入失败'); }
+  };
+
   const columns = [
     { title: '姓名', dataIndex: 'display_name', key: 'name', width: 180 },
     { title: '福利套', dataIndex: 'welfare_set', key: 'ws', width: 100 },
@@ -102,6 +153,10 @@ const EmployeeSocial: React.FC = () => {
           <span>月份：</span>
           <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 200 }} />
           <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>添加社保记录</Button>
+          <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
+          <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
+            <Button icon={<UploadOutlined />}>导入</Button>
+          </Upload>
         </Space>
       </Card>
 

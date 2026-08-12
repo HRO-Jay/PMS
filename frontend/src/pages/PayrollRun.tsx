@@ -1,7 +1,60 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Button, Space, message, Input, Tag } from 'antd';
-import { DownOutlined, RightOutlined } from '@ant-design/icons';
+import { Card, Table, Button, Space, message, Input, Tag, Upload } from 'antd';
+import { DownOutlined, RightOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import api from '../api/client';
+import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
+
+// 表头定义 — 导出时包含隐藏字段
+const EXPORT_DEF: ExportDef = {
+  module: '薪资计算',
+  columns: [
+    { key: 'unique_hash', label: '唯一值', hidden: true },
+    { key: 'base_salary', label: '基本工资' },
+    { key: 'allowance_supp', label: '补贴/补充公积金' },
+    { key: 'attendance_adjust', label: '考勤调整' },
+    { key: 'other_adjust', label: '其他补贴/调整' },
+    { key: 'insurance_amount', label: '商保金额' },
+    { key: 'kpi_provision', label: 'KPI预提' },
+    { key: 'monthly_wage', label: '本月工资' },
+    { key: 'office_comm', label: '商办佣金' },
+    { key: 'performance_pay', label: '绩效' },
+    { key: 'apartment_comm', label: '公寓佣金' },
+    { key: 'talent_kpi', label: '人才系KPI' },
+    { key: 'heat_allowance', label: '防暑降温费' },
+    { key: 'other_allowance', label: '津贴' },
+    { key: 'security_bonus', label: '保安奖金' },
+    { key: 'cleaning_bonus', label: '保洁奖金' },
+    { key: 'wage_subtotal', label: '薪资小计' },
+    { key: 'social_base', label: '社保基数' },
+    { key: 'housing_fund_base', label: '公积金基数' },
+    { key: 'pension_p', label: '个人养老' },
+    { key: 'medical_p', label: '个人医疗' },
+    { key: 'unemployment_p', label: '个人失业' },
+    { key: 'housing_fund_p', label: '个人公积金' },
+    { key: 'supp_housing_p', label: '个人补充公积金' },
+    { key: 'cumul_child_edu', label: '累计子女教育' },
+    { key: 'cumul_mortgage', label: '累计住房贷款利息' },
+    { key: 'cumul_rent', label: '累计住房租金' },
+    { key: 'cumul_elder_care', label: '累计赡养老人' },
+    { key: 'cumul_continuing_edu', label: '累计继续教育' },
+    { key: 'month_taxable_wage', label: '本期纳税工资' },
+    { key: 'cumul_income', label: '累计收入' },
+    { key: 'taxable_income', label: '应纳税所得额' },
+    { key: 'cumul_tax_paid', label: '累计已扣税额' },
+    { key: 'monthly_tax', label: '当月个人所得税' },
+    { key: 'insurance_adjust', label: '商保调整' },
+    { key: 'net_pay', label: '实收工资' },
+    { key: 'pension_c', label: '公司养老' },
+    { key: 'medical_c', label: '公司医疗' },
+    { key: 'unemployment_c', label: '公司失业' },
+    { key: 'injury_c', label: '公司工伤' },
+    { key: 'maternity_c', label: '公司生育' },
+    { key: 'housing_fund_c', label: '公司公积金' },
+    { key: 'supp_housing_c', label: '公司补充公积金' },
+    { key: 'total_cost', label: '企业人力成本总计' },
+    { key: 'provision_welfare', label: '预提福利费' },
+  ],
+};
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
@@ -168,6 +221,31 @@ const PayrollPage: React.FC = () => {
         <Space>
           <span>月份：</span>
           <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 200 }} />
+          <Button icon={<DownloadOutlined />} onClick={() => exportXlsx(EXPORT_DEF, records, period)}>导出</Button>
+          <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={async (file) => {
+            try {
+              const { data, import_errors } = await importXlsx(EXPORT_DEF, file);
+              if (import_errors.length > 0) message.warning(`有 ${import_errors.length} 行数据存在问题`);
+              if (data.length === 0) { message.info('未找到有效数据'); return false; }
+              let success = 0;
+              for (const row of data) {
+                try {
+                  const existing = await api.get(`/salary_records?unique_hash=eq.${row.unique_hash}&period=eq.${period}`);
+                  if (existing.data.length > 0) {
+                    await api.patch(`/salary_records?id=eq.${existing.data[0].id}`, { ...row, period, month_number: parseInt(period.split('-')[1]) || 1 });
+                  } else {
+                    await api.post('/salary_records', { ...row, period, month_number: parseInt(period.split('-')[1]) || 1 });
+                  }
+                  success++;
+                } catch { /* skip */ }
+              }
+              message.success(`导入完成：${success} / ${data.length} 条`);
+              loadData();
+            } catch (e: any) { message.error(e.message || '导入失败'); }
+            return false;
+          }}>
+            <Button icon={<UploadOutlined />}>导入</Button>
+          </Upload>
         </Space>
       </Card>
 

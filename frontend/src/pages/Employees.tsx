@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, Select, Space, message, Tag, Popconfirm, Card, DatePicker } from 'antd';
-import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { Table, Button, Modal, Form, Input, Select, Space, message, Tag, Popconfirm, Card, DatePicker, Upload } from 'antd';
+import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import { fetchEmployees, createEmployee, updateEmployee, deleteEmployee } from '../api/endpoints';
 import { fetchCompanies } from '../api/endpoints';
 import type { Employee } from '../types';
 import dayjs from 'dayjs';
+import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
+import api from '../api/client';
 
 const WORK_SCHEDULES = ['全日制', '非全日制', '不定时工作制'];
 const TAX_TYPES = [
@@ -12,6 +14,23 @@ const TAX_TYPES = [
   { value: 'service', label: '劳务报酬（20%）' },
   { value: 'non_taxable', label: '不计税（HK员工）' },
 ];
+
+// 表头定义
+const EXPORT_DEF: ExportDef = {
+  module: '员工花名册',
+  columns: [
+    { key: 'name', label: '姓名', required: true },
+    { key: 'company_full_name', label: '发薪公司', required: true },
+    { key: 'cost_center', label: '成本中心' },
+    { key: 'department', label: '部门' },
+    { key: 'reporter', label: '汇报人' },
+    { key: 'position', label: '职位' },
+    { key: 'join_date', label: '入职日期' },
+    { key: 'work_schedule', label: '考勤制', required: true },
+    { key: 'tax_type', label: '计税方式', required: true },
+    { key: 'unique_hash', label: '唯一值', hidden: true },
+  ],
+};
 
 const EmployeesPage: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -76,6 +95,45 @@ const EmployeesPage: React.FC = () => {
     catch { message.error('操作失败'); }
   };
 
+  // 导出
+  const handleExport = () => exportXlsx(EXPORT_DEF, employees);
+
+  // 导入
+  const handleImport = async (file: File) => {
+    try {
+      const { data, import_errors } = await importXlsx(EXPORT_DEF, file);
+      if (import_errors.length > 0) {
+        message.warning(`有 ${import_errors.length} 行数据存在问题，已跳过`);
+      }
+      if (data.length === 0) {
+        message.info('未找到有效数据');
+        return;
+      }
+      let success = 0;
+      for (const row of data) {
+        try {
+          // 找公司 code
+          const companies = await fetchCompanies();
+          const matched = companies.data.companies.find(
+            (c: any) => c.full_name === row.company_full_name
+          );
+          await createEmployee({
+            ...row,
+            company_code: matched?.code || '',
+            is_active: true,
+          });
+          success++;
+        } catch {
+          // 可能已存在，跳过
+        }
+      }
+      message.success(`导入完成：${success} / ${data.length} 条`);
+      loadData();
+    } catch (e: any) {
+      message.error(e.message || '导入失败');
+    }
+  };
+
   const columns = [
     { title: '姓名', dataIndex: 'name', key: 'name', width: 80 },
     { title: '发薪公司', dataIndex: 'company_full_name', key: 'company', width: 220, ellipsis: true },
@@ -105,6 +163,10 @@ const EmployeesPage: React.FC = () => {
       <Card size="small" style={{ marginBottom: 16 }}>
         <Space wrap>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>添加员工</Button>
+          <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
+          <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
+            <Button icon={<UploadOutlined />}>导入</Button>
+          </Upload>
           <Input
             prefix={<SearchOutlined />}
             placeholder="搜索姓名"
