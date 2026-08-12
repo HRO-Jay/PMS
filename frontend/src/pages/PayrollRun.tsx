@@ -1,161 +1,184 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { Card, Table, Select, DatePicker, Button, Space, message, Tag, Modal, Descriptions } from 'antd';
-import { PlayCircleOutlined, DownloadOutlined, EyeOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
-import { fetchEmployees, fetchSalaryRecords, runPayroll, exportSalary } from '../api/endpoints';
-import { fetchCompanies } from '../api/endpoints';
-import { formatMoney } from '../utils/format';
-import type { Employee, SalaryRecord } from '../types';
+import React, { useEffect, useState } from 'react';
+import { Card, Table, Button, Space, message, Input, Tag } from 'antd';
+import { DownOutlined, RightOutlined } from '@ant-design/icons';
+import api from '../api/client';
 
-const taxTypeMap: Record<string, string> = { normal: '累计预扣', service: '劳务20%', non_taxable: '免税' };
+const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
 const PayrollPage: React.FC = () => {
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [records, setRecords] = useState<SalaryRecord[]>([]);
-  const [selectedCompany, setSelectedCompany] = useState<string>();
-  const [period, setPeriod] = useState(
-    `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
-  );
+  const [records, setRecords] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<Record<string, any>>({});
+  const [period, setPeriod] = useState(defaultPeriod);
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
-  const [running, setRunning] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<SalaryRecord | null>(null);
 
-  useEffect(() => {
-    fetchCompanies().then(res => {
-      setCompanies(res.data.companies);
-      if (!selectedCompany && res.data.companies.length > 0) {
-        setSelectedCompany(res.data.companies[0].code);
-      }
-    }).catch(() => message.error('加载公司失败'));
-  }, []);
-
-  useEffect(() => {
-    if (selectedCompany) loadData();
-  }, [selectedCompany, period]);
+  useEffect(() => { loadData(); }, [period]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [empRes, recRes] = await Promise.all([
-        fetchEmployees({ company_code: selectedCompany, is_active: true }),
-        fetchSalaryRecords(period, selectedCompany),
+      const [empRes, salRes] = await Promise.all([
+        api.get('/employees?select=unique_hash,name,company_full_name,cost_center,department,reporter,position,join_date,work_schedule,tax_type&is_active=eq.true'),
+        api.get(`/salary_records?select=*&period=eq.${period}&order=unique_hash`),
       ]);
-      setEmployees(empRes.data);
-      setRecords(recRes.data);
-    } catch { message.error('加载数据失败'); }
+
+      const empMap: Record<string, any> = {};
+      empRes.data.forEach((e: any) => { empMap[e.unique_hash] = e; });
+
+      setEmployees(empMap);
+      setRecords(salRes.data.map((r: any) => {
+        const emp = empMap[r.unique_hash] || {};
+        const personalTotal = (r.pension_p || 0) + (r.medical_p || 0) + (r.unemployment_p || 0) + (r.housing_fund_p || 0) + (r.supp_housing_p || 0);
+        const companyTotal = (r.pension_c || 0) + (r.medical_c || 0) + (r.unemployment_c || 0) + (r.injury_c || 0) + (r.maternity_c || 0) + (r.housing_fund_c || 0) + (r.supp_housing_c || 0);
+        return {
+          ...r,
+          key: r.id,
+          employee_name: emp.name || r.unique_hash,
+          company_full_name: emp.company_full_name || '',
+          cost_center: emp.cost_center || '',
+          department: emp.department || '',
+          reporter: emp.reporter || '',
+          position: emp.position || '',
+          join_date: emp.join_date || '',
+          work_schedule: emp.work_schedule || '',
+          tax_type: emp.tax_type || 'normal',
+          personal_welfare_total: personalTotal,
+          company_welfare_total: companyTotal,
+        };
+      }));
+    } catch { message.error('加载薪资数据失败'); }
     finally { setLoading(false); }
   };
 
-  const handleRunPayroll = async () => {
-    setRunning(true);
-    try {
-      const res = await runPayroll({ period });
-      message.success(`计算完成：${res.data.success_count}/${res.data.total_employees} 人成功`);
-      loadData();
-    } catch (e: any) {
-      message.error('计算失败: ' + (e.response?.data?.detail || e.message));
-    } finally { setRunning(false); }
+  const toggleExpand = (key: string, section: 'personal' | 'company') => {
+    const fullKey = `${key}-${section}`;
+    setExpandedKeys(prev => {
+      const next = new Set(prev);
+      next.has(fullKey) ? next.delete(fullKey) : next.add(fullKey);
+      return next;
+    });
   };
 
-  const handleExport = async () => {
-    try {
-      const res = await exportSalary(period, selectedCompany);
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const a = document.createElement('a'); a.href = url;
-      a.download = `薪资明细_${period}.xlsx`; a.click();
-      URL.revokeObjectURL(url);
-    } catch { message.error('导出失败'); }
-  };
+  const taxTypeMap: Record<string, string> = { normal: '累计预扣', service: '劳务20%', non_taxable: '免税' };
 
-  const showDetail = (rec: SalaryRecord) => {
-    setSelectedRecord(rec);
-    setDetailOpen(true);
-  };
+  const formatYuan = (v: any) => (v ?? v === 0) ? `¥${Number(v).toLocaleString('zh-CN', {minimumFractionDigits:2,maximumFractionDigits:2})}` : '—';
 
-  const totals = useMemo(() => ({
-    wages: records.reduce((s, r) => s + (r.wage_subtotal || 0), 0),
-    tax: records.reduce((s, r) => s + (r.tax_amount || 0), 0),
-    net: records.reduce((s, r) => s + (r.net_pay || 0), 0),
-    cost: records.reduce((s, r) => s + (r.total_cost || 0), 0),
-  }), [records]);
+  // Build columns with expandable sections
+  const columns: any[] = [
+    // == 基本信息 ==
+    { title: '姓名', dataIndex: 'employee_name', key: 'name', width: 80, fixed: 'left' },
+    { title: '发薪公司', dataIndex: 'company_full_name', key: 'co', width: 180, ellipsis: true, fixed: 'left' },
+    { title: '成本中心', dataIndex: 'cost_center', key: 'cc', width: 80 },
+    { title: '部门', dataIndex: 'department', key: 'dept', width: 80 },
+    { title: '汇报人', dataIndex: 'reporter', key: 'rpt', width: 70 },
+    { title: '职位', dataIndex: 'position', key: 'pos', width: 80 },
+    { title: '入职日期', dataIndex: 'join_date', key: 'jd', width: 90 },
+    { title: '考勤制', dataIndex: 'work_schedule', key: 'ws', width: 80, render: (v:string) => <Tag>{v}</Tag> },
+    { title: '计税方式', dataIndex: 'tax_type', key: 'tax', width: 90, render: (v:string) => <Tag color={v==='normal'?'blue':v==='service'?'orange':'green'}>{taxTypeMap[v] || v}</Tag> },
 
-  const columns = [
-    { title: '工号', dataIndex: 'employee_id', key: 'no', width: 90, render: (id: number) => employees.find(e => e.id === id)?.employee_no || '—' },
-    { title: '姓名', dataIndex: 'employee_id', key: 'name', width: 70, render: (id: number) => employees.find(e => e.id === id)?.name || '—' },
-    { title: '计税', dataIndex: 'employee_id', key: 'tax', width: 80, render: (id: number) => {
-      const emp = employees.find(e => e.id === id);
-      return <Tag>{taxTypeMap[emp?.tax_type || ''] || '—'}</Tag>;
-    }},
-    { title: '本月工资', dataIndex: 'monthly_wage', key: 'f1', width: 100, render: (v: any) => formatMoney(v) },
-    { title: '薪资小计', dataIndex: 'wage_subtotal', key: 'f2', width: 100, render: (v: any) => formatMoney(v) },
-    { title: '个税', dataIndex: 'tax_amount', key: 'tax', width: 90, render: (v: any) => formatMoney(v) },
-    { title: '银行实发', dataIndex: 'net_pay', key: 'net', width: 100, render: (v: any) => <strong style={{ color: '#52c41a' }}>{formatMoney(v)}</strong> },
-    { title: '人力成本', dataIndex: 'total_cost', key: 'cost', width: 100, render: (v: any) => formatMoney(v) },
+    // == 收入项 ==
+    { title: '基本工资', dataIndex: 'base_salary', key: 'bs', width: 100, render: formatYuan },
+    { title: '补贴/补公积金', dataIndex: 'allowance_supp', key: 'as', width: 110, render: formatYuan },
+    { title: '考勤调整', dataIndex: 'attendance_adjust', key: 'aa', width: 90, render: formatYuan },
+    { title: '其他补贴/调整', dataIndex: 'other_adjust', key: 'oa', width: 110, render: formatYuan },
+    { title: '商保金额', dataIndex: 'insurance_amount', key: 'ia', width: 90, render: formatYuan },
+    { title: 'KPI预提', dataIndex: 'kpi_provision', key: 'kp', width: 90, render: formatYuan },
+    { title: '本月工资', dataIndex: 'monthly_wage', key: 'mw', width: 100, render: formatYuan },
+    { title: '商办佣金', dataIndex: 'office_comm', key: 'oc', width: 90, render: formatYuan },
+    { title: '绩效', dataIndex: 'performance_pay', key: 'pp', width: 90, render: formatYuan },
+    { title: '公寓佣金', dataIndex: 'apartment_comm', key: 'ac', width: 90, render: formatYuan },
+    { title: '人才系KPI', dataIndex: 'talent_kpi', key: 'tk', width: 90, render: formatYuan },
+    { title: '防暑降温费', dataIndex: 'heat_allowance', key: 'ha', width: 100, render: formatYuan },
+    { title: '津贴', dataIndex: 'other_allowance', key: 'oal', width: 80, render: formatYuan },
+    { title: '保安奖金', dataIndex: 'security_bonus', key: 'sb', width: 90, render: formatYuan },
+    { title: '保洁奖金', dataIndex: 'cleaning_bonus', key: 'cb', width: 90, render: formatYuan },
+    { title: '薪资小计', dataIndex: 'wage_subtotal', key: 'wst', width: 100, render: (v:any) => <strong>{formatYuan(v)}</strong> },
+
+    // == 社保基数 ==
+    { title: '社保基数', dataIndex: 'social_base', key: 'sbase', width: 90, render: formatYuan },
+    { title: '公积金基数', dataIndex: 'housing_fund_base', key: 'hbase', width: 90, render: formatYuan },
+
+    // == 个人福利合计 + 展开三角 ==
     {
-      title: '操作', key: 'act', width: 70, fixed: 'right' as const,
-      render: (_: any, r: SalaryRecord) => <Button size="small" icon={<EyeOutlined />} onClick={() => showDetail(r)} />,
+      title: '个人福利合计',
+      dataIndex: 'personal_welfare_total',
+      key: 'pwt',
+      width: 120,
+      render: (v: number, r: any) => {
+        const expanded = expandedKeys.has(`${r.key}-personal`);
+        const Icon = expanded ? DownOutlined : RightOutlined;
+        return (
+          <span style={{ cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={() => toggleExpand(r.key, 'personal')}>
+            <strong>{formatYuan(v)}</strong>
+            {' '}
+            <Icon style={{ fontSize: 10, color: '#999' }} />
+          </span>
+        );
+      },
     },
-  ];
+    // 个人福利明细（条件展示）
+    ...(records.length === 0 ? [] : ['pension_p', 'medical_p', 'unemployment_p', 'housing_fund_p', 'supp_housing_p'].map(field => ({
+      title: ({ 'pension_p': '个人养老', 'medical_p': '个人医疗', 'unemployment_p': '个人失业', 'housing_fund_p': '个人公积金', 'supp_housing_p': '个人补充公积金' } as any)[field],
+      dataIndex: field,
+      key: field,
+      width: 110,
+      render: (v: any, r: any) => expandedKeys.has(`${r.key}-personal`) ? formatYuan(v) : '',
+    }))),
 
-  const companyName = companies.find(c => c.code === selectedCompany)?.full_name || '';
+    // == 当月个税 ==
+    { title: '当月个人所得税', dataIndex: 'monthly_tax', key: 'mt', width: 120, render: (v:any) => <strong style={{color:'#e74c3c'}}>{formatYuan(v)}</strong> },
+    { title: '商保调整', dataIndex: 'insurance_adjust', key: 'iad', width: 90, render: formatYuan },
+    { title: '实收工资', dataIndex: 'net_pay', key: 'np', width: 100, render: (v:any) => <strong style={{color:'#27ae60'}}>{formatYuan(v)}</strong> },
+
+    // == 公司福利合计 + 展开三角 ==
+    {
+      title: '公司法定福利合计',
+      dataIndex: 'company_welfare_total',
+      key: 'cwt',
+      width: 130,
+      render: (v: number, r: any) => {
+        const expanded = expandedKeys.has(`${r.key}-company`);
+        const Icon = expanded ? DownOutlined : RightOutlined;
+        return (
+          <span style={{ cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={() => toggleExpand(r.key, 'company')}>
+            <strong>{formatYuan(v)}</strong>
+            {' '}
+            <Icon style={{ fontSize: 10, color: '#999' }} />
+          </span>
+        );
+      },
+    },
+    // 公司福利明细（条件展示）
+    ...(records.length === 0 ? [] : ['pension_c', 'medical_c', 'unemployment_c', 'injury_c', 'maternity_c', 'housing_fund_c', 'supp_housing_c'].map(field => ({
+      title: ({ 'pension_c': '公司养老', 'medical_c': '公司医疗', 'unemployment_c': '公司失业', 'injury_c': '公司工伤', 'maternity_c': '公司生育', 'housing_fund_c': '公司公积金', 'supp_housing_c': '公司补充公积金' } as any)[field],
+      dataIndex: field,
+      key: field,
+      width: 100,
+      render: (v: any, r: any) => expandedKeys.has(`${r.key}-company`) ? formatYuan(v) : '',
+    }))),
+
+    // == 企业成本 ==
+    { title: '企业人力成本总计', dataIndex: 'total_cost', key: 'tc', width: 130, render: (v:any) => <strong>{formatYuan(v)}</strong> },
+    { title: '预提福利费', dataIndex: 'provision_welfare', key: 'pw', width: 100, render: formatYuan },
+  ];
 
   return (
     <div>
       <Card size="small" style={{ marginBottom: 16 }}>
-        <Space wrap>
-          <Select style={{ width: 280 }} value={selectedCompany} onChange={setSelectedCompany}
-            showSearch optionFilterProp="label"
-            options={companies.map(c => ({ value: c.code, label: c.full_name }))} />
-          <DatePicker picker="month" value={dayjs(period)} onChange={d => d && setPeriod(d.format('YYYY-MM'))}
-            format="YYYY-MM" allowClear={false} />
-          <Button type="primary" icon={<PlayCircleOutlined />} onClick={handleRunPayroll} loading={running}>
-            计算薪资
-          </Button>
-          <Button icon={<DownloadOutlined />} onClick={handleExport} disabled={records.length === 0}>
-            导出 Excel
-          </Button>
+        <Space>
+          <span>月份：</span>
+          <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 200 }} />
         </Space>
       </Card>
 
-      {/* 合计栏 */}
-      <Card size="small" style={{ marginBottom: 16 }}>
-        <Space size="large">
-          <span>本月薪资小计：<strong>{formatMoney(totals.wages)}</strong></span>
-          <span>本月个税：<strong>{formatMoney(totals.tax)}</strong></span>
-          <span>银行实发：<strong style={{ color: '#52c41a' }}>{formatMoney(totals.net)}</strong></span>
-          <span>人力成本：<strong>{formatMoney(totals.cost)}</strong></span>
-        </Space>
-      </Card>
-
-      <Table columns={columns}
-        dataSource={records.map(r => ({ ...r, key: r.id }))}
-        loading={loading} scroll={{ x: 900 }} size="small"
-        pagination={{ pageSize: 50, showTotal: t => `共 ${t} 条` }}
-        locale={{ emptyText: '暂无数据' }} />
-
-      {/* 明细弹窗 */}
-      <Modal title="薪资明细" open={detailOpen} onCancel={() => setDetailOpen(false)} footer={null} width={700}>
-        {selectedRecord && (
-          <Descriptions bordered column={2} size="small">
-            <Descriptions.Item label="员工">{employees.find(e => e.id === selectedRecord.employee_id)?.name || '—'}</Descriptions.Item>
-            <Descriptions.Item label="月份">{selectedRecord.period}</Descriptions.Item>
-            <Descriptions.Item label="基本工资">{formatMoney(selectedRecord.base_salary)}</Descriptions.Item>
-            <Descriptions.Item label="补贴">{formatMoney(selectedRecord.allowance)}</Descriptions.Item>
-            <Descriptions.Item label="考勤调整">{formatMoney(selectedRecord.attendance_adjust)}</Descriptions.Item>
-            <Descriptions.Item label="KPI预提">{formatMoney(selectedRecord.kpi_provision)}</Descriptions.Item>
-            <Descriptions.Item label="本月工资 F1"><strong>{formatMoney(selectedRecord.monthly_wage)}</strong></Descriptions.Item>
-            <Descriptions.Item label="薪资小计 F2"><strong>{formatMoney(selectedRecord.wage_subtotal)}</strong></Descriptions.Item>
-            <Descriptions.Item label="个人社保 F3">{formatMoney(selectedRecord.personal_welfare)}</Descriptions.Item>
-            <Descriptions.Item label="个税 F11/F14">{formatMoney(selectedRecord.tax_amount)}</Descriptions.Item>
-            <Descriptions.Item label="银行实发 F15"><strong style={{ color: '#52c41a', fontSize: 16 }}>{formatMoney(selectedRecord.net_pay)}</strong></Descriptions.Item>
-            <Descriptions.Item label="公司社保 F17">{formatMoney(selectedRecord.company_welfare)}</Descriptions.Item>
-            <Descriptions.Item label="人力成本 F25"><strong>{formatMoney(selectedRecord.total_cost)}</strong></Descriptions.Item>
-            <Descriptions.Item label="税率级数">{selectedRecord.tax_bracket_level ? `第${selectedRecord.tax_bracket_level}级` : '—'}</Descriptions.Item>
-          </Descriptions>
-        )}
-      </Modal>
+      <Table
+        columns={columns}
+        dataSource={records}
+        loading={loading}
+        scroll={{ x: 5200 }}
+        size="small"
+        pagination={{ pageSize: 30 }}
+      />
     </div>
   );
 };

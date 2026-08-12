@@ -2,20 +2,19 @@ import React, { useState } from 'react';
 import { Layout, Menu, Typography, Avatar, Dropdown } from 'antd';
 import {
   TeamOutlined, DollarOutlined, CalculatorOutlined,
-  FileTextOutlined, SettingOutlined, ScheduleOutlined,
-  UserOutlined, LogoutOutlined, BankOutlined,
+  LogoutOutlined, ScheduleOutlined,
+  UserOutlined, SettingOutlined, SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const { Header, Sider, Content } = Layout;
 
 const menuItems = [
-  { key: '/', icon: <CalculatorOutlined />, label: '工作台' },
+  { key: '/', icon: <CalculatorOutlined />, label: '数据总览' },
   { key: '/employees', icon: <TeamOutlined />, label: '员工花名册' },
-  { key: '/payroll', icon: <DollarOutlined />, label: '薪资计算' },
+  { key: '/social', icon: <SafetyCertificateOutlined />, label: '社保管理' },
   { key: '/attendance', icon: <ScheduleOutlined />, label: '考勤管理' },
-  { key: '/companies', icon: <BankOutlined />, label: '公司管理' },
-  { key: '/reports', icon: <FileTextOutlined />, label: '数据报表' },
+  { key: '/payroll', icon: <DollarOutlined />, label: '薪资计算' },
   { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
 ];
 
@@ -27,6 +26,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+
+  // 社保管理有两个子页面，需要高亮父菜单
+  const selectedKey = location.pathname.startsWith('/social')
+    ? '/social'
+    : location.pathname;
 
   const handleLogout = () => {
     localStorage.removeItem('supabase_token');
@@ -52,7 +56,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         <Menu
           theme="dark"
           mode="inline"
-          selectedKeys={[location.pathname]}
+          selectedKeys={[selectedKey]}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
         />

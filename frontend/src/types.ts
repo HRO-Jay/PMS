@@ -1,4 +1,4 @@
-/* 全局类型定义 */
+/* 全局类型定义 — v2 */
 
 export interface Company {
   code: string;
@@ -12,123 +12,155 @@ export interface Company {
   is_active: boolean;
 }
 
+// ====== 员工花名册 ======
 export interface Employee {
   id: number;
-  employee_no: string;
+  unique_hash: string;
   name: string;
   company_code: string;
   company_full_name: string;
+  cost_center?: string;
   department?: string;
+  reporter?: string;
   position?: string;
-  tax_type: 'normal' | 'service' | 'non_taxable';
-  social_status: '有社保' | '无社保' | '残疾人';
-  social_base?: number;
-  housing_fund_base?: number;
   join_date?: string;
-  leave_date?: string;
+  work_schedule: string;
+  tax_type: 'normal' | 'service' | 'non_taxable';
   is_active: boolean;
   created_at: string;
   updated_at: string;
 }
 
-export interface SalaryRecord {
+// ====== 社保管理 ======
+export interface SocialRecord {
   id: number;
-  employee_id: number;
+  unique_hash: string;
   period: string;
-  month_number: number;
-  base_salary?: number;
-  allowance?: number;
-  attendance_adjust?: number;
-  insurance_comm?: number;
-  kpi_provision?: number;
-  office_comm?: number;
-  performance?: number;
-  apartment_comm?: number;
-  heat_allowance?: number;
-  other_allowance?: number;
-  security_bonus?: number;
-  cleaning_bonus?: number;
-  monthly_wage?: number;
-  wage_subtotal?: number;
-  personal_welfare?: number;
-  company_welfare?: number;
-  tax_amount?: number;
-  net_pay?: number;
-  total_cost?: number;
-  cumul_taxable_income?: number;
-  tax_bracket_level?: number;
-  child_edu_deduct?: number;
-  mortgage_deduct?: number;
-  rent_deduct?: number;
-  elder_care_deduct?: number;
-  education_deduct?: number;
-  is_locked: boolean;
+  welfare_set: string;
+  social_base?: number;
+  housing_fund_base?: number;
+  // 个人
+  pension_p?: number;
+  medical_p?: number;
+  unemployment_p?: number;
+  housing_fund_p?: number;
+  supp_housing_p?: number;
+  // 公司
+  pension_c?: number;
+  medical_c?: number;
+  unemployment_c?: number;
+  injury_c?: number;
+  maternity_c?: number;
+  housing_fund_c?: number;
+  supp_housing_c?: number;
   created_at: string;
   updated_at: string;
 }
 
-export interface SocialPolicy {
+// ====== 福利套设置 ======
+export interface WelfareSet {
   id: number;
-  company_code: string;
-  effective_date: string;
+  name: string;
+  region: string;
+  description?: string;
+  // 个人费率
   pension_rate_p: number;
-  pension_rate_c: number;
   medical_rate_p: number;
-  medical_rate_c: number;
   medical_fixed_p: number;
   unemployment_rate_p: number;
+  housing_fund_rate_p: number;
+  supp_housing_rate_p: number;
+  // 公司费率
+  pension_rate_c: number;
+  medical_rate_c: number;
   unemployment_rate_c: number;
   injury_rate_c: number;
   maternity_rate_c: number;
-  housing_fund_rate_p: number;
   housing_fund_rate_c: number;
-  supp_housing_rate_p: number;
+  supp_housing_rate_c: number;
   rounding_method: 'ROUND' | 'ROUNDUP' | 'ROUND_1DEC';
+  is_active: boolean;
 }
 
+// ====== 考勤管理 ======
 export interface AttendanceRecord {
   id: number;
-  employee_id: number;
+  unique_hash: string;
+  period: string;
   employee_no: string;
   name: string;
   sick_days: number;
+  sick_adjust: number;
   personal_days: number;
+  personal_adjust: number;
   annual_leave: number;
+  compensatory_leave: number;
+  absenteeism_days: number;
+  funeral_leave: number;
+  parental_leave: number;
+  marriage_leave: number;
+  maternity_leave: number;
   overtime_days: number;
-  adjustment_amount: number;
+  on_off_adjust: number;
 }
 
-export interface PayrollRunResponse {
+// ====== 薪资计算 ======
+export interface SalaryRecord {
+  id: number;
+  unique_hash: string;
   period: string;
-  total_employees: number;
-  success_count: number;
-  error_count: number;
-  errors: { emp_id: number; error: string }[];
-  total_wages?: number;
-  total_tax?: number;
-  total_net_pay?: number;
+  month_number: number;
+  // 收入项
+  base_salary?: number;
+  allowance_supp?: number;
+  attendance_adjust?: number;
+  other_adjust?: number;
+  insurance_amount?: number;
+  kpi_provision?: number;
+  monthly_wage?: number;
+  office_comm?: number;
+  performance_pay?: number;
+  apartment_comm?: number;
+  talent_kpi?: number;
+  heat_allowance?: number;
+  other_allowance?: number;
+  security_bonus?: number;
+  cleaning_bonus?: number;
+  wage_subtotal?: number;
+  // 社保基数
+  social_base?: number;
+  housing_fund_base?: number;
+  // 个人福利
+  pension_p?: number;
+  medical_p?: number;
+  unemployment_p?: number;
+  housing_fund_p?: number;
+  supp_housing_p?: number;
+  // 隐藏 — 专项扣除
+  cumul_child_edu?: number;
+  cumul_mortgage?: number;
+  cumul_rent?: number;
+  cumul_elder_care?: number;
+  cumul_continuing_edu?: number;
+  // 隐藏 — 个税中间值
+  month_taxable_wage?: number;
+  cumul_income?: number;
+  taxable_income?: number;
+  cumul_tax_paid?: number;
+  // 当月个税
+  monthly_tax?: number;
+  insurance_adjust?: number;
+  net_pay?: number;
+  // 公司福利
+  pension_c?: number;
+  medical_c?: number;
+  unemployment_c?: number;
+  injury_c?: number;
+  maternity_c?: number;
+  housing_fund_c?: number;
+  supp_housing_c?: number;
+  // 企业成本
   total_cost?: number;
-}
-
-export interface CompanySummaryItem {
-  company_code: string;
-  company_full_name: string;
-  region: string;
-  employee_count: number;
-  total_wages: number;
-  total_personal_welfare: number;
-  total_company_welfare: number;
-  total_tax: number;
-  total_net_pay: number;
-  total_cost: number;
-}
-
-export interface CompanySummaryReport {
-  period: string;
-  generated_at: string;
-  companies: CompanySummaryItem[];
-  grand_total_wages: number;
-  grand_total_tax: number;
-  grand_total_net_pay: number;
-  grand_total_cost: number;
+  provision_welfare?: number;
+  is_locked: boolean;
 }
