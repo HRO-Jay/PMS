@@ -87,17 +87,26 @@ const EmployeesPage: React.FC = () => {
     // company_code 字段此时存的是全称（下拉 value 设为 full_name）
     const fullName = values.company_code;
     const company = companies.find((c: any) => c.full_name === fullName);
-    // 自动生成唯一值
-    const unique_hash = await genUniqueHash(values.name, fullName);
+    const joinDateStr = values.join_date ? values.join_date.format('YYYY-MM-DD') : '';
+    // 自动生成唯一值（姓名 + 公司全称 + 入职日期）
+    const unique_hash = await genUniqueHash(values.name, fullName, joinDateStr);
     const payload = {
       ...values,
       company_code: company?.code || '',
       company_full_name: fullName,
-      join_date: values.join_date ? values.join_date.format('YYYY-MM-DD') : undefined,
+      join_date: joinDateStr || undefined,
       unique_hash,
     };
     try {
       if (editingEmployee) {
+        // 入职日期不可修改（唯一值绑定）
+        const originalJoin = editingEmployee.join_date
+          ? String(editingEmployee.join_date).slice(0, 10)
+          : '';
+        if (originalJoin && joinDateStr && originalJoin !== joinDateStr) {
+          message.error('入职日期不可修改（会影响关联数据）');
+          return;
+        }
         await updateEmployee(editingEmployee.id, payload);
         message.success('更新成功');
       } else {
@@ -172,8 +181,9 @@ const EmployeesPage: React.FC = () => {
           const rawSchedule = String(row.work_schedule || '').trim();
           const workSchedule = SCHEDULE_ALIAS[rawSchedule] || '全日制';
 
-          // 4. 自动生成唯一值
-          const unique_hash = await genUniqueHash(row.name, matched.full_name);
+          // 4. 自动生成唯一值（姓名 + 公司全称 + 入职日期）
+          const joinDateStr = row.join_date ? String(row.join_date).slice(0, 10) : '';
+          const unique_hash = await genUniqueHash(row.name, matched.full_name, joinDateStr);
 
           // 5. 入库（已存在则更新）
           const existing = await api.get(`/employees?unique_hash=eq.${unique_hash}`);
@@ -300,7 +310,9 @@ const EmployeesPage: React.FC = () => {
             <Form.Item name="position" label="职位"><Input /></Form.Item>
           </Space>
           <Space style={{ width: '100%' }} size="large">
-            <Form.Item name="join_date" label="入职日期"><DatePicker style={{width:'100%'}} /></Form.Item>
+            <Form.Item name="join_date" label="入职日期" extra={editingEmployee?.join_date ? '入职日期不可修改' : undefined}>
+              <DatePicker style={{ width: '100%' }} disabled={!!editingEmployee?.join_date} />
+            </Form.Item>
             <Form.Item name="work_schedule" label="考勤制" rules={[{ required: true }]}>
               <Select options={WORK_SCHEDULES.map(s => ({ value: s, label: s }))} />
             </Form.Item>
