@@ -6,6 +6,7 @@ import { fetchCompanies } from '../api/endpoints';
 import type { Employee } from '../types';
 import dayjs from 'dayjs';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
+import { genUniqueHash } from '../utils/hash';
 import api from '../api/client';
 
 const WORK_SCHEDULES = ['全日制', '非全日制', '不定时工作制'];
@@ -14,6 +15,18 @@ const TAX_TYPES = [
   { value: 'service', label: '劳务报酬（20%）' },
   { value: 'non_taxable', label: '不计税（HK员工）' },
 ];
+
+// 计税方式中文 → 枚举 转换
+const TAX_LABEL_TO_VALUE: Record<string, string> = {
+  '正常计税': 'normal', '累计预扣': 'normal', 'normal': 'normal',
+  '劳务计税': 'service', '劳务报酬': 'service', 'service': 'service',
+  '国内不计税': 'non_taxable', '不计税': 'non_taxable', 'non_taxable': 'non_taxable',
+};
+
+// 考勤制中文 → 标准值
+const SCHEDULE_ALIAS: Record<string, string> = {
+  '全日制': '全日制', '非全日制': '非全日制', '不定时工作制': '不定时工作制',
+};
 
 // 表头定义
 const EXPORT_DEF: ExportDef = {
@@ -71,9 +84,17 @@ const EmployeesPage: React.FC = () => {
 
   const handleSave = async () => {
     const values = await form.validateFields();
+    // company_code 字段此时存的是全称（下拉 value 设为 full_name）
+    const fullName = values.company_code;
+    const company = companies.find((c: any) => c.full_name === fullName);
+    // 自动生成唯一值
+    const unique_hash = await genUniqueHash(values.name, fullName);
     const payload = {
       ...values,
+      company_code: company?.code || '',
+      company_full_name: fullName,
       join_date: values.join_date ? values.join_date.format('YYYY-MM-DD') : undefined,
+      unique_hash,
     };
     try {
       if (editingEmployee) {
@@ -109,25 +130,82 @@ const EmployeesPage: React.FC = () => {
         message.info('未找到有效数据');
         return;
       }
+      // 公司列表（含简称），用于简称转全称
+      const companiesRes = await fetchCompanies();
+      const companyList: any[] = companiesRes.data.companies;
+
       let success = 0;
+      let failed = 0;
+      const failedReasons: string[] = [];
+
       for (const row of data) {
         try {
-          // 找公司 code
-          const companies = await fetchCompanies();
-          const matched = companies.data.companies.find(
-            (c: any) => c.full_name === row.company_full_name
-          );
-          await createEmployee({
-            ...row,
-            company_code: matched?.code || '',
+          // 1. 发薪公司：简称 → 全称（精确 → 前缀/包含 模糊匹配）
+          const rawCompany = String(row.company_full_name || '').trim();
+          let matched = companyList.find((c: any) => c.full_name === rawCompany);
+          if (!matched) {
+            matched = companyList.find((c: any) => c.short_name === rawCompany);
+          }
+          if (!matched) {
+            // 模糊匹配：简称包含在输入里，或输入包含简称
+            matched = companyList.find((c: any) =>
+              c.short_name && (rawCompany.includes(c.short_name) || c.short_name.includes(rawCompany))
+            );
+          }
+          if (!matched) {
+            // 再兜底：全称包含输入 或 输入包含全称
+            matched = companyList.find((c: any) =>
+              rawCompany.includes(c.full_name) || c.full_name.includes(rawCompany)
+            );
+          }
+          if (!matched) {
+            failed++;
+            failedReasons.push(`${row.name || '?'}（公司「${rawCompany}」无法识别）`);
+            continue;
+          }
+
+          // 2. 计税方式：中文 → 枚举
+          const rawTax = String(row.tax_type || '正常计税').trim();
+          const taxType = TAX_LABEL_TO_VALUE[rawTax] || 'normal';
+
+          // 3. 考勤制：中文 → 标准值
+          const rawSchedule = String(row.work_schedule || '').trim();
+          const workSchedule = SCHEDULE_ALIAS[rawSchedule] || '全日制';
+
+          // 4. 自动生成唯一值
+          const unique_hash = await genUniqueHash(row.name, matched.full_name);
+
+          // 5. 入库（已存在则更新）
+          const existing = await api.get(`/employees?unique_hash=eq.${unique_hash}`);
+          const empPayload = {
+            name: row.name,
+            company_code: matched.code,
+            company_full_name: matched.full_name,
+            cost_center: row.cost_center,
+            department: row.department,
+            reporter: row.reporter,
+            position: row.position,
+            join_date: row.join_date ? String(row.join_date).slice(0, 10) : undefined,
+            work_schedule: workSchedule,
+            tax_type: taxType,
+            unique_hash,
             is_active: true,
-          });
+          };
+          if (existing.data.length > 0) {
+            await updateEmployee(existing.data[0].id, empPayload);
+          } else {
+            await createEmployee(empPayload);
+          }
           success++;
         } catch {
-          // 可能已存在，跳过
+          failed++;
         }
       }
-      message.success(`导入完成：${success} / ${data.length} 条`);
+      if (failed > 0) {
+        message.warning(`导入完成：成功 ${success} 条，失败 ${failed} 条。${failedReasons.slice(0, 5).join('；')}`);
+      } else {
+        message.success(`导入完成：${success} / ${data.length} 条`);
+      }
       loadData();
     } catch (e: any) {
       message.error(e.message || '导入失败');
@@ -211,10 +289,7 @@ const EmployeesPage: React.FC = () => {
           </Form.Item>
           <Form.Item name="company_code" label="发薪公司" rules={[{ required: true }]}>
             <Select showSearch optionFilterProp="label" placeholder="选择公司"
-              options={companies.map(c => ({ value: c.code, label: c.full_name }))} />
-          </Form.Item>
-          <Form.Item name="company_full_name" label="公司全称" rules={[{ required: true }]}>
-            <Input placeholder="与所选公司一致" />
+              options={companies.map(c => ({ value: c.full_name, label: c.full_name }))} />
           </Form.Item>
           <Space style={{ width: '100%' }} size="large">
             <Form.Item name="cost_center" label="成本中心"><Input /></Form.Item>

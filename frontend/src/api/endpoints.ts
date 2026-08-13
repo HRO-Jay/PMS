@@ -2,7 +2,7 @@ import api from './client';
 
 // ====== 公司 ======
 export const fetchCompanies = () =>
-  api.get('/companies?select=code,full_name,region&order=code&is_active=eq.true').then(r => ({
+  api.get('/companies?select=code,full_name,short_name,region&order=code&is_active=eq.true').then(r => ({
     data: { total: r.data.length, companies: r.data }
   }));
 
