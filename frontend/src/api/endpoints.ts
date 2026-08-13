@@ -1,29 +1,40 @@
 import api from './client';
 
-// ====== 公司 ======
+// ====== 公司简称对应表 ======
+export const fetchCompanyMapping = () =>
+  api.get('/company_mapping?select=*&order=sort_order');
+
+// ====== 公司（兼容旧接口，返回简称对应表） ======
 export const fetchCompanies = () =>
-  api.get('/companies?select=code,full_name,short_name,region&order=code&is_active=eq.true').then(r => ({
-    data: { total: r.data.length, companies: r.data }
+  api.get('/company_mapping?select=*&order=sort_order').then(r => ({
+    data: {
+      total: r.data.length,
+      companies: r.data.map((c: any) => ({
+        code: c.display_value,
+        full_name: c.full_name,
+        short_name: c.display_value,
+        region: c.region,
+      })),
+    }
   }));
 
 // ====== 员工花名册 ======
-export const fetchEmployees = (params?: { company_code?: string; is_active?: boolean; search?: string }) => {
+export const fetchEmployees = (params?: { pay_company?: string; is_active?: boolean; search?: string }) => {
   let query = '/employees?select=*';
-  if (params?.company_code) query += `&company_code=eq.${params.company_code}`;
-  if (params?.is_active !== undefined) query += `&is_active=eq.${params.is_active}`;
+  if (params?.pay_company) query += `&pay_company=eq.${encodeURIComponent(params.pay_company)}`;
   if (params?.search) query += `&or=(name.ilike.*${params.search}*)`;
-  query += '&order=name';
+  query += '&order=id';
   return api.get(query);
 };
 
 export const createEmployee = (data: any) =>
-  api.post('/employees', { ...data, is_active: true });
+  api.post('/employees', data);
 
 export const updateEmployee = (id: number, data: any) =>
   api.patch(`/employees?id=eq.${id}`, data);
 
 export const deleteEmployee = (id: number) =>
-  api.patch(`/employees?id=eq.${id}`, { is_active: false });
+  api.patch(`/employees?id=eq.${id}`, { is_disabled: true });
 
 // ====== 福利套 ======
 export const fetchWelfareSets = () =>

@@ -1,6 +1,6 @@
 /**
- * 唯一值生成 — 姓名 + 发薪公司全称 + 入职日期 的 SHA256 前 16 位十六进制。
- * 入职日期是不可变字段，确保唯一值稳定。
+ * 唯一值生成 — 姓名 + 发薪公司简称 + 入职日期 的 SHA256 前 16 位十六进制。
+ * 发薪公司用简称（保证"开弈中国"和"开弈中国-美元"分开），入职日期不可变。
  */
 
 /** 把各种日期格式统一成 YYYY-MM-DD，空值返回空字符串 */
@@ -18,9 +18,9 @@ function normalizeDate(d: any): string {
   return s;
 }
 
-export async function genUniqueHash(name: string, companyFullName: string, joinDate?: any): Promise<string> {
-  const jd = normalizeDate(joinDate);
-  const text = `${name}|${companyFullName}|${jd}`;
+export async function genUniqueHash(name: string, payCompanyShortName: string, entryDate?: any): Promise<string> {
+  const ed = normalizeDate(entryDate);
+  const text = `${name}|${payCompanyShortName}|${ed}`;
   const data = new TextEncoder().encode(text);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -32,9 +32,9 @@ export async function genUniqueHash(name: string, companyFullName: string, joinD
 }
 
 /** 同步版本（纯 JS 兜底，非 Web Crypto） */
-export function genUniqueHashSync(name: string, companyFullName: string, joinDate?: any): string {
-  const jd = normalizeDate(joinDate);
-  const text = `${name}|${companyFullName}|${jd}`;
+export function genUniqueHashSync(name: string, payCompanyShortName: string, entryDate?: any): string {
+  const ed = normalizeDate(entryDate);
+  const text = `${name}|${payCompanyShortName}|${ed}`;
   let h1 = 0x811c9dc5;
   let h2 = 0x01000193;
   for (let i = 0; i < text.length; i++) {

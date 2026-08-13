@@ -71,7 +71,7 @@ const PayrollPage: React.FC = () => {
     setLoading(true);
     try {
       const [empRes, salRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,company_full_name,cost_center,department,reporter,position,join_date,work_schedule,tax_type&is_active=eq.true'),
+        api.get('/employees?select=unique_hash,name,pay_company,cost_center,department,report_to,position,entry_date,attendance_type,tax_method'),
         api.get(`/salary_records?select=*&period=eq.${period}&order=unique_hash`),
       ]);
 
@@ -87,14 +87,14 @@ const PayrollPage: React.FC = () => {
           ...r,
           key: r.id,
           employee_name: emp.name || r.unique_hash,
-          company_full_name: emp.company_full_name || '',
+          pay_company: emp.pay_company || '',
           cost_center: emp.cost_center || '',
           department: emp.department || '',
-          reporter: emp.reporter || '',
+          report_to: emp.report_to || '',
           position: emp.position || '',
-          join_date: emp.join_date || '',
-          work_schedule: emp.work_schedule || '',
-          tax_type: emp.tax_type || 'normal',
+          entry_date: emp.entry_date || '',
+          attendance_type: emp.attendance_type || '',
+          tax_method: emp.tax_method || 'normal',
           personal_welfare_total: personalTotal,
           company_welfare_total: companyTotal,
         };
@@ -112,7 +112,7 @@ const PayrollPage: React.FC = () => {
     });
   };
 
-  const taxTypeMap: Record<string, string> = { normal: '累计预扣', service: '劳务20%', non_taxable: '免税' };
+  const taxTypeMap: Record<string, string> = { normal: '正常计税', service: '劳务计税', non_taxable: '不计税' };
 
   const formatYuan = (v: any) => (v ?? v === 0) ? `¥${Number(v).toLocaleString('zh-CN', {minimumFractionDigits:2,maximumFractionDigits:2})}` : '—';
 
@@ -120,14 +120,14 @@ const PayrollPage: React.FC = () => {
   const columns: any[] = [
     // == 基本信息 ==
     { title: '姓名', dataIndex: 'employee_name', key: 'name', width: 80, fixed: 'left' },
-    { title: '发薪公司', dataIndex: 'company_full_name', key: 'co', width: 180, ellipsis: true, fixed: 'left' },
+    { title: '发薪公司', dataIndex: 'pay_company', key: 'co', width: 130, ellipsis: true, fixed: 'left' },
     { title: '成本中心', dataIndex: 'cost_center', key: 'cc', width: 80 },
     { title: '部门', dataIndex: 'department', key: 'dept', width: 80 },
-    { title: '汇报人', dataIndex: 'reporter', key: 'rpt', width: 70 },
+    { title: '汇报人', dataIndex: 'report_to', key: 'rpt', width: 70 },
     { title: '职位', dataIndex: 'position', key: 'pos', width: 80 },
-    { title: '入职日期', dataIndex: 'join_date', key: 'jd', width: 90 },
-    { title: '考勤制', dataIndex: 'work_schedule', key: 'ws', width: 80, render: (v:string) => <Tag>{v}</Tag> },
-    { title: '计税方式', dataIndex: 'tax_type', key: 'tax', width: 90, render: (v:string) => <Tag color={v==='normal'?'blue':v==='service'?'orange':'green'}>{taxTypeMap[v] || v}</Tag> },
+    { title: '入职日期', dataIndex: 'entry_date', key: 'jd', width: 90 },
+    { title: '考勤制', dataIndex: 'attendance_type', key: 'ws', width: 110, render: (v:string) => <Tag>{v}</Tag> },
+    { title: '计税方式', dataIndex: 'tax_method', key: 'tax', width: 90, render: (v:string) => <Tag color={v==='normal'?'blue':v==='service'?'orange':'green'}>{taxTypeMap[v] || v}</Tag> },
 
     // == 收入项 ==
     { title: '基本工资', dataIndex: 'base_salary', key: 'bs', width: 100, render: formatYuan },

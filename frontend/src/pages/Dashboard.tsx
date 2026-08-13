@@ -18,7 +18,7 @@ const Dashboard: React.FC = () => {
     setLoading(true);
     try {
       // Employee count
-      const empRes = await fetchEmployees({ is_active: true });
+      const empRes = await api.get('/employees?select=id&status=eq.在职');
       const empCount = empRes.data.length;
 
       // Salary summary
@@ -38,9 +38,9 @@ const Dashboard: React.FC = () => {
       const fullSalData = await api.get(
         `/salary_records?select=unique_hash,wage_subtotal,net_pay,total_cost&period=eq.${period}`
       );
-      const empData = await api.get('/employees?select=unique_hash,company_full_name&is_active=eq.true');
+      const empData = await api.get('/employees?select=unique_hash,pay_company');
       const companyMap: Record<string, string> = {};
-      empData.data.forEach((e: any) => { companyMap[e.unique_hash] = e.company_full_name; });
+      empData.data.forEach((e: any) => { companyMap[e.unique_hash] = e.pay_company; });
 
       const byCompany: Record<string, { name: string; wages: number; net: number; cost: number }> = {};
       fullSalData.data.forEach((r: any) => {

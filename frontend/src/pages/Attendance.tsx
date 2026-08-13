@@ -42,7 +42,7 @@ const AttendancePage: React.FC = () => {
         `/attendance_records?select=*&period=eq.${period}&order=unique_hash`
       );
       // 加载员工姓名映射
-      const empRes = await api.get('/employees?select=unique_hash,name,company_full_name,cost_center,department,reporter,position,join_date,work_schedule&is_active=eq.true');
+      const empRes = await api.get('/employees?select=unique_hash,name,pay_company,cost_center,department,report_to,position,entry_date,attendance_type');
       const empMap: Record<string, any> = {};
       empRes.data.forEach((e: any) => { empMap[e.unique_hash] = e; });
 
@@ -53,13 +53,13 @@ const AttendancePage: React.FC = () => {
           ...r,
           key: r.id,
           employee_name: emp.name || r.unique_hash,
-          company_full_name: emp.company_full_name || '',
+          pay_company: emp.pay_company || '',
           cost_center: emp.cost_center || '',
           department: emp.department || '',
-          reporter: emp.reporter || '',
+          report_to: emp.report_to || '',
           position: emp.position || '',
-          join_date: emp.join_date || '',
-          work_schedule: emp.work_schedule || '',
+          entry_date: emp.entry_date || '',
+          attendance_type: emp.attendance_type || '',
           attendance_adjust_total: adjustTotal,
         };
       }));
@@ -129,13 +129,13 @@ const AttendancePage: React.FC = () => {
 
   const columns = [
     { title: '姓名', dataIndex: 'employee_name', key: 'name', width: 80, fixed: 'left' as const },
-    { title: '发薪公司', dataIndex: 'company_full_name', key: 'co', width: 180, ellipsis: true },
+    { title: '发薪公司', dataIndex: 'pay_company', key: 'co', width: 140, ellipsis: true },
     { title: '成本中心', dataIndex: 'cost_center', key: 'cc', width: 80 },
     { title: '部门', dataIndex: 'department', key: 'dept', width: 80 },
-    { title: '汇报人', dataIndex: 'reporter', key: 'rpt', width: 70 },
+    { title: '汇报人', dataIndex: 'report_to', key: 'rpt', width: 70 },
     { title: '职位', dataIndex: 'position', key: 'pos', width: 80 },
-    { title: '入职日期', dataIndex: 'join_date', key: 'jd', width: 90 },
-    { title: '考勤制', dataIndex: 'work_schedule', key: 'ws', width: 80 },
+    { title: '入职日期', dataIndex: 'entry_date', key: 'jd', width: 90 },
+    { title: '考勤制', dataIndex: 'attendance_type', key: 'ws', width: 110 },
     { title: '病假(天)', dataIndex: 'sick_days', key: 'sd', width: 80,
       render: (v:number, r:any) => <InputNumber size="small" min={0} value={v} style={{width:60}} onChange={val=>updateCell(r.id,'sick_days',val)} /> },
     { title: '病假金额', dataIndex: 'sick_adjust', key: 'sa', width: 90,

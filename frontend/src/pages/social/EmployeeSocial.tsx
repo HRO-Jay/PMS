@@ -46,7 +46,7 @@ const EmployeeSocial: React.FC = () => {
     setLoading(true);
     try {
       // 加载员工列表
-      const empRes = await api.get('/employees?select=unique_hash,name,company_full_name&is_active=eq.true');
+      const empRes = await api.get('/employees?select=unique_hash,name,pay_company');
       setEmployees(empRes.data);
 
       // 加载福利套列表
@@ -57,7 +57,7 @@ const EmployeeSocial: React.FC = () => {
       const recRes = await api.get(`/social_records?select=*&period=eq.${period}`);
       // 关联员工姓名
       const empMap: Record<string, string> = {};
-      empRes.data.forEach((e: any) => { empMap[e.unique_hash] = e.name + ' | ' + e.company_full_name; });
+      empRes.data.forEach((e: any) => { empMap[e.unique_hash] = e.name + ' | ' + e.pay_company; });
 
       setRecords(recRes.data.map((r: any) => ({
         ...r,
@@ -180,7 +180,7 @@ const EmployeeSocial: React.FC = () => {
         <Form form={form} layout="vertical">
           <Form.Item name="unique_hash" label="员工" rules={[{ required: true }]}>
             <Select showSearch optionFilterProp="label" placeholder="选择员工"
-              options={employees.map((e:any)=>({value:e.unique_hash,label:`${e.name} — ${e.company_full_name}`}))} />
+              options={employees.map((e:any)=>({value:e.unique_hash,label:`${e.name} — ${e.pay_company}`}))} />
           </Form.Item>
           <Form.Item name="welfare_set" label="福利套" rules={[{ required: true }]}>
             <Select options={welfareSets.map(w=>({value:w,label:w}))} />

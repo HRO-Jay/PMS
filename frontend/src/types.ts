@@ -17,18 +17,28 @@ export interface Employee {
   id: number;
   unique_hash: string;
   name: string;
-  company_code: string;
-  company_full_name: string;
+  status: '在职' | '离职';
   cost_center?: string;
+  pay_company: string;          // 发薪公司（简称）
+  tax_method: 'normal' | 'service' | 'non_taxable';
   department?: string;
-  reporter?: string;
+  report_to?: string;
   position?: string;
-  join_date?: string;
-  work_schedule: string;
-  tax_type: 'normal' | 'service' | 'non_taxable';
-  is_active: boolean;
+  job_level: string;            // 职级 Ⅰ-Ⅶ
+  attendance_type: string;      // 考勤制：全日制/非全日制/代收代付残疾人/不定时工作制
+  entry_date: string;           // 入职日期
+  leave_date?: string;          // 离职日期
+  is_disabled: boolean;
   created_at: string;
-  updated_at: string;
+}
+
+// ====== 公司简称对应表 ======
+export interface CompanyMapping {
+  id: number;
+  display_value: string;   // 简称
+  full_name: string;       // 全称
+  region?: string;
+  sort_order: number;
 }
 
 // ====== 社保管理 ======
