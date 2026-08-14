@@ -55,8 +55,30 @@ export function exportXlsx(def: ExportDef, data: any[], period?: string) {
 }
 
 /**
+ * 把单元格值里的日期（Date 对象或 Excel 序列号）转成 YYYY-MM-DD 字符串。
+ */
+function formatDateCell(val: any): any {
+  // Date 对象（cellDates: true 时日期单元格会读成 Date）
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    const y = val.getFullYear();
+    const m = String(val.getMonth() + 1).padStart(2, '0');
+    const d = String(val.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  // Excel 日期序列号（5 位数字，约 40000~60000 范围）
+  if (typeof val === 'number' && val >= 40000 && val <= 60000) {
+    const date = new Date(Date.UTC(1899, 11, 30) + Math.round(val) * 86400000);
+    const y = date.getUTCFullYear();
+    const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(date.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return val;
+}
+
+/**
  * 导入 XLSX 文件，返回解析后的数据。
- * 自动匹配表头文字 → key。
+ * 自动匹配表头文字 → key，日期单元格自动转成 YYYY-MM-DD。
  *
  * @param def   表头定义
  * @param file  File 对象
@@ -70,9 +92,9 @@ export function importXlsx(def: ExportDef, file: File): Promise<{
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const wb = XLSX.read(e.target?.result, { type: 'binary' });
+        const wb = XLSX.read(e.target?.result, { type: 'binary', cellDates: true });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
 
         if (rows.length < 2) {
           resolve({ data: [], import_errors: [] });
@@ -104,7 +126,7 @@ export function importXlsx(def: ExportDef, file: File): Promise<{
             const key = labelToKey[label];
             if (key) {
               const val = row[j];
-              record[key] = val !== undefined && val !== null && val !== '' ? val : undefined;
+              record[key] = val !== undefined && val !== null && val !== '' ? formatDateCell(val) : undefined;
             }
           }
 

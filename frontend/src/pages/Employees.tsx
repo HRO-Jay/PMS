@@ -112,7 +112,6 @@ const EmployeesPage: React.FC = () => {
     form.setFieldsValue({
       status: '在职',
       tax_method: 'normal',
-      job_level: 'Ⅰ',
       attendance_type: '全日制',
     });
     setDrawerOpen(true);
@@ -229,10 +228,9 @@ const EmployeesPage: React.FC = () => {
             ? String(row.attendance_type).trim()
             : '全日制';
 
-          // 4. 职级校验
-          const jobLevel = JOB_LEVELS.includes(String(row.job_level || '').trim())
-            ? String(row.job_level).trim()
-            : 'Ⅰ';
+          // 4. 职级校验（可为空）
+          const rawJobLevel = String(row.job_level || '').trim();
+          const jobLevel = JOB_LEVELS.includes(rawJobLevel) ? rawJobLevel : undefined;
 
           // 5. 状态校验
           const status = STATUS_OPTIONS.includes(String(row.status || '').trim())
@@ -418,8 +416,8 @@ const EmployeesPage: React.FC = () => {
           <Form.Item name="position" label="职位">
             <Input />
           </Form.Item>
-          <Form.Item name="job_level" label="职级" rules={[{ required: true }]}>
-            <Select options={JOB_LEVELS.map(l => ({ value: l, label: l }))} />
+          <Form.Item name="job_level" label="职级">
+            <Select allowClear placeholder="可留空" options={JOB_LEVELS.map(l => ({ value: l, label: l }))} />
           </Form.Item>
           <Form.Item name="attendance_type" label="考勤制" rules={[{ required: true }]}>
             <Select options={ATTENDANCE_OPTIONS.map(s => ({ value: s, label: s }))} />

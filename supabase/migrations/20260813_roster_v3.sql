@@ -65,7 +65,7 @@ CREATE TABLE employees (
     department      VARCHAR(100),                    -- 部门
     report_to       VARCHAR(50),                     -- 汇报人
     position        VARCHAR(100),                    -- 职位
-    job_level       VARCHAR(10)  DEFAULT 'Ⅰ',        -- 职级 Ⅰ-Ⅶ
+    job_level       VARCHAR(10),                      -- 职级 Ⅰ-Ⅶ（可为空）
     attendance_type VARCHAR(20)  NOT NULL DEFAULT '全日制',  -- 考勤制
     entry_date      DATE         NOT NULL,           -- 入职日期（唯一值组成部分，不可改）
     leave_date      DATE,                            -- 离职日期（填写后自动离职）
