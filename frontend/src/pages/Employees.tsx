@@ -401,18 +401,6 @@ const EmployeesPage: React.FC = () => {
           </Space>
         }
       >
-        {editingEmployee && (
-          <Popconfirm
-            title="确认删除该员工？"
-            description="删除后数据库记录将同步删除，且关联的社保/考勤/薪资数据会失联。"
-            okText="删除"
-            cancelText="取消"
-            okButtonProps={{ danger: true }}
-            onConfirm={() => { handleDelete(editingEmployee.id); setDrawerOpen(false); }}
-          >
-            <Button danger block style={{ marginBottom: 16 }}>删除该员工</Button>
-          </Popconfirm>
-        )}
         <Form form={form} layout="vertical">
           <Form.Item name="name" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}>
             <Input />
@@ -453,6 +441,20 @@ const EmployeesPage: React.FC = () => {
             <DatePicker style={{ width: '100%' }} />
           </Form.Item>
         </Form>
+        {editingEmployee && (
+          <div style={{ marginTop: 16, textAlign: 'center' }}>
+            <Popconfirm
+              title="确认删除该员工？"
+              description="删除后数据库记录将同步删除，且关联的社保/考勤/薪资数据会失联。"
+              okText="删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => { handleDelete(editingEmployee.id); setDrawerOpen(false); }}
+            >
+              <Button danger size="small">删除该员工</Button>
+            </Popconfirm>
+          </div>
+        )}
       </Drawer>
     </div>
   );
