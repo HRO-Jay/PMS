@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Table, Button, Drawer, Form, Input, Select, Space, message, Tag, Card, DatePicker, Upload,
+  Table, Button, Drawer, Form, Input, Select, Space, message, Tag, Card, DatePicker, Upload, Dropdown,
 } from 'antd';
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import type { Employee, CompanyMapping } from '../types';
@@ -34,7 +34,7 @@ const TAX_LABEL_TO_VALUE: Record<string, string> = {
 const EXPORT_DEF: ExportDef = {
   module: '员工花名册',
   columns: [
-    { key: 'unique_hash', label: '唯一值', hidden: false },
+    { key: 'unique_hash', label: '唯一值', hidden: true },
     { key: 'name', label: '姓名', required: true },
     { key: 'status', label: '状态' },
     { key: 'cost_center', label: '成本中心' },
@@ -176,14 +176,15 @@ const EmployeesPage: React.FC = () => {
     }
   };
 
-  // ====== 导出（全量，唯一值隐藏列一并导出） ======
-  const handleExport = () => {
-    // 导出时带 unique_hash 作为隐藏列
-    const exportDef: ExportDef = {
-      module: '员工花名册',
-      columns: EXPORT_DEF.columns.map(c => c.key === 'unique_hash' ? { ...c, hidden: false } : c),
-    };
-    exportXlsx(exportDef, employees);
+  // ====== 导出（空白模板：只有表头；全量：当前所有员工，不含唯一值列） ======
+  const handleExport = (mode: 'template' | 'full') => {
+    if (mode === 'template') {
+      // 空白模板：只导出表头
+      exportXlsx(EXPORT_DEF, []);
+    } else {
+      // 全量：当前列表数据，唯一值列保持隐藏（不出现在表头）
+      exportXlsx(EXPORT_DEF, employees);
+    }
   };
 
   // ====== 导入（增量：有唯一值→更新，无唯一值→现算新增，重复→跳过） ======
@@ -332,7 +333,15 @@ const EmployeesPage: React.FC = () => {
       <Card size="small" style={{ marginBottom: 12 }}>
         <Space wrap>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>添加员工</Button>
-          <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
+          <Dropdown menu={{
+            items: [
+              { key: 'template', label: '导出空白模板' },
+              { key: 'full', label: '导出全量数据' },
+            ],
+            onClick: ({ key }) => handleExport(key as 'template' | 'full'),
+          }}>
+            <Button icon={<DownloadOutlined />}>导出</Button>
+          </Dropdown>
           <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
             <Button icon={<UploadOutlined />}>导入</Button>
           </Upload>
