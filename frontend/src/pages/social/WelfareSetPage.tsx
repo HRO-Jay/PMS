@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import {
   Table, Button, Modal, Form, Input, Select, Space, message, Card, InputNumber,
-  Tabs, Tag, Switch, DatePicker,
+  Tabs, Tag, Switch, DatePicker, Upload, Dropdown,
 } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { PlusOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import api from '../../api/client';
 import type { SocialWelfareSet, HousingFundSet } from '../../types';
 import { calcSocial, calcHousingFund } from '../../utils/welfareCalc';
+import { exportXlsx, importXlsx, type ExportDef } from '../../utils/importExport';
 import dayjs from 'dayjs';
 
 const REGIONS = ['上海', '北京', '天津', '深圳', '南京', '香港'];
@@ -19,6 +20,57 @@ const ROUND_OPTIONS = [
 const PRECISION_OPTIONS = [0, 1, 2].map(p => ({ value: p, label: `${p} 位` }));
 
 const rateInput = (step = 0.0001) => ({ step, min: 0, max: 1, style: { width: 110 } });
+
+// 社保福利套导出表头
+const SOCIAL_EXPORT_DEF: ExportDef = {
+  module: '社保福利套',
+  columns: [
+    { key: 'code', label: '福利套编码', required: true },
+    { key: 'name', label: '福利套名称', required: true },
+    { key: 'region', label: '地区' },
+    { key: 'status', label: '状态' },
+    { key: 'base_min', label: '社保基数下限' },
+    { key: 'base_max', label: '社保基数上限' },
+    { key: 'pension_enabled', label: '养老缴纳开关' },
+    { key: 'medical_enabled', label: '医疗缴纳开关' },
+    { key: 'unemployment_enabled', label: '失业缴纳开关' },
+    { key: 'injury_enabled', label: '工伤缴纳开关' },
+    { key: 'maternity_enabled', label: '生育缴纳开关' },
+    { key: 'pension_rate_p', label: '个人养老比例' },
+    { key: 'medical_rate_p', label: '个人医疗比例' },
+    { key: 'medical_fixed_p', label: '个人医疗固定附加' },
+    { key: 'unemployment_rate_p', label: '个人失业比例' },
+    { key: 'pension_rate_c', label: '公司养老比例' },
+    { key: 'medical_rate_c', label: '公司医疗比例' },
+    { key: 'unemployment_rate_c', label: '公司失业比例' },
+    { key: 'injury_rate_c', label: '公司工伤比例' },
+    { key: 'maternity_rate_c', label: '公司生育比例' },
+    { key: 'rounding_method', label: '取整方式' },
+    { key: 'rounding_precision', label: '保留精度' },
+  ],
+};
+
+// 公积金福利套导出表头
+const HOUSING_EXPORT_DEF: ExportDef = {
+  module: '公积金福利套',
+  columns: [
+    { key: 'code', label: '福利套编码', required: true },
+    { key: 'name', label: '福利套名称', required: true },
+    { key: 'region', label: '地区' },
+    { key: 'status', label: '状态' },
+    { key: 'base_min', label: '公积金基数下限' },
+    { key: 'base_max', label: '公积金基数上限' },
+    { key: 'normal_rate_p', label: '个人正常比例' },
+    { key: 'normal_rate_c', label: '公司正常比例' },
+    { key: 'supp_enabled', label: '是否启用补充公积金' },
+    { key: 'supp_rate_p', label: '个人补充比例' },
+    { key: 'supp_rate_c', label: '公司补充比例' },
+    { key: 'normal_round_method', label: '正常取整方式' },
+    { key: 'normal_round_precision', label: '正常保留精度' },
+    { key: 'supp_round_method', label: '补充取整方式' },
+    { key: 'supp_round_precision', label: '补充保留精度' },
+  ],
+};
 
 const WelfareSetPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('social');
@@ -91,6 +143,65 @@ const WelfareSetPage: React.FC = () => {
   // ====== 试算 ======
   const [previewBase, setPreviewBase] = useState<number>(7460);
   const [previewResult, setPreviewResult] = useState<any>(null);
+
+  // ====== 导出 ======
+  const handleExport = (mode: 'template' | 'full') => {
+    const def = activeTab === 'social' ? SOCIAL_EXPORT_DEF : HOUSING_EXPORT_DEF;
+    const data = activeTab === 'social' ? socialSets : housingSets;
+    if (mode === 'template') {
+      exportXlsx(def, []);
+    } else {
+      exportXlsx(def, data);
+    }
+  };
+
+  // ====== 导入 ======
+  const handleImport = async (file: File) => {
+    const def = activeTab === 'social' ? SOCIAL_EXPORT_DEF : HOUSING_EXPORT_DEF;
+    const table = activeTab === 'social' ? 'social_welfare_sets' : 'housing_fund_sets';
+    try {
+      const { data, import_errors } = await importXlsx(def, file);
+      if (import_errors.length > 0) message.warning(`有 ${import_errors.length} 行数据存在问题`);
+      if (data.length === 0) { message.info('未找到有效数据'); return; }
+
+      let added = 0, updated = 0, failed = 0;
+      const failReasons: string[] = [];
+
+      for (const row of data) {
+        try {
+          // 内置福利套保护
+          if (row.code === 'SI-00' || row.code === 'HF-00') {
+            failed++;
+            failReasons.push(`${row.code} 为系统内置福利套，不允许导入修改`);
+            continue;
+          }
+          const existing = await api.get(`/${table}?code=eq.${row.code}`);
+          // 布尔字段转换
+          const boolFields = ['pension_enabled', 'medical_enabled', 'unemployment_enabled', 'injury_enabled', 'maternity_enabled', 'supp_enabled', 'allow_special_base', 'allow_stop_supp', 'allow_override_round'];
+          const payload: any = { ...row };
+          for (const f of boolFields) {
+            if (payload[f] !== undefined) {
+              const v = String(payload[f]).trim().toLowerCase();
+              payload[f] = v === 'true' || v === '是' || v === '1' || v === '启用' || v === 'yes';
+            }
+          }
+          if (existing.data.length > 0) {
+            await api.patch(`/${table}?id=eq.${existing.data[0].id}`, payload);
+            updated++;
+          } else {
+            await api.post(`/${table}`, payload);
+            added++;
+          }
+        } catch {
+          failed++;
+        }
+      }
+      message.info(`导入完成：新增 ${added}，更新 ${updated}，失败 ${failed}${failReasons.length ? '。' + failReasons.slice(0, 5).join('；') : ''}`);
+      loadData();
+    } catch (e: any) {
+      message.error(e.message || '导入失败');
+    }
+  };
 
   const runPreview = () => {
     try {
@@ -165,6 +276,18 @@ const WelfareSetPage: React.FC = () => {
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
             新建{activeTab === 'social' ? '社保' : '公积金'}福利套
           </Button>
+          <Dropdown menu={{
+            items: [
+              { key: 'template', label: '导出空白模板' },
+              { key: 'full', label: '导出全量数据' },
+            ],
+            onClick: ({ key }) => handleExport(key as 'template' | 'full'),
+          }}>
+            <Button icon={<DownloadOutlined />}>导出</Button>
+          </Dropdown>
+          <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
+            <Button icon={<UploadOutlined />}>导入</Button>
+          </Upload>
         </Space>
       </Card>
 

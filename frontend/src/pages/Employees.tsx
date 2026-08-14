@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Table, Button, Drawer, Form, Input, Select, Space, message, Tag, Card, DatePicker, Upload, Dropdown,
+  Table, Button, Drawer, Form, Input, Select, Space, message, Tag, Card, DatePicker, Upload, Dropdown, Popconfirm,
 } from 'antd';
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import type { Employee, CompanyMapping } from '../types';
@@ -172,6 +172,17 @@ const EmployeesPage: React.FC = () => {
       loadEmployees();
     } catch (e: any) {
       message.error(e.response?.data?.detail || e.response?.data?.message || '操作失败');
+    }
+  };
+
+  // ====== 删除（物理删除，数据库同步删除） ======
+  const handleDelete = async (id: number) => {
+    try {
+      await api.delete(`/employees?id=eq.${id}`);
+      message.success('已删除');
+      loadEmployees();
+    } catch (e: any) {
+      message.error(e.response?.data?.message || '删除失败');
     }
   };
 
@@ -390,6 +401,18 @@ const EmployeesPage: React.FC = () => {
           </Space>
         }
       >
+        {editingEmployee && (
+          <Popconfirm
+            title="确认删除该员工？"
+            description="删除后数据库记录将同步删除，且关联的社保/考勤/薪资数据会失联。"
+            okText="删除"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
+            onConfirm={() => { handleDelete(editingEmployee.id); setDrawerOpen(false); }}
+          >
+            <Button danger block style={{ marginBottom: 16 }}>删除该员工</Button>
+          </Popconfirm>
+        )}
         <Form form={form} layout="vertical">
           <Form.Item name="name" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}>
             <Input />

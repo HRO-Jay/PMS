@@ -1,17 +1,34 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Table, Button, Drawer, Form, Input, Select, Space, message, Card, InputNumber, Switch, Tag, Descriptions, DatePicker,
+  Table, Button, Drawer, Form, Input, Select, Space, message, Card, InputNumber, Switch, Tag, Descriptions, DatePicker, Upload, Dropdown,
 } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { PlusOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import api from '../../api/client';
 import type { SocialWelfareSet, HousingFundSet, EmployeeWelfareRecord } from '../../types';
 import { calcSocial, calcHousingFund } from '../../utils/welfareCalc';
+import { exportXlsx, importXlsx, type ExportDef } from '../../utils/importExport';
 import dayjs from 'dayjs';
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
 const SOCIAL_NO_REASONS = ['退休返聘', '实习或劳务关系', '异地缴纳', '其他单位缴纳', '其他'];
 const HOUSING_NO_REASONS = ['异地缴纳', '其他单位缴纳', '其他'];
+
+// 导出表头定义
+const EXPORT_DEF: ExportDef = {
+  module: '员工福利缴纳明细',
+  columns: [
+    { key: 'unique_hash', label: '唯一值', hidden: true },
+    { key: 'social_welfare_code', label: '社保福利套', required: true },
+    { key: 'housing_fund_code', label: '公积金福利套', required: true },
+    { key: 'social_base', label: '社保基数' },
+    { key: 'housing_base', label: '公积金基数' },
+    { key: 'supp_enabled', label: '是否缴纳补充公积金' },
+    { key: 'supp_base', label: '补充公积金基数' },
+    { key: 'social_no_reason', label: '社保不缴纳原因' },
+    { key: 'housing_no_reason', label: '公积金不缴纳原因' },
+  ],
+};
 
 const EmployeeWelfare: React.FC = () => {
   const [records, setRecords] = useState<any[]>([]);
@@ -164,6 +181,56 @@ const EmployeeWelfare: React.FC = () => {
     setDetailOpen(true);
   };
 
+  // ====== 导出 ======
+  const handleExport = (mode: 'template' | 'full') => {
+    if (mode === 'template') {
+      exportXlsx(EXPORT_DEF, [], period);
+    } else {
+      exportXlsx(EXPORT_DEF, records, period);
+    }
+  };
+
+  // ====== 导入（增量：有唯一值→更新，无唯一值→新增） ======
+  const handleImport = async (file: File) => {
+    try {
+      const { data, import_errors } = await importXlsx(EXPORT_DEF, file);
+      if (import_errors.length > 0) message.warning(`有 ${import_errors.length} 行数据存在问题`);
+      if (data.length === 0) { message.info('未找到有效数据'); return; }
+
+      let added = 0, updated = 0, failed = 0;
+      const failReasons: string[] = [];
+
+      for (const row of data) {
+        try {
+          if (!row.unique_hash) {
+            failed++;
+            failReasons.push('缺唯一值（该行可能是新增员工，请先在花名册添加）');
+            continue;
+          }
+          const existing = await api.get(`/employee_welfare_records?unique_hash=eq.${row.unique_hash}&period=eq.${period}`);
+          const payload = {
+            ...row,
+            period,
+            supp_enabled: String(row.supp_enabled).toLowerCase() === 'true' || row.supp_enabled === '是' || row.supp_enabled === 1,
+          };
+          if (existing.data.length > 0) {
+            await api.patch(`/employee_welfare_records?id=eq.${existing.data[0].id}`, payload);
+            updated++;
+          } else {
+            await api.post('/employee_welfare_records', payload);
+            added++;
+          }
+        } catch {
+          failed++;
+        }
+      }
+      message.info(`导入完成：新增 ${added}，更新 ${updated}，失败 ${failed}${failReasons.length ? '。' + failReasons.slice(0, 5).join('；') : ''}`);
+      loadData();
+    } catch (e: any) {
+      message.error(e.message || '导入失败');
+    }
+  };
+
   const statusTag = (s: string) => {
     const color = s === '正常' ? 'green' : 'orange';
     return <Tag color={color}>{s}</Tag>;
@@ -199,6 +266,18 @@ const EmployeeWelfare: React.FC = () => {
           <span>薪酬月份：</span>
           <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 180 }} />
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>添加记录</Button>
+          <Dropdown menu={{
+            items: [
+              { key: 'template', label: '导出空白模板' },
+              { key: 'full', label: '导出全量数据' },
+            ],
+            onClick: ({ key }) => handleExport(key as 'template' | 'full'),
+          }}>
+            <Button icon={<DownloadOutlined />}>导出</Button>
+          </Dropdown>
+          <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
+            <Button icon={<UploadOutlined />}>导入</Button>
+          </Upload>
         </Space>
       </Card>
 

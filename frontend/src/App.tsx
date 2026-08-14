@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
 import zhCN from 'antd/lib/locale/zh_CN';
 import AppLayout from './components/AppLayout';
@@ -26,7 +26,7 @@ const App: React.FC = () => {
         borderRadius: 6,
       },
     }}>
-      <BrowserRouter basename="/PMS">
+      <HashRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/*" element={
@@ -45,7 +45,7 @@ const App: React.FC = () => {
             </AuthGuard>
           } />
         </Routes>
-      </BrowserRouter>
+      </HashRouter>
     </ConfigProvider>
   );
 };
