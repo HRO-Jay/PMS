@@ -19,6 +19,11 @@ const EXPORT_DEF: ExportDef = {
   module: '员工福利缴纳明细',
   columns: [
     { key: 'unique_hash', label: '唯一值', hidden: true },
+    { key: 'employee_name', label: '姓名', required: true },
+    { key: 'pay_company', label: '发薪公司', required: true },
+    { key: 'department', label: '部门' },
+    { key: 'effective_month', label: '生效日期' },
+    { key: 'expiry_month', label: '结束日期' },
     { key: 'social_welfare_code', label: '社保福利套', required: true },
     { key: 'housing_fund_code', label: '公积金福利套', required: true },
     { key: 'social_base', label: '社保基数' },
@@ -208,8 +213,10 @@ const EmployeeWelfare: React.FC = () => {
             continue;
           }
           const existing = await api.get(`/employee_welfare_records?unique_hash=eq.${row.unique_hash}&period=eq.${period}`);
+          // 剔除展示字段（姓名/公司/部门不属于数据库表，仅供导出查看）
+          const { employee_name, pay_company, department, ...dbRow } = row;
           const payload = {
-            ...row,
+            ...dbRow,
             period,
             supp_enabled: String(row.supp_enabled).toLowerCase() === 'true' || row.supp_enabled === '是' || row.supp_enabled === 1,
           };
@@ -239,6 +246,8 @@ const EmployeeWelfare: React.FC = () => {
   const columns: any[] = [
     { title: '姓名', dataIndex: 'employee_name', key: 'name', width: 90, fixed: 'left' },
     { title: '公司/部门', key: 'org', width: 160, render: (_: any, r: any) => `${r.pay_company} / ${r.department || '—'}` },
+    { title: '生效日期', dataIndex: 'effective_month', key: 'em', width: 100, render: (v: string) => v || '—' },
+    { title: '结束日期', dataIndex: 'expiry_month', key: 'xm', width: 100, render: (v: string) => v || '—' },
     { title: '社保福利套', dataIndex: 'social_welfare_code', key: 'sw', width: 120 },
     { title: '公积金福利套', dataIndex: 'housing_fund_code', key: 'hw', width: 120 },
     { title: '社保状态', dataIndex: 'social_status', key: 'ss', width: 90, render: (v: string) => <Tag color={v === '参保' ? 'green' : 'red'}>{v}</Tag> },
@@ -302,6 +311,14 @@ const EmployeeWelfare: React.FC = () => {
             <Select showSearch optionFilterProp="label" placeholder="选择员工"
               options={employees.map((e: any) => ({ value: e.unique_hash, label: `${e.name} — ${e.pay_company}` }))} />
           </Form.Item>
+          <Space style={{ width: '100%' }} size="large">
+            <Form.Item name="effective_month" label="生效月份">
+              <Input type="month" style={{ width: 180 }} />
+            </Form.Item>
+            <Form.Item name="expiry_month" label="结束月份">
+              <Input type="month" style={{ width: 180 }} />
+            </Form.Item>
+          </Space>
           <Space style={{ width: '100%' }} size="large">
             <Form.Item name="social_welfare_code" label="社保福利套" rules={[{ required: true }]}>
               <Select style={{ width: 220 }} options={socialSets.map(s => ({ value: s.code, label: `${s.code} ${s.name}` }))} />

@@ -114,7 +114,11 @@ const WelfareSetPage: React.FC = () => {
 
   const openEdit = (record: any) => {
     setEditing(record);
-    form.setFieldsValue({ ...record });
+    form.setFieldsValue({
+      ...record,
+      effective_date: record.effective_date ? dayjs(record.effective_date) : undefined,
+      expiry_date: record.expiry_date ? dayjs(record.expiry_date) : undefined,
+    });
     setModalOpen(true);
   };
 
@@ -315,6 +319,8 @@ const WelfareSetPage: React.FC = () => {
         okText={editing?.is_builtin ? '关闭' : '保存'}
         cancelText="取消"
         okButtonProps={{ disabled: editing?.is_builtin }}
+        forceRender
+        destroyOnClose
       >
         <Form form={form} layout="vertical">
           <Space style={{ width: '100%' }} size="large" wrap>
