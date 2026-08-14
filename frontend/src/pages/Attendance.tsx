@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Card, Button, Space, Input, message, InputNumber, Upload } from 'antd';
+import { Table, Card, Button, Space, Input, message, InputNumber, Upload, Popconfirm } from 'antd';
 import { SaveOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import api from '../api/client';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
@@ -165,8 +165,23 @@ const AttendancePage: React.FC = () => {
     { title: '考勤调整合计', dataIndex: 'attendance_adjust_total', key: 'aat', width: 110,
       render: (v:number) => <strong>¥{Number(v||0).toLocaleString()}</strong> },
     {
-      title: '操作', key: 'act', width: 60, fixed: 'right' as const,
-      render: (_:any, r:any) => <Button size="small" type="primary" icon={<SaveOutlined />} onClick={() => handleSave(r)}>保存</Button>,
+      title: '操作', key: 'act', width: 110, fixed: 'right' as const,
+      render: (_:any, r:any) => (
+        <Space size={4}>
+          <Button size="small" type="primary" icon={<SaveOutlined />} onClick={() => handleSave(r)}>保存</Button>
+          <Popconfirm
+            title="确认删除该考勤记录？"
+            okText="删除" cancelText="取消" okButtonProps={{ danger: true }}
+            onConfirm={async () => {
+              await api.delete(`/attendance_records?id=eq.${r.id}`);
+              message.success('已删除');
+              loadData();
+            }}
+          >
+            <Button size="small" danger>删除</Button>
+          </Popconfirm>
+        </Space>
+      ),
     },
   ];
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Button, Space, message, Input, Tag, Upload } from 'antd';
+import { Card, Table, Button, Space, message, Input, Tag, Upload, Popconfirm } from 'antd';
 import { DownOutlined, RightOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import api from '../api/client';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
@@ -213,6 +213,22 @@ const PayrollPage: React.FC = () => {
     // == 企业成本 ==
     { title: '企业人力成本总计', dataIndex: 'total_cost', key: 'tc', width: 130, render: (v:any) => <strong>{formatYuan(v)}</strong> },
     { title: '预提福利费', dataIndex: 'provision_welfare', key: 'pw', width: 100, render: formatYuan },
+    {
+      title: '操作', key: 'act', width: 70, fixed: 'right',
+      render: (_: any, r: any) => (
+        <Popconfirm
+          title="确认删除该薪资记录？"
+          okText="删除" cancelText="取消" okButtonProps={{ danger: true }}
+          onConfirm={async () => {
+            await api.delete(`/salary_records?id=eq.${r.id}`);
+            message.success('已删除');
+            loadData();
+          }}
+        >
+          <Button size="small" danger>删除</Button>
+        </Popconfirm>
+      ),
+    },
   ];
 
   return (

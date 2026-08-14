@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Table, Button, Modal, Form, Input, Select, Space, message, Card, InputNumber,
-  Tabs, Tag, Switch, DatePicker, Upload, Dropdown,
+  Tabs, Tag, Switch, DatePicker, Upload, Dropdown, Popconfirm,
 } from 'antd';
 import { PlusOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import api from '../../api/client';
@@ -445,6 +445,25 @@ const WelfareSetPage: React.FC = () => {
             )}
           </Card>
         </Form>
+        {editing && !editing.is_builtin && (
+          <div style={{ textAlign: 'center' }}>
+            <Popconfirm
+              title="确认删除该福利套？"
+              okText="删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+              onConfirm={async () => {
+                const table = activeTab === 'social' ? 'social_welfare_sets' : 'housing_fund_sets';
+                await api.delete(`/${table}?id=eq.${editing.id}`);
+                message.success('已删除');
+                setModalOpen(false);
+                loadData();
+              }}
+            >
+              <Button danger size="small">删除该福利套</Button>
+            </Popconfirm>
+          </div>
+        )}
       </Modal>
     </div>
   );

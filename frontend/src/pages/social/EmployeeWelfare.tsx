@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Table, Button, Drawer, Form, Input, Select, Space, message, Card, InputNumber, Switch, Tag, Descriptions, DatePicker, Upload, Dropdown,
+  Table, Button, Drawer, Form, Input, Select, Space, message, Card, InputNumber, Switch, Tag, Descriptions, DatePicker, Upload, Dropdown, Popconfirm,
 } from 'antd';
 import { PlusOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import api from '../../api/client';
@@ -351,6 +351,24 @@ const EmployeeWelfare: React.FC = () => {
             </Card>
           )}
         </Form>
+        {editing && (
+          <div style={{ marginTop: 16, textAlign: 'center' }}>
+            <Popconfirm
+              title="确认删除该记录？"
+              okText="删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+              onConfirm={async () => {
+                await api.delete(`/employee_welfare_records?id=eq.${editing.id}`);
+                message.success('已删除');
+                setEditOpen(false);
+                loadData();
+              }}
+            >
+              <Button danger size="small">删除该记录</Button>
+            </Popconfirm>
+          </div>
+        )}
       </Drawer>
 
       {/* 详情抽屉 */}
