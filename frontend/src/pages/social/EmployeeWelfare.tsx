@@ -352,7 +352,7 @@ const EmployeeWelfare: React.FC = () => {
           )}
         </Form>
         {editing && (
-          <div style={{ marginTop: 16, textAlign: 'center' }}>
+          <div style={{ marginTop: 16, textAlign: 'right' }}>
             <Popconfirm
               title="确认删除该记录？"
               okText="删除"

@@ -446,7 +446,7 @@ const WelfareSetPage: React.FC = () => {
           </Card>
         </Form>
         {editing && !editing.is_builtin && (
-          <div style={{ textAlign: 'center' }}>
+          <div style={{ textAlign: 'right' }}>
             <Popconfirm
               title="确认删除该福利套？"
               okText="删除"

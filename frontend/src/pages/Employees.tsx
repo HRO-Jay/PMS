@@ -442,7 +442,7 @@ const EmployeesPage: React.FC = () => {
           </Form.Item>
         </Form>
         {editingEmployee && (
-          <div style={{ marginTop: 16, textAlign: 'center' }}>
+          <div style={{ marginTop: 16, textAlign: 'right' }}>
             <Popconfirm
               title="确认删除该员工？"
               description="删除后数据库记录将同步删除，且关联的社保/考勤/薪资数据会失联。"
