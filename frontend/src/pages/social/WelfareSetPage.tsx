@@ -1,20 +1,33 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, Select, Space, message, Card, InputNumber } from 'antd';
+import {
+  Table, Button, Modal, Form, Input, Select, Space, message, Card, InputNumber,
+  Tabs, Tag, Switch, DatePicker,
+} from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import api from '../../api/client';
+import type { SocialWelfareSet, HousingFundSet } from '../../types';
+import { calcSocial, calcHousingFund } from '../../utils/welfareCalc';
+import dayjs from 'dayjs';
 
-const REGIONS = ['上海', '北京', '天津', '深圳', '南京'];
+const REGIONS = ['上海', '北京', '天津', '深圳', '南京', '香港'];
 const ROUND_OPTIONS = [
   { value: 'ROUND', label: '四舍五入' },
   { value: 'ROUNDUP', label: '向上取整' },
-  { value: 'ROUND_1DEC', label: '保留1位小数' },
+  { value: 'ROUNDDOWN', label: '向下取整' },
+  { value: 'TRUNC_UP', label: '截位后进位' },
 ];
+const PRECISION_OPTIONS = [0, 1, 2].map(p => ({ value: p, label: `${p} 位` }));
+
+const rateInput = (step = 0.0001) => ({ step, min: 0, max: 1, style: { width: 110 } });
 
 const WelfareSetPage: React.FC = () => {
-  const [sets, setSets] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState('social');
+  const [socialSets, setSocialSets] = useState<SocialWelfareSet[]>([]);
+  const [housingSets, setHousingSets] = useState<HousingFundSet[]>([]);
   const [loading, setLoading] = useState(false);
+
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingSet, setEditingSet] = useState<any>(null);
+  const [editing, setEditing] = useState<any>(null);
   const [form] = Form.useForm();
 
   useEffect(() => { loadData(); }, []);
@@ -22,110 +35,291 @@ const WelfareSetPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/welfare_sets?select=*&order=name');
-      setSets(res.data.map((s:any)=>({...s,key:s.id})));
-    } catch { message.error('加载失败'); }
+      const [sRes, hRes] = await Promise.all([
+        api.get('/social_welfare_sets?select=*&order=code'),
+        api.get('/housing_fund_sets?select=*&order=code'),
+      ]);
+      setSocialSets(sRes.data.map((s: any) => ({ ...s, key: s.id })));
+      setHousingSets(hRes.data.map((h: any) => ({ ...h, key: h.id })));
+    } catch { message.error('加载福利套失败'); }
     finally { setLoading(false); }
   };
 
   const openCreate = () => {
-    setEditingSet(null);
+    setEditing(null);
     form.resetFields();
-    form.setFieldsValue({ rounding_method: 'ROUND' });
+    form.setFieldsValue({
+      status: '启用',
+      pension_enabled: true, medical_enabled: true, unemployment_enabled: true,
+      injury_enabled: true, maternity_enabled: true,
+      rounding_method: 'ROUND', rounding_precision: 2,
+      supp_enabled: false, normal_round_method: 'ROUND', normal_round_precision: 2,
+      supp_round_method: 'ROUND', supp_round_precision: 2,
+      supp_base_source: '同正常公积金基数',
+    });
     setModalOpen(true);
   };
 
-  const openEdit = (s: any) => {
-    setEditingSet(s);
-    form.setFieldsValue(s);
+  const openEdit = (record: any) => {
+    setEditing(record);
+    form.setFieldsValue({ ...record });
     setModalOpen(true);
   };
 
   const handleSave = async () => {
     const values = await form.validateFields();
+    const table = activeTab === 'social' ? 'social_welfare_sets' : 'housing_fund_sets';
     try {
-      if (editingSet) {
-        await api.patch(`/welfare_sets?id=eq.${editingSet.id}`, values);
+      if (editing) {
+        if (editing.is_builtin) {
+          message.error(`${editing.code} 为系统内置福利套，不允许修改`);
+          return;
+        }
+        await api.patch(`/${table}?id=eq.${editing.id}`, values);
         message.success('已更新');
       } else {
-        await api.post('/welfare_sets', values);
+        await api.post(`/${table}`, values);
         message.success('已创建');
       }
       setModalOpen(false);
       loadData();
-    } catch { message.error('操作失败'); }
+    } catch (e: any) {
+      message.error(e.response?.data?.message || '操作失败');
+    }
   };
 
-  const columns = [
-    { title: '福利套名称', dataIndex: 'name', key: 'name', width: 150 },
-    { title: '地区', dataIndex: 'region', key: 'region', width: 80 },
-    { title: '个人养老%', dataIndex: 'pension_rate_p', key: 'prp', width: 100, render: (v:any)=>v ? `${(v*100).toFixed(1)}%` : '—' },
-    { title: '个人医疗%', dataIndex: 'medical_rate_p', key: 'mrp', width: 100, render: (v:any)=>v ? `${(v*100).toFixed(1)}%` : '—' },
-    { title: '个人失业%', dataIndex: 'unemployment_rate_p', key: 'urp', width: 100, render: (v:any)=>v ? `${(v*100).toFixed(1)}%` : '—' },
-    { title: '个人公积金%', dataIndex: 'housing_fund_rate_p', key: 'hrp', width: 110, render: (v:any)=>v ? `${(v*100).toFixed(1)}%` : '—' },
-    { title: '补充公积金%', dataIndex: 'supp_housing_rate_p', key: 'shp', width: 110, render: (v:any)=>v ? `${(v*100).toFixed(1)}%` : '—' },
-    { title: '公司养老%', dataIndex: 'pension_rate_c', key: 'prc', width: 100, render: (v:any)=>v ? `${(v*100).toFixed(1)}%` : '—' },
-    { title: '公司医疗%', dataIndex: 'medical_rate_c', key: 'mrc', width: 100, render: (v:any)=>v ? `${(v*100).toFixed(1)}%` : '—' },
-    { title: '公司失业%', dataIndex: 'unemployment_rate_c', key: 'urc', width: 100, render: (v:any)=>v ? `${(v*100).toFixed(1)}%` : '—' },
-    { title: '公司工伤%', dataIndex: 'injury_rate_c', key: 'irc', width: 100, render: (v:any)=>v ? `${(v*100).toFixed(1)}%` : '—' },
-    { title: '公司生育%', dataIndex: 'maternity_rate_c', key: 'mrc2', width: 100, render: (v:any)=>v ? `${(v*100).toFixed(1)}%` : '—' },
-    { title: '公司公积金%', dataIndex: 'housing_fund_rate_c', key: 'hrc', width: 110, render: (v:any)=>v ? `${(v*100).toFixed(1)}%` : '—' },
-    { title: '取整方式', dataIndex: 'rounding_method', key: 'rm', width: 100 },
+  // ====== 试算 ======
+  const [previewBase, setPreviewBase] = useState<number>(7460);
+  const [previewResult, setPreviewResult] = useState<any>(null);
+
+  const runPreview = () => {
+    try {
+      if (activeTab === 'social') {
+        const s = form.getFieldsValue(true);
+        const result = calcSocial(s as any, previewBase);
+        setPreviewResult(result);
+      } else {
+        const h = form.getFieldsValue(true);
+        const result = calcHousingFund(h as any, previewBase);
+        setPreviewResult(result);
+      }
+    } catch {
+      message.warning('请先填写完整规则再试算');
+    }
+  };
+
+  // ====== 社保列表列 ======
+  const socialColumns: any[] = [
+    { title: '编码', dataIndex: 'code', key: 'code', width: 100 },
+    { title: '名称', dataIndex: 'name', key: 'name', width: 130 },
+    { title: '来源', dataIndex: 'is_builtin', key: 'src', width: 80, render: (v: boolean) => v ? <Tag color="blue">内置</Tag> : <Tag>自定义</Tag> },
+    { title: '地区', dataIndex: 'region', key: 'region', width: 70 },
+    { title: '个人费率', key: 'pr', width: 180, render: (_: any, r: SocialWelfareSet) =>
+      `${(r.pension_rate_p * 100).toFixed(1)}% / ${(r.medical_rate_p * 100).toFixed(1)}% / ${(r.unemployment_rate_p * 100).toFixed(1)}%` },
+    { title: '公司费率', key: 'cr', width: 200, render: (_: any, r: SocialWelfareSet) =>
+      `${(r.pension_rate_c * 100).toFixed(1)}% / ${(r.medical_rate_c * 100).toFixed(1)}% / ${(r.unemployment_rate_c * 100).toFixed(1)}% / ${(r.injury_rate_c * 100).toFixed(1)}% / ${(r.maternity_rate_c * 100).toFixed(1)}%` },
+    { title: '状态', dataIndex: 'status', key: 'status', width: 70, render: (v: string) => <Tag color={v === '启用' ? 'green' : 'red'}>{v}</Tag> },
     {
-      title: '操作', key: 'act', width: 80, fixed: 'right' as const,
-      render: (_:any, r:any) => <Button size="small" onClick={() => openEdit(r)}>编辑</Button>,
+      title: '操作', key: 'act', width: 120, fixed: 'right' as const,
+      render: (_: any, r: SocialWelfareSet) => (
+        <Space>
+          <Button size="small" onClick={() => openEdit(r)}>{r.is_builtin ? '查看' : '编辑'}</Button>
+          {!r.is_builtin && <Button size="small" danger onClick={async () => {
+            await api.delete(`/social_welfare_sets?id=eq.${r.id}`);
+            message.success('已删除'); loadData();
+          }}>删除</Button>}
+        </Space>
+      ),
+    },
+  ];
+
+  // ====== 公积金列表列 ======
+  const housingColumns: any[] = [
+    { title: '编码', dataIndex: 'code', key: 'code', width: 100 },
+    { title: '名称', dataIndex: 'name', key: 'name', width: 130 },
+    { title: '来源', dataIndex: 'is_builtin', key: 'src', width: 80, render: (v: boolean) => v ? <Tag color="blue">内置</Tag> : <Tag>自定义</Tag> },
+    { title: '地区', dataIndex: 'region', key: 'region', width: 70 },
+    { title: '正常比例', key: 'nr', width: 120, render: (_: any, r: HousingFundSet) =>
+      `个${(r.normal_rate_p * 100).toFixed(1)}% / 司${(r.normal_rate_c * 100).toFixed(1)}%` },
+    { title: '补充公积金', key: 'sp', width: 100, render: (_: any, r: HousingFundSet) =>
+      r.supp_enabled ? `个${(r.supp_rate_p * 100).toFixed(1)}% / 司${(r.supp_rate_c * 100).toFixed(1)}%` : <Tag>未启用</Tag> },
+    { title: '状态', dataIndex: 'status', key: 'status', width: 70, render: (v: string) => <Tag color={v === '启用' ? 'green' : 'red'}>{v}</Tag> },
+    {
+      title: '操作', key: 'act', width: 120, fixed: 'right' as const,
+      render: (_: any, r: HousingFundSet) => (
+        <Space>
+          <Button size="small" onClick={() => openEdit(r)}>{r.is_builtin ? '查看' : '编辑'}</Button>
+          {!r.is_builtin && <Button size="small" danger onClick={async () => {
+            await api.delete(`/housing_fund_sets?id=eq.${r.id}`);
+            message.success('已删除'); loadData();
+          }}>删除</Button>}
+        </Space>
+      ),
     },
   ];
 
   return (
     <div>
-      <Card size="small" style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建福利套</Button>
+      <Card size="small" style={{ marginBottom: 12 }}>
+        <Space>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+            新建{activeTab === 'social' ? '社保' : '公积金'}福利套
+          </Button>
+        </Space>
       </Card>
 
-      <Table columns={columns} dataSource={sets} loading={loading} scroll={{ x: 1800 }} size="small" />
+      <Tabs
+        activeKey={activeTab}
+        onChange={(k) => { setActiveTab(k); setPreviewResult(null); }}
+        items={[
+          { key: 'social', label: '社保福利套' },
+          { key: 'housing', label: '公积金福利套' },
+        ]}
+      />
+
+      {activeTab === 'social' ? (
+        <Table columns={socialColumns} dataSource={socialSets} loading={loading} scroll={{ x: 1200 }} size="small" pagination={{ pageSize: 50 }} />
+      ) : (
+        <Table columns={housingColumns} dataSource={housingSets} loading={loading} scroll={{ x: 1200 }} size="small" pagination={{ pageSize: 50 }} />
+      )}
 
       <Modal
-        title={editingSet ? '编辑福利套' : '新建福利套'}
+        title={(editing ? (editing.is_builtin ? '查看' : '编辑') : '新建') + (activeTab === 'social' ? '社保福利套' : '公积金福利套')}
         open={modalOpen}
         onOk={handleSave}
         onCancel={() => setModalOpen(false)}
-        width={800}
-        okText="保存" cancelText="取消"
+        width={900}
+        okText={editing?.is_builtin ? '关闭' : '保存'}
+        cancelText="取消"
+        okButtonProps={{ disabled: editing?.is_builtin }}
       >
         <Form form={form} layout="vertical">
-          <Space style={{width:'100%'}} size="large">
-            <Form.Item name="name" label="福利套名称" rules={[{required:true}]}><Input /></Form.Item>
-            <Form.Item name="region" label="地区" rules={[{required:true}]}>
-              <Select options={REGIONS.map(r=>({value:r,label:r}))} />
+          <Space style={{ width: '100%' }} size="large" wrap>
+            <Form.Item name="code" label="福利套编码" rules={[{ required: true }]}>
+              <Input placeholder={activeTab === 'social' ? '如 SI-SH-01' : '如 HF-SH-01'} disabled={!!editing} />
             </Form.Item>
-            <Form.Item name="rounding_method" label="取整方式">
-              <Select options={ROUND_OPTIONS} />
+            <Form.Item name="name" label="福利套名称" rules={[{ required: true }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="region" label="地区">
+              <Select options={REGIONS.map(r => ({ value: r, label: r }))} style={{ width: 110 }} />
+            </Form.Item>
+            <Form.Item name="status" label="状态">
+              <Select options={[{ value: '启用', label: '启用' }, { value: '停用', label: '停用' }]} style={{ width: 90 }} />
             </Form.Item>
           </Space>
-          <Form.Item name="description" label="备注"><Input.TextArea rows={2} /></Form.Item>
+          <Space style={{ width: '100%' }} size="large">
+            <Form.Item name="effective_date" label="生效日期">
+              <DatePicker style={{ width: 150 }} />
+            </Form.Item>
+            <Form.Item name="expiry_date" label="失效日期">
+              <DatePicker style={{ width: 150 }} />
+            </Form.Item>
+          </Space>
 
-          <Card title="个人费率" size="small" style={{marginBottom:16}}>
-            <Space wrap>
-              <Form.Item name="pension_rate_p" label="养老"><InputNumber step={0.0001} min={0} max={1} style={{width:120}} /></Form.Item>
-              <Form.Item name="medical_rate_p" label="医疗"><InputNumber step={0.0001} min={0} max={1} style={{width:120}} /></Form.Item>
-              <Form.Item name="medical_fixed_p" label="医疗固定附加"><InputNumber min={0} style={{width:120}} /></Form.Item>
-              <Form.Item name="unemployment_rate_p" label="失业"><InputNumber step={0.0001} min={0} max={1} style={{width:120}} /></Form.Item>
-              <Form.Item name="housing_fund_rate_p" label="公积金"><InputNumber step={0.0001} min={0} max={1} style={{width:120}} /></Form.Item>
-              <Form.Item name="supp_housing_rate_p" label="补充公积金"><InputNumber step={0.0001} min={0} max={1} style={{width:130}} /></Form.Item>
-            </Space>
-          </Card>
+          {activeTab === 'social' ? (
+            <>
+              <Card title="基数规则" size="small" style={{ marginBottom: 12 }}>
+                <Space wrap>
+                  <Form.Item name="base_min" label="基数下限"><InputNumber style={{ width: 130 }} min={0} /></Form.Item>
+                  <Form.Item name="base_max" label="基数上限"><InputNumber style={{ width: 130 }} min={0} /></Form.Item>
+                  <Form.Item name="allow_special_base" label="允许险种特殊基数" valuePropName="checked"><Switch /></Form.Item>
+                </Space>
+              </Card>
+              <Card title="险种缴纳开关" size="small" style={{ marginBottom: 12 }}>
+                <Space wrap>
+                  <Form.Item name="pension_enabled" label="养老" valuePropName="checked"><Switch /></Form.Item>
+                  <Form.Item name="medical_enabled" label="医疗" valuePropName="checked"><Switch /></Form.Item>
+                  <Form.Item name="unemployment_enabled" label="失业" valuePropName="checked"><Switch /></Form.Item>
+                  <Form.Item name="injury_enabled" label="工伤" valuePropName="checked"><Switch /></Form.Item>
+                  <Form.Item name="maternity_enabled" label="生育" valuePropName="checked"><Switch /></Form.Item>
+                </Space>
+              </Card>
+              <Card title="个人费率" size="small" style={{ marginBottom: 12 }}>
+                <Space wrap>
+                  <Form.Item name="pension_rate_p" label="养老"><InputNumber {...rateInput()} /></Form.Item>
+                  <Form.Item name="medical_rate_p" label="医疗"><InputNumber {...rateInput()} /></Form.Item>
+                  <Form.Item name="medical_fixed_p" label="医疗固定附加"><InputNumber min={0} style={{ width: 110 }} /></Form.Item>
+                  <Form.Item name="unemployment_rate_p" label="失业"><InputNumber {...rateInput()} /></Form.Item>
+                </Space>
+              </Card>
+              <Card title="公司费率" size="small" style={{ marginBottom: 12 }}>
+                <Space wrap>
+                  <Form.Item name="pension_rate_c" label="养老"><InputNumber {...rateInput()} /></Form.Item>
+                  <Form.Item name="medical_rate_c" label="医疗"><InputNumber {...rateInput()} /></Form.Item>
+                  <Form.Item name="unemployment_rate_c" label="失业"><InputNumber {...rateInput()} /></Form.Item>
+                  <Form.Item name="injury_rate_c" label="工伤"><InputNumber {...rateInput()} /></Form.Item>
+                  <Form.Item name="maternity_rate_c" label="生育"><InputNumber {...rateInput()} /></Form.Item>
+                </Space>
+              </Card>
+              <Card title="取整规则" size="small" style={{ marginBottom: 12 }}>
+                <Space wrap>
+                  <Form.Item name="rounding_method" label="取整方式"><Select options={ROUND_OPTIONS} style={{ width: 130 }} /></Form.Item>
+                  <Form.Item name="rounding_precision" label="保留精度"><Select options={PRECISION_OPTIONS} style={{ width: 100 }} /></Form.Item>
+                  <Form.Item name="allow_override_round" label="允许险种覆盖取整" valuePropName="checked"><Switch /></Form.Item>
+                </Space>
+              </Card>
+            </>
+          ) : (
+            <>
+              <Card title="基数规则" size="small" style={{ marginBottom: 12 }}>
+                <Space wrap>
+                  <Form.Item name="base_min" label="基数下限"><InputNumber style={{ width: 130 }} min={0} /></Form.Item>
+                  <Form.Item name="base_max" label="基数上限"><InputNumber style={{ width: 130 }} min={0} /></Form.Item>
+                  <Form.Item name="supp_base_source" label="补充基数来源">
+                    <Select options={[{ value: '同正常公积金基数', label: '同正常公积金基数' }, { value: '员工单独填写', label: '员工单独填写' }]} style={{ width: 150 }} />
+                  </Form.Item>
+                  <Form.Item name="allow_stop_supp" label="允许员工停缴补充" valuePropName="checked"><Switch /></Form.Item>
+                </Space>
+              </Card>
+              <Card title="正常公积金费率" size="small" style={{ marginBottom: 12 }}>
+                <Space wrap>
+                  <Form.Item name="normal_rate_p" label="个人"><InputNumber {...rateInput()} /></Form.Item>
+                  <Form.Item name="normal_rate_c" label="公司"><InputNumber {...rateInput()} /></Form.Item>
+                </Space>
+              </Card>
+              <Card title="补充公积金" size="small" style={{ marginBottom: 12 }}>
+                <Space wrap>
+                  <Form.Item name="supp_enabled" label="启用补充公积金" valuePropName="checked"><Switch /></Form.Item>
+                  <Form.Item name="supp_rate_p" label="个人补充"><InputNumber {...rateInput()} /></Form.Item>
+                  <Form.Item name="supp_rate_c" label="公司补充"><InputNumber {...rateInput()} /></Form.Item>
+                </Space>
+              </Card>
+              <Card title="取整规则" size="small" style={{ marginBottom: 12 }}>
+                <Space wrap>
+                  <Form.Item name="normal_round_method" label="正常取整"><Select options={ROUND_OPTIONS} style={{ width: 130 }} /></Form.Item>
+                  <Form.Item name="normal_round_precision" label="正常精度"><Select options={PRECISION_OPTIONS} style={{ width: 100 }} /></Form.Item>
+                  <Form.Item name="supp_round_method" label="补充取整"><Select options={ROUND_OPTIONS} style={{ width: 130 }} /></Form.Item>
+                  <Form.Item name="supp_round_precision" label="补充精度"><Select options={PRECISION_OPTIONS} style={{ width: 100 }} /></Form.Item>
+                </Space>
+              </Card>
+            </>
+          )}
 
-          <Card title="公司费率" size="small" style={{marginBottom:16}}>
-            <Space wrap>
-              <Form.Item name="pension_rate_c" label="养老"><InputNumber step={0.0001} min={0} max={1} style={{width:120}} /></Form.Item>
-              <Form.Item name="medical_rate_c" label="医疗"><InputNumber step={0.0001} min={0} max={1} style={{width:120}} /></Form.Item>
-              <Form.Item name="unemployment_rate_c" label="失业"><InputNumber step={0.0001} min={0} max={1} style={{width:120}} /></Form.Item>
-              <Form.Item name="injury_rate_c" label="工伤"><InputNumber step={0.0001} min={0} max={1} style={{width:120}} /></Form.Item>
-              <Form.Item name="maternity_rate_c" label="生育"><InputNumber step={0.0001} min={0} max={1} style={{width:120}} /></Form.Item>
-              <Form.Item name="housing_fund_rate_c" label="公积金"><InputNumber step={0.0001} min={0} max={1} style={{width:120}} /></Form.Item>
-              <Form.Item name="supp_housing_rate_c" label="补充公积金"><InputNumber step={0.0001} min={0} max={1} style={{width:130}} /></Form.Item>
+          <Form.Item name="remark" label="备注"><Input.TextArea rows={2} /></Form.Item>
+
+          {/* 试算预览 */}
+          <Card title="试算预览" size="small" style={{ marginBottom: 12, background: '#fafafa' }}>
+            <Space style={{ marginBottom: 12 }}>
+              <span>试算基数：</span>
+              <InputNumber value={previewBase} onChange={(v) => setPreviewBase(Number(v) || 0)} style={{ width: 150 }} min={0} />
+              <Button onClick={runPreview}>试算</Button>
             </Space>
+            {previewResult && activeTab === 'social' && (
+              <div>
+                <div>基数：{previewResult.base}</div>
+                <div>个人：养老 {previewResult.pension_p}，医疗 {previewResult.medical_p}，失业 {previewResult.unemployment_p}，合计 <strong>{previewResult.personal_total}</strong></div>
+                <div>公司：养老 {previewResult.pension_c}，医疗 {previewResult.medical_c}，失业 {previewResult.unemployment_c}，工伤 {previewResult.injury_c}，生育 {previewResult.maternity_c}，合计 <strong>{previewResult.company_total}</strong></div>
+              </div>
+            )}
+            {previewResult && activeTab === 'housing' && (
+              <div>
+                <div>正常基数：{previewResult.normal_base}</div>
+                <div>正常：个人 {previewResult.normal_p}，公司 {previewResult.normal_c}</div>
+                <div>补充：个人 {previewResult.supp_p}，公司 {previewResult.supp_c}</div>
+                <div>个人合计 <strong>{previewResult.personal_total}</strong>，公司合计 <strong>{previewResult.company_total}</strong></div>
+              </div>
+            )}
           </Card>
         </Form>
       </Modal>

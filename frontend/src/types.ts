@@ -41,6 +41,111 @@ export interface CompanyMapping {
   sort_order: number;
 }
 
+// ====== 社保福利套 ======
+export interface SocialWelfareSet {
+  id: number;
+  code: string;
+  name: string;
+  region?: string;
+  is_builtin: boolean;
+  effective_date?: string;
+  expiry_date?: string;
+  status: string;
+  base_min?: number | null;
+  base_max?: number | null;
+  allow_special_base: boolean;
+  pension_enabled: boolean;
+  medical_enabled: boolean;
+  unemployment_enabled: boolean;
+  injury_enabled: boolean;
+  maternity_enabled: boolean;
+  pension_rate_p: number;
+  medical_rate_p: number;
+  medical_fixed_p: number;
+  unemployment_rate_p: number;
+  pension_rate_c: number;
+  medical_rate_c: number;
+  unemployment_rate_c: number;
+  injury_rate_c: number;
+  maternity_rate_c: number;
+  rounding_method: string;
+  rounding_precision: number;
+  allow_override_round: boolean;
+  remark?: string;
+}
+
+// ====== 公积金福利套 ======
+export interface HousingFundSet {
+  id: number;
+  code: string;
+  name: string;
+  region?: string;
+  is_builtin: boolean;
+  effective_date?: string;
+  expiry_date?: string;
+  status: string;
+  base_min?: number | null;
+  base_max?: number | null;
+  supp_base_source: string;
+  allow_stop_supp: boolean;
+  normal_rate_p: number;
+  normal_rate_c: number;
+  supp_enabled: boolean;
+  supp_rate_p: number;
+  supp_rate_c: number;
+  normal_round_method: string;
+  normal_round_precision: number;
+  supp_round_method: string;
+  supp_round_precision: number;
+  remark?: string;
+}
+
+// ====== 员工福利缴纳记录 ======
+export interface EmployeeWelfareRecord {
+  id: number;
+  unique_hash: string;
+  period: string;
+  effective_month?: string;
+  expiry_month?: string;
+  social_welfare_code?: string;
+  housing_fund_code?: string;
+  social_status?: string;
+  housing_status?: string;
+  social_no_reason?: string;
+  housing_no_reason?: string;
+  no_pay_start_month?: string;
+  no_pay_end_month?: string;
+  social_base?: number;
+  housing_base?: number;
+  supp_enabled: boolean;
+  supp_base?: number;
+  // 社保金额快照
+  pension_p_amt: number;
+  medical_p_amt: number;
+  unemployment_p_amt: number;
+  pension_c_amt: number;
+  medical_c_amt: number;
+  unemployment_c_amt: number;
+  injury_c_amt: number;
+  maternity_c_amt: number;
+  // 公积金金额快照
+  normal_housing_p_amt: number;
+  normal_housing_c_amt: number;
+  supp_housing_p_amt: number;
+  supp_housing_c_amt: number;
+  // 汇总
+  personal_social_total: number;
+  personal_housing_total: number;
+  personal_total: number;
+  company_social_total: number;
+  company_housing_total: number;
+  company_total: number;
+  data_status: string;
+  snapshot?: any;
+  remark?: string;
+  last_calc_time?: string;
+}
+
 // ====== 社保管理 ======
 export interface SocialRecord {
   id: number;
