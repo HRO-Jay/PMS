@@ -77,12 +77,33 @@ const EmployeeWelfare: React.FC = () => {
 
       setRecords(recRes.data.map((r: any) => {
         const emp = empMap[r.unique_hash] || {};
+        // 含调整合计算
+        const psAdj = Number(r.personal_social_adj || 0);
+        const csAdj = Number(r.company_social_adj || 0);
+        const phAdj = Number(r.personal_housing_adj || 0);
+        const chAdj = Number(r.company_housing_adj || 0);
+        const socialAdjTotal = Number((psAdj + csAdj).toFixed(2));
+        const housingAdjTotal = Number((phAdj + chAdj).toFixed(2));
+        const psWithAdj = Number(((r.personal_social_total || 0) + psAdj).toFixed(2));
+        const csWithAdj = Number(((r.company_social_total || 0) + csAdj).toFixed(2));
+        const phWithAdj = Number(((r.personal_housing_total || 0) + phAdj).toFixed(2));
+        const chWithAdj = Number(((r.company_housing_total || 0) + chAdj).toFixed(2));
         return {
           ...r,
           key: r.id,
           employee_name: emp.name || r.unique_hash,
           pay_company: emp.pay_company || '',
           department: emp.department || '',
+          social_adj_total: socialAdjTotal,
+          housing_adj_total: housingAdjTotal,
+          personal_social_with_adj: psWithAdj,
+          company_social_with_adj: csWithAdj,
+          personal_housing_with_adj: phWithAdj,
+          company_housing_with_adj: chWithAdj,
+          social_total_with_adj: Number((psWithAdj + csWithAdj).toFixed(2)),
+          housing_total_with_adj: Number((phWithAdj + chWithAdj).toFixed(2)),
+          personal_total_with_adj: Number((psWithAdj + phWithAdj).toFixed(2)),
+          company_total_with_adj: Number((csWithAdj + chWithAdj).toFixed(2)),
         };
       }));
     } catch { message.error('加载数据失败'); }
@@ -148,6 +169,29 @@ const EmployeeWelfare: React.FC = () => {
     result.personal_total = Number((result.personal_social_total + result.personal_housing_total).toFixed(2));
     result.company_total = Number((result.company_social_total + result.company_housing_total).toFixed(2));
 
+    // 调整金额（手工导入，不参与本月计算）
+    const psAdj = Number(v.personal_social_adj || 0);
+    const csAdj = Number(v.company_social_adj || 0);
+    const phAdj = Number(v.personal_housing_adj || 0);
+    const chAdj = Number(v.company_housing_adj || 0);
+
+    // 含调整合计
+    result.personal_social_adj = Number(psAdj.toFixed(2));
+    result.company_social_adj = Number(csAdj.toFixed(2));
+    result.personal_housing_adj = Number(phAdj.toFixed(2));
+    result.company_housing_adj = Number(chAdj.toFixed(2));
+    result.social_adj_total = Number((psAdj + csAdj).toFixed(2));       // 社保调整金额
+    result.housing_adj_total = Number((phAdj + chAdj).toFixed(2));      // 公积金调整金额
+    result.personal_social_with_adj = Number((result.personal_social_total + psAdj).toFixed(2));
+    result.company_social_with_adj = Number((result.company_social_total + csAdj).toFixed(2));
+    result.personal_housing_with_adj = Number((result.personal_housing_total + phAdj).toFixed(2));
+    result.company_housing_with_adj = Number((result.company_housing_total + chAdj).toFixed(2));
+    result.social_total_with_adj = Number((result.personal_social_with_adj + result.company_social_with_adj).toFixed(2));
+    result.housing_total_with_adj = Number((result.personal_housing_with_adj + result.company_housing_with_adj).toFixed(2));
+    result.personal_total_with_adj = Number((result.personal_social_with_adj + result.personal_housing_with_adj).toFixed(2));
+    result.company_total_with_adj = Number((result.company_social_with_adj + result.company_housing_with_adj).toFixed(2));
+    result.grand_total_with_adj = Number((result.personal_total_with_adj + result.company_total_with_adj).toFixed(2));
+
     // 状态校验
     let data_status = '正常';
     if (v.social_welfare_code !== 'SI-00' && !v.social_base) data_status = '社保基数缺失';
@@ -155,6 +199,11 @@ const EmployeeWelfare: React.FC = () => {
     else if (v.supp_enabled && !v.supp_base) data_status = '补充公积金基数缺失';
     else if (v.social_welfare_code === 'SI-00' && !v.social_no_reason) data_status = '不缴纳原因缺失';
     else if (v.housing_fund_code === 'HF-00' && !v.housing_no_reason) data_status = '不缴纳原因缺失';
+    else if (psAdj !== 0 || csAdj !== 0 || phAdj !== 0 || chAdj !== 0) {
+      if (!v.adj_reason) data_status = '调整原因缺失';
+      else if (!v.adj_start_month || !v.adj_end_month) data_status = '调整期间缺失';
+      else data_status = '含调整';
+    }
 
     // 回填到表单
     form.setFieldsValue({ ...result, data_status });
@@ -262,6 +311,14 @@ const EmployeeWelfare: React.FC = () => {
     { title: '公积金基数', dataIndex: 'housing_base', key: 'hb', width: 100, render: (v: any) => v ? `¥${Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—' },
     { title: '个人合计', dataIndex: 'personal_total', key: 'pt', width: 100, render: (v: any) => <strong>¥${Number(v || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> },
     { title: '公司合计', dataIndex: 'company_total', key: 'ct', width: 100, render: (v: any) => <strong>¥${Number(v || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> },
+    { title: '个人社保本月', dataIndex: 'personal_social_total', key: 'psm', width: 110, render: (v: any) => fmtMoney(v) },
+    { title: '公司社保本月', dataIndex: 'company_social_total', key: 'csm', width: 110, render: (v: any) => fmtMoney(v) },
+    { title: '社保调整金额', dataIndex: 'social_adj_total', key: 'sat', width: 110, render: (v: any) => fmtMoney(v) },
+    { title: '社保合计(含调整)', dataIndex: 'social_total_with_adj', key: 'stwa', width: 130, render: (v: any) => <strong>{fmtMoney(v)}</strong> },
+    { title: '公积金调整金额', dataIndex: 'housing_adj_total', key: 'hat', width: 120, render: (v: any) => fmtMoney(v) },
+    { title: '公积金合计(含调整)', dataIndex: 'housing_total_with_adj', key: 'htwa', width: 130, render: (v: any) => <strong>{fmtMoney(v)}</strong> },
+    { title: '个人福利合计(含调整)', dataIndex: 'personal_total_with_adj', key: 'ptwa', width: 140, render: (v: any) => <strong>{fmtMoney(v)}</strong> },
+    { title: '公司福利合计(含调整)', dataIndex: 'company_total_with_adj', key: 'ctwa', width: 140, render: (v: any) => <strong>{fmtMoney(v)}</strong> },
     { title: '数据状态', dataIndex: 'data_status', key: 'ds', width: 100, render: statusTag },
     {
       title: '操作', key: 'act', width: 120, fixed: 'right',
@@ -360,16 +417,54 @@ const EmployeeWelfare: React.FC = () => {
             </Form.Item>
           )}
 
+          {/* 调整金额 */}
+          <Card title="调整金额（手工导入，非0需填原因和期间）" size="small" style={{ marginBottom: 12 }}>
+            <Space style={{ width: '100%' }} size="large">
+              <Form.Item name="personal_social_adj" label="个人社保调整">
+                <InputNumber style={{ width: 140 }} />
+              </Form.Item>
+              <Form.Item name="company_social_adj" label="公司社保调整">
+                <InputNumber style={{ width: 140 }} />
+              </Form.Item>
+            </Space>
+            <Space style={{ width: '100%' }} size="large">
+              <Form.Item name="personal_housing_adj" label="个人公积金调整">
+                <InputNumber style={{ width: 140 }} />
+              </Form.Item>
+              <Form.Item name="company_housing_adj" label="公司公积金调整">
+                <InputNumber style={{ width: 140 }} />
+              </Form.Item>
+            </Space>
+            <Space style={{ width: '100%' }} size="large">
+              <Form.Item name="adj_start_month" label="调整开始月份">
+                <Input type="month" style={{ width: 150 }} />
+              </Form.Item>
+              <Form.Item name="adj_end_month" label="调整结束月份">
+                <Input type="month" style={{ width: 150 }} />
+              </Form.Item>
+            </Space>
+            <Form.Item name="adj_reason" label="调整原因">
+              <Input placeholder="如：七月、八月社保公积金基数调整" />
+            </Form.Item>
+            <Form.Item name="adj_remark" label="备注">
+              <Input.TextArea rows={2} />
+            </Form.Item>
+          </Card>
+
           {/* 计算结果展示 */}
           {formValues.personal_total !== undefined && (
-            <Card title="计算结果" size="small" style={{ background: '#fafafa' }}>
+            <Card title="计算结果（含调整）" size="small" style={{ background: '#fafafa' }}>
               <Descriptions column={2} size="small">
-                <Descriptions.Item label="个人社保">{fmtMoney(formValues.personal_social_total)}</Descriptions.Item>
-                <Descriptions.Item label="个人公积金">{fmtMoney(formValues.personal_housing_total)}</Descriptions.Item>
-                <Descriptions.Item label="个人合计"><strong>{fmtMoney(formValues.personal_total)}</strong></Descriptions.Item>
-                <Descriptions.Item label="公司社保">{fmtMoney(formValues.company_social_total)}</Descriptions.Item>
-                <Descriptions.Item label="公司公积金">{fmtMoney(formValues.company_housing_total)}</Descriptions.Item>
-                <Descriptions.Item label="公司合计"><strong>{fmtMoney(formValues.company_total)}</strong></Descriptions.Item>
+                <Descriptions.Item label="个人社保本月">{fmtMoney(formValues.personal_social_total)}</Descriptions.Item>
+                <Descriptions.Item label="个人公积金本月">{fmtMoney(formValues.personal_housing_total)}</Descriptions.Item>
+                <Descriptions.Item label="个人社保调整">{fmtMoney(formValues.personal_social_adj)}</Descriptions.Item>
+                <Descriptions.Item label="个人公积金调整">{fmtMoney(formValues.personal_housing_adj)}</Descriptions.Item>
+                <Descriptions.Item label="个人合计(含调整)"><strong>{fmtMoney(formValues.personal_total_with_adj)}</strong></Descriptions.Item>
+                <Descriptions.Item label="公司社保本月">{fmtMoney(formValues.company_social_total)}</Descriptions.Item>
+                <Descriptions.Item label="公司公积金本月">{fmtMoney(formValues.company_housing_total)}</Descriptions.Item>
+                <Descriptions.Item label="公司社保调整">{fmtMoney(formValues.company_social_adj)}</Descriptions.Item>
+                <Descriptions.Item label="公司公积金调整">{fmtMoney(formValues.company_housing_adj)}</Descriptions.Item>
+                <Descriptions.Item label="公司合计(含调整)"><strong>{fmtMoney(formValues.company_total_with_adj)}</strong></Descriptions.Item>
               </Descriptions>
             </Card>
           )}
@@ -425,6 +520,18 @@ const EmployeeWelfare: React.FC = () => {
             <Descriptions.Item label="补充公积金公司">{fmtMoney(detailRecord.supp_housing_c_amt)}</Descriptions.Item>
             <Descriptions.Item label="个人合计"><strong>{fmtMoney(detailRecord.personal_total)}</strong></Descriptions.Item>
             <Descriptions.Item label="公司合计"><strong>{fmtMoney(detailRecord.company_total)}</strong></Descriptions.Item>
+
+            {/* 调整金额 */}
+            <Descriptions.Item label="个人社保调整">{fmtMoney(detailRecord.personal_social_adj)}</Descriptions.Item>
+            <Descriptions.Item label="公司社保调整">{fmtMoney(detailRecord.company_social_adj)}</Descriptions.Item>
+            <Descriptions.Item label="个人公积金调整">{fmtMoney(detailRecord.personal_housing_adj)}</Descriptions.Item>
+            <Descriptions.Item label="公司公积金调整">{fmtMoney(detailRecord.company_housing_adj)}</Descriptions.Item>
+            <Descriptions.Item label="社保调整金额">{fmtMoney(detailRecord.social_adj_total)}</Descriptions.Item>
+            <Descriptions.Item label="公积金调整金额">{fmtMoney(detailRecord.housing_adj_total)}</Descriptions.Item>
+            <Descriptions.Item label="调整期间">{detailRecord.adj_start_month || '—'} 至 {detailRecord.adj_end_month || '—'}</Descriptions.Item>
+            <Descriptions.Item label="调整原因">{detailRecord.adj_reason || '—'}</Descriptions.Item>
+            <Descriptions.Item label="个人合计(含调整)"><strong>{fmtMoney(detailRecord.personal_total_with_adj)}</strong></Descriptions.Item>
+            <Descriptions.Item label="公司合计(含调整)"><strong>{fmtMoney(detailRecord.company_total_with_adj)}</strong></Descriptions.Item>
             <Descriptions.Item label="数据状态" span={2}>{statusTag(detailRecord.data_status)}</Descriptions.Item>
           </Descriptions>
         )}
