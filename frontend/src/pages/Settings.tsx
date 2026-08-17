@@ -67,7 +67,7 @@ const SettingsPage: React.FC = () => {
   };
 
   return (
-    <div style={{ maxWidth: 800 }}>
+    <div style={{ maxWidth: 1200 }}>
       <Typography.Title level={4}>系统设置</Typography.Title>
 
       <Card title="账户安全" style={{ marginBottom: 16 }}>

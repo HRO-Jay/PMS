@@ -86,9 +86,29 @@ const AccountManagementPage: React.FC = () => {
     }
   };
 
-  // 修改角色
+  // 修改角色（管理员唯一：把 admin 给别人时，当前 admin 自动降为 operator）
   const handleChangeRole = async (userId: string, role: string) => {
+    const currentUserId = users.find(u => u.role === 'admin')?.id;
     try {
+      // 如果要把某个人设为 admin，且当前有另一个 admin，则当前 admin 降为 operator
+      if (role === 'admin' && currentUserId && currentUserId !== userId) {
+        await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${currentUserId}`, {
+          method: 'PUT',
+          headers: {
+            apikey: SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ user_metadata: { role: 'operator' } }),
+        });
+      }
+      // 如果要降级当前的唯一 admin 且没有别人是 admin，则阻止
+      const adminCount = users.filter(u => u.role === 'admin').length;
+      if (role !== 'admin' && currentUserId === userId && adminCount <= 1) {
+        message.warning('系统至少需要一名管理员，请先将他人设为管理员');
+        return;
+      }
+
       const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
         method: 'PUT',
         headers: {
@@ -99,7 +119,7 @@ const AccountManagementPage: React.FC = () => {
         body: JSON.stringify({ user_metadata: { role } }),
       });
       if (res.ok) {
-        message.success('角色已更新');
+        message.success(role === 'admin' && currentUserId === userId ? '管理员权限已转移，您已降为操作' : '角色已更新');
         loadUsers();
       } else {
         message.error('更新失败');
@@ -171,7 +191,7 @@ const AccountManagementPage: React.FC = () => {
     },
     { title: '创建时间', dataIndex: 'created_at', key: 'created', width: 180, render: (v: string) => v ? new Date(v).toLocaleString() : '—' },
     {
-      title: '操作', key: 'act', width: 280,
+      title: '操作', key: 'act', width: 360,
       render: (_: any, u: any) => (
         <Space size={4} wrap>
           <Select
