@@ -24,6 +24,14 @@ const LoginPage: React.FC = () => {
 
       if (res.data.access_token) {
         localStorage.setItem('supabase_token', res.data.access_token);
+        // 解析 JWT 里的角色信息
+        try {
+          const payload = JSON.parse(atob(res.data.access_token.split('.')[1]));
+          const role = payload?.user_metadata?.role || 'operator';
+          localStorage.setItem('user_role', role);
+        } catch {
+          localStorage.setItem('user_role', 'operator');
+        }
         message.success('登录成功');
         navigate('/');
       }

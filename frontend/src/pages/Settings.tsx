@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { Card, Button, Typography, Space, message, Form, Input, Modal } from 'antd';
 import axios from 'axios';
 import { AUTH_URL, SCF_CONFIG } from '../config';
+import AccountManagement from './settings/AccountManagement';
 
 const SettingsPage: React.FC = () => {
   const [apiTestResult, setApiTestResult] = useState<string>('');
   const [pwdModalOpen, setPwdModalOpen] = useState(false);
   const [pwdLoading, setPwdLoading] = useState(false);
   const [pwdForm] = Form.useForm();
+  const role = localStorage.getItem('user_role') || 'operator';
 
   const testApi = async () => {
     try {
@@ -69,10 +71,18 @@ const SettingsPage: React.FC = () => {
       <Typography.Title level={4}>系统设置</Typography.Title>
 
       <Card title="账户安全" style={{ marginBottom: 16 }}>
-        <Button type="primary" onClick={() => setPwdModalOpen(true)}>
-          修改密码
-        </Button>
+        <Space>
+          <Button type="primary" onClick={() => setPwdModalOpen(true)}>
+            修改密码
+          </Button>
+        </Space>
       </Card>
+
+      {role === 'admin' && (
+        <Card title="账号管理" style={{ marginBottom: 16 }}>
+          <AccountManagement />
+        </Card>
+      )}
 
       <Card title="API 连接测试" style={{ marginBottom: 16 }}>
         <Space>
