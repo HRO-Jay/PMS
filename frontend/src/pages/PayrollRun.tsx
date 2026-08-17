@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Table, Button, Space, message, Input, Tag, Upload, Popconfirm } from 'antd';
-import { DownOutlined, RightOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
+import { DownOutlined, RightOutlined, DownloadOutlined, UploadOutlined, CheckCircleOutlined, RollbackOutlined, SendOutlined } from '@ant-design/icons';
 import api from '../api/client';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
 
@@ -234,7 +234,7 @@ const PayrollPage: React.FC = () => {
   return (
     <div>
       <Card size="small" style={{ marginBottom: 16 }}>
-        <Space>
+        <Space wrap>
           <span>月份：</span>
           <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 200 }} />
           <Button icon={<DownloadOutlined />} onClick={() => exportXlsx(EXPORT_DEF, records, period)}>导出</Button>
@@ -262,6 +262,8 @@ const PayrollPage: React.FC = () => {
           }}>
             <Button icon={<UploadOutlined />}>导入</Button>
           </Upload>
+          {/* 审批流按钮 */}
+          <PayrollApproval period={period} onChanged={loadData} />
         </Space>
       </Card>
 
@@ -278,3 +280,61 @@ const PayrollPage: React.FC = () => {
 };
 
 export default PayrollPage;
+
+// ====== 审批流组件 ======
+interface PayrollApprovalProps {
+  period: string;
+  onChanged: () => void;
+}
+
+const PayrollApproval: React.FC<PayrollApprovalProps> = ({ period, onChanged }) => {
+  const role = localStorage.getItem('user_role') || 'operator';
+
+  // 更新某表当月所有记录的状态
+  const updateTableStatus = async (table: string, status: string) => {
+    try {
+      await api.patch(`/${table}?period=eq.${period}`, { data_status: status });
+    } catch {
+      // 该表可能没有 data_status 字段或没有记录，忽略
+    }
+  };
+
+  // 提交审批：薪资表标记为已提交老板查看
+  const handleSubmit = async () => {
+    await updateTableStatus('salary_records', '已提交老板查看');
+    message.success('已提交审批');
+    onChanged();
+  };
+
+  // 通过审批：冻结当月社保、考勤、薪资
+  const handleApprove = async () => {
+    await updateTableStatus('salary_records', '已锁定');
+    await updateTableStatus('attendance_records', '已锁定');
+    await updateTableStatus('employee_welfare_records', '已锁定');
+    message.success('审批通过，当月社保、考勤、薪资数据已冻结');
+    onChanged();
+  };
+
+  // 退回修改
+  const handleReject = async () => {
+    await updateTableStatus('salary_records', '退回修改');
+    await updateTableStatus('attendance_records', '退回修改');
+    await updateTableStatus('employee_welfare_records', '退回修改');
+    message.success('已退回修改');
+    onChanged();
+  };
+
+  return (
+    <>
+      {(role === 'operator' || role === 'admin') && (
+        <Button type="primary" icon={<SendOutlined />} onClick={handleSubmit}>提交审批</Button>
+      )}
+      {(role === 'boss' || role === 'admin') && (
+        <>
+          <Button type="primary" style={{ background: '#27ae60', borderColor: '#27ae60' }} icon={<CheckCircleOutlined />} onClick={handleApprove}>通过审批</Button>
+          <Button danger icon={<RollbackOutlined />} onClick={handleReject}>退回修改</Button>
+        </>
+      )}
+    </>
+  );
+};

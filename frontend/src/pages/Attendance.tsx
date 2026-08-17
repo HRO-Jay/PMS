@@ -279,23 +279,6 @@ const AttendancePage: React.FC = () => {
     },
   ];
 
-  const role = localStorage.getItem('user_role') || 'operator';
-
-  // 审批流操作
-  const updateAllStatus = async (status: string) => {
-    for (const r of records) {
-      try {
-        await api.patch(`/attendance_records?id=eq.${r.id}`, { data_status: status });
-      } catch { /* skip */ }
-    }
-    message.success(`已${status === '已锁定' ? '冻结' : status === '退回修改' ? '退回' : '提交'}本月数据`);
-    loadData();
-  };
-
-  const handleSubmitToBoss = () => updateAllStatus('已提交老板查看');
-  const handleApprove = () => updateAllStatus('已锁定');   // 老板通过 → 冻结
-  const handleReject = () => updateAllStatus('退回修改');   // 老板退回
-
   return (
     <div>
       <Card size="small" style={{ marginBottom: 12 }}>
@@ -308,16 +291,6 @@ const AttendancePage: React.FC = () => {
           <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
             <Button icon={<UploadOutlined />}>导入</Button>
           </Upload>
-          {/* 审批流按钮 — 按角色显示 */}
-          {(role === 'operator' || role === 'admin') && (
-            <Button type="primary" onClick={handleSubmitToBoss}>提交老板查看</Button>
-          )}
-          {(role === 'boss' || role === 'admin') && (
-            <>
-              <Button type="primary" style={{ background: '#27ae60', borderColor: '#27ae60' }} onClick={handleApprove}>通过（冻结）</Button>
-              <Button danger onClick={handleReject}>退回修改</Button>
-            </>
-          )}
         </Space>
       </Card>
 
