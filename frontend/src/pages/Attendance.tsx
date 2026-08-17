@@ -164,7 +164,7 @@ const AttendancePage: React.FC = () => {
     { title: '入离职调整', dataIndex: 'on_off_adjust', key: 'ooa', width: 100,
       render: (v:number, r:any) => <InputNumber size="small" value={v} style={{width:80}} onChange={val=>updateCell(r.id,'on_off_adjust',val)} /> },
     { title: '考勤调整合计', dataIndex: 'attendance_adjust_total', key: 'aat', width: 110,
-      render: (v:number) => <strong>¥{Number(v||0).toLocaleString()}</strong> },
+      render: (v:number) => <strong>¥{Number(v||0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> },
     {
       title: '操作', key: 'act', width: 110, fixed: 'right' as const,
       render: (_:any, r:any) => (

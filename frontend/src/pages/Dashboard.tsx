@@ -77,9 +77,9 @@ const Dashboard: React.FC = () => {
           pagination={false}
           columns={[
             { title: '公司', dataIndex: 'name', key: 'name', ellipsis: true },
-            { title: '薪资总额', dataIndex: 'wages', key: 'wages', render: (v:number) => `¥${v.toLocaleString()}` },
-            { title: '实发总额', dataIndex: 'net', key: 'net', render: (v:number) => `¥${v.toLocaleString()}` },
-            { title: '人力成本', dataIndex: 'cost', key: 'cost', render: (v:number) => <strong>¥{v.toLocaleString()}</strong> },
+            { title: '薪资总额', dataIndex: 'wages', key: 'wages', render: (v:number) => `¥${Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+            { title: '实发总额', dataIndex: 'net', key: 'net', render: (v:number) => `¥${Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+            { title: '人力成本', dataIndex: 'cost', key: 'cost', render: (v:number) => <strong>¥{Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> },
           ]}
         />
       </Card>

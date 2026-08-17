@@ -14,6 +14,12 @@ const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth(
 const SOCIAL_NO_REASONS = ['退休返聘', '实习或劳务关系', '异地缴纳', '其他单位缴纳', '其他'];
 const HOUSING_NO_REASONS = ['异地缴纳', '其他单位缴纳', '其他'];
 
+// 金额格式化：固定两位小数
+const fmtMoney = (v: any) => {
+  if (v === undefined || v === null || v === '') return '—';
+  return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 // 导出表头定义
 const EXPORT_DEF: ExportDef = {
   module: '员工福利缴纳明细',
@@ -252,10 +258,10 @@ const EmployeeWelfare: React.FC = () => {
     { title: '公积金福利套', dataIndex: 'housing_fund_code', key: 'hw', width: 120 },
     { title: '社保状态', dataIndex: 'social_status', key: 'ss', width: 90, render: (v: string) => <Tag color={v === '参保' ? 'green' : 'red'}>{v}</Tag> },
     { title: '公积金状态', dataIndex: 'housing_status', key: 'hs', width: 90, render: (v: string) => <Tag color={v === '缴存' ? 'green' : 'red'}>{v}</Tag> },
-    { title: '社保基数', dataIndex: 'social_base', key: 'sb', width: 100, render: (v: any) => v ? `¥${Number(v).toLocaleString()}` : '—' },
-    { title: '公积金基数', dataIndex: 'housing_base', key: 'hb', width: 100, render: (v: any) => v ? `¥${Number(v).toLocaleString()}` : '—' },
-    { title: '个人合计', dataIndex: 'personal_total', key: 'pt', width: 100, render: (v: any) => <strong>¥{Number(v || 0).toLocaleString()}</strong> },
-    { title: '公司合计', dataIndex: 'company_total', key: 'ct', width: 100, render: (v: any) => <strong>¥{Number(v || 0).toLocaleString()}</strong> },
+    { title: '社保基数', dataIndex: 'social_base', key: 'sb', width: 100, render: (v: any) => v ? `¥${Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—' },
+    { title: '公积金基数', dataIndex: 'housing_base', key: 'hb', width: 100, render: (v: any) => v ? `¥${Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—' },
+    { title: '个人合计', dataIndex: 'personal_total', key: 'pt', width: 100, render: (v: any) => <strong>¥${Number(v || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> },
+    { title: '公司合计', dataIndex: 'company_total', key: 'ct', width: 100, render: (v: any) => <strong>¥${Number(v || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> },
     { title: '数据状态', dataIndex: 'data_status', key: 'ds', width: 100, render: statusTag },
     {
       title: '操作', key: 'act', width: 120, fixed: 'right',
@@ -403,22 +409,22 @@ const EmployeeWelfare: React.FC = () => {
             <Descriptions.Item label="公积金福利套">{detailRecord.housing_fund_code}</Descriptions.Item>
             <Descriptions.Item label="社保状态">{detailRecord.social_status}</Descriptions.Item>
             <Descriptions.Item label="公积金状态">{detailRecord.housing_status}</Descriptions.Item>
-            <Descriptions.Item label="社保基数">{detailRecord.social_base || '—'}</Descriptions.Item>
-            <Descriptions.Item label="公积金基数">{detailRecord.housing_base || '—'}</Descriptions.Item>
-            <Descriptions.Item label="个人养老">{detailRecord.pension_p_amt}</Descriptions.Item>
-            <Descriptions.Item label="个人医疗">{detailRecord.medical_p_amt}</Descriptions.Item>
-            <Descriptions.Item label="个人失业">{detailRecord.unemployment_p_amt}</Descriptions.Item>
-            <Descriptions.Item label="公司养老">{detailRecord.pension_c_amt}</Descriptions.Item>
-            <Descriptions.Item label="公司医疗">{detailRecord.medical_c_amt}</Descriptions.Item>
-            <Descriptions.Item label="公司失业">{detailRecord.unemployment_c_amt}</Descriptions.Item>
-            <Descriptions.Item label="公司工伤">{detailRecord.injury_c_amt}</Descriptions.Item>
-            <Descriptions.Item label="公司生育">{detailRecord.maternity_c_amt}</Descriptions.Item>
-            <Descriptions.Item label="正常公积金个人">{detailRecord.normal_housing_p_amt}</Descriptions.Item>
-            <Descriptions.Item label="正常公积金公司">{detailRecord.normal_housing_c_amt}</Descriptions.Item>
-            <Descriptions.Item label="补充公积金个人">{detailRecord.supp_housing_p_amt}</Descriptions.Item>
-            <Descriptions.Item label="补充公积金公司">{detailRecord.supp_housing_c_amt}</Descriptions.Item>
-            <Descriptions.Item label="个人合计"><strong>{detailRecord.personal_total}</strong></Descriptions.Item>
-            <Descriptions.Item label="公司合计"><strong>{detailRecord.company_total}</strong></Descriptions.Item>
+            <Descriptions.Item label="社保基数">{fmtMoney(detailRecord.social_base)}</Descriptions.Item>
+            <Descriptions.Item label="公积金基数">{fmtMoney(detailRecord.housing_base)}</Descriptions.Item>
+            <Descriptions.Item label="个人养老">{fmtMoney(detailRecord.pension_p_amt)}</Descriptions.Item>
+            <Descriptions.Item label="个人医疗">{fmtMoney(detailRecord.medical_p_amt)}</Descriptions.Item>
+            <Descriptions.Item label="个人失业">{fmtMoney(detailRecord.unemployment_p_amt)}</Descriptions.Item>
+            <Descriptions.Item label="公司养老">{fmtMoney(detailRecord.pension_c_amt)}</Descriptions.Item>
+            <Descriptions.Item label="公司医疗">{fmtMoney(detailRecord.medical_c_amt)}</Descriptions.Item>
+            <Descriptions.Item label="公司失业">{fmtMoney(detailRecord.unemployment_c_amt)}</Descriptions.Item>
+            <Descriptions.Item label="公司工伤">{fmtMoney(detailRecord.injury_c_amt)}</Descriptions.Item>
+            <Descriptions.Item label="公司生育">{fmtMoney(detailRecord.maternity_c_amt)}</Descriptions.Item>
+            <Descriptions.Item label="正常公积金个人">{fmtMoney(detailRecord.normal_housing_p_amt)}</Descriptions.Item>
+            <Descriptions.Item label="正常公积金公司">{fmtMoney(detailRecord.normal_housing_c_amt)}</Descriptions.Item>
+            <Descriptions.Item label="补充公积金个人">{fmtMoney(detailRecord.supp_housing_p_amt)}</Descriptions.Item>
+            <Descriptions.Item label="补充公积金公司">{fmtMoney(detailRecord.supp_housing_c_amt)}</Descriptions.Item>
+            <Descriptions.Item label="个人合计"><strong>{fmtMoney(detailRecord.personal_total)}</strong></Descriptions.Item>
+            <Descriptions.Item label="公司合计"><strong>{fmtMoney(detailRecord.company_total)}</strong></Descriptions.Item>
             <Descriptions.Item label="数据状态" span={2}>{statusTag(detailRecord.data_status)}</Descriptions.Item>
           </Descriptions>
         )}
