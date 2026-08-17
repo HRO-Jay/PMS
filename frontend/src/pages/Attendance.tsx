@@ -48,7 +48,7 @@ const AttendancePage: React.FC = () => {
 
       setRecords(res.data.map((r: any) => {
         const emp = empMap[r.unique_hash] || {};
-        const adjustTotal = (r.sick_adjust || 0) + (r.personal_adjust || 0) + (r.on_off_adjust || 0);
+        const adjustTotal = Number(((r.sick_adjust || 0) + (r.personal_adjust || 0) + (r.on_off_adjust || 0)).toFixed(2));
         return {
           ...r,
           key: r.id,
@@ -118,10 +118,11 @@ const AttendancePage: React.FC = () => {
         ...r,
         [field]: value ?? 0,
         ...(field.endsWith('_adjust') ? {
-          attendance_adjust_total:
+          attendance_adjust_total: Number((
             (field === 'sick_adjust' ? (value ?? 0) : (r.sick_adjust || 0)) +
             (field === 'personal_adjust' ? (value ?? 0) : (r.personal_adjust || 0)) +
-            (field === 'on_off_adjust' ? (value ?? 0) : (r.on_off_adjust || 0)),
+            (field === 'on_off_adjust' ? (value ?? 0) : (r.on_off_adjust || 0))
+          ).toFixed(2)),
         } : {}),
       } : r
     ));

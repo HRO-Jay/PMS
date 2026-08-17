@@ -49,23 +49,30 @@ export interface HousingFundSet {
   supp_round_precision: number;
 }
 
-/** 取整函数 */
+/** 取整函数 — 统一消除浮点误差，保证返回干净的两位小数 */
 function roundBy(method: RoundMethod, value: number, precision: number): number {
   const factor = Math.pow(10, precision);
   const v = value * factor;
+  let result: number;
   switch (method) {
     case 'ROUND':
-      return Math.round(v) / factor;
+      result = Math.round(v) / factor;
+      break;
     case 'ROUNDUP':
-      return Math.ceil(v) / factor;
+      result = Math.ceil(v) / factor;
+      break;
     case 'ROUNDDOWN':
-      return Math.floor(v) / factor;
+      result = Math.floor(v) / factor;
+      break;
     case 'TRUNC_UP':
       // 截位后进位：如 1.234 保留2位 → 1.24（截断后末位进1）
-      return (Math.trunc(v) + 1) / factor;
+      result = (Math.trunc(v) + 1) / factor;
+      break;
     default:
-      return Math.round(v) / factor;
+      result = Math.round(v) / factor;
   }
+  // 消除浮点误差（如 109.9999999999 → 110.00）
+  return Number(result.toFixed(precision));
 }
 
 /** 应用基数上下限 */
@@ -112,8 +119,8 @@ export function calcSocial(
   const injury_c = set.injury_enabled ? roundBy(r, base * set.injury_rate_c, p) : 0;
   const maternity_c = set.maternity_enabled ? roundBy(r, base * set.maternity_rate_c, p) : 0;
 
-  const personal_total = pension_p + medical_p + unemployment_p;
-  const company_total = pension_c + medical_c + unemployment_c + injury_c + maternity_c;
+  const personal_total = roundBy('ROUND', pension_p + medical_p + unemployment_p, 2);
+  const company_total = roundBy('ROUND', pension_c + medical_c + unemployment_c + injury_c + maternity_c, 2);
 
   return {
     base,
@@ -148,8 +155,8 @@ export function calcHousingFund(
   const supp_p = isSupp ? roundBy(set.supp_round_method, sb * set.supp_rate_p, set.supp_round_precision) : 0;
   const supp_c = isSupp ? roundBy(set.supp_round_method, sb * set.supp_rate_c, set.supp_round_precision) : 0;
 
-  const personal_total = normal_p + supp_p;
-  const company_total = normal_c + supp_c;
+  const personal_total = roundBy('ROUND', normal_p + supp_p, 2);
+  const company_total = roundBy('ROUND', normal_c + supp_c, 2);
 
   return { normal_base, supp_base: isSupp ? sb : 0, normal_p, normal_c, supp_p, supp_c, personal_total, company_total };
 }

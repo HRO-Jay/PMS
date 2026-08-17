@@ -81,8 +81,8 @@ const PayrollPage: React.FC = () => {
       setEmployees(empMap);
       setRecords(salRes.data.map((r: any) => {
         const emp = empMap[r.unique_hash] || {};
-        const personalTotal = (r.pension_p || 0) + (r.medical_p || 0) + (r.unemployment_p || 0) + (r.housing_fund_p || 0) + (r.supp_housing_p || 0);
-        const companyTotal = (r.pension_c || 0) + (r.medical_c || 0) + (r.unemployment_c || 0) + (r.injury_c || 0) + (r.maternity_c || 0) + (r.housing_fund_c || 0) + (r.supp_housing_c || 0);
+        const personalTotal = Number(((r.pension_p || 0) + (r.medical_p || 0) + (r.unemployment_p || 0) + (r.housing_fund_p || 0) + (r.supp_housing_p || 0)).toFixed(2));
+        const companyTotal = Number(((r.pension_c || 0) + (r.medical_c || 0) + (r.unemployment_c || 0) + (r.injury_c || 0) + (r.maternity_c || 0) + (r.housing_fund_c || 0) + (r.supp_housing_c || 0)).toFixed(2));
         return {
           ...r,
           key: r.id,

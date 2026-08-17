@@ -139,8 +139,8 @@ const EmployeeWelfare: React.FC = () => {
       company_social_total: social?.company_total || 0,
       company_housing_total: housing?.company_total || 0,
     };
-    result.personal_total = result.personal_social_total + result.personal_housing_total;
-    result.company_total = result.company_social_total + result.company_housing_total;
+    result.personal_total = Number((result.personal_social_total + result.personal_housing_total).toFixed(2));
+    result.company_total = Number((result.company_social_total + result.company_housing_total).toFixed(2));
 
     // 状态校验
     let data_status = '正常';
