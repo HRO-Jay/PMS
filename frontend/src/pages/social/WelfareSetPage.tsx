@@ -21,6 +21,12 @@ const PRECISION_OPTIONS = [0, 1, 2].map(p => ({ value: p, label: `${p} 位` }));
 
 const rateInput = (step = 0.0001) => ({ step, min: 0, max: 1, style: { width: 110 } });
 
+// 金额格式化：固定两位小数
+const fmtMoney = (v: any) => {
+  if (v === undefined || v === null || v === '') return '—';
+  return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 // 社保福利套导出表头
 const SOCIAL_EXPORT_DEF: ExportDef = {
   module: '社保福利套',
@@ -436,17 +442,17 @@ const WelfareSetPage: React.FC = () => {
             </Space>
             {previewResult && activeTab === 'social' && (
               <div>
-                <div>基数：{previewResult.base}</div>
-                <div>个人：养老 {previewResult.pension_p}，医疗 {previewResult.medical_p}，失业 {previewResult.unemployment_p}，合计 <strong>{previewResult.personal_total}</strong></div>
-                <div>公司：养老 {previewResult.pension_c}，医疗 {previewResult.medical_c}，失业 {previewResult.unemployment_c}，工伤 {previewResult.injury_c}，生育 {previewResult.maternity_c}，合计 <strong>{previewResult.company_total}</strong></div>
+                <div>基数：{fmtMoney(previewResult.base)}</div>
+                <div>个人：养老 {fmtMoney(previewResult.pension_p)}，医疗 {fmtMoney(previewResult.medical_p)}，失业 {fmtMoney(previewResult.unemployment_p)}，合计 <strong>{fmtMoney(previewResult.personal_total)}</strong></div>
+                <div>公司：养老 {fmtMoney(previewResult.pension_c)}，医疗 {fmtMoney(previewResult.medical_c)}，失业 {fmtMoney(previewResult.unemployment_c)}，工伤 {fmtMoney(previewResult.injury_c)}，生育 {fmtMoney(previewResult.maternity_c)}，合计 <strong>{fmtMoney(previewResult.company_total)}</strong></div>
               </div>
             )}
             {previewResult && activeTab === 'housing' && (
               <div>
-                <div>正常基数：{previewResult.normal_base}</div>
-                <div>正常：个人 {previewResult.normal_p}，公司 {previewResult.normal_c}</div>
-                <div>补充：个人 {previewResult.supp_p}，公司 {previewResult.supp_c}</div>
-                <div>个人合计 <strong>{previewResult.personal_total}</strong>，公司合计 <strong>{previewResult.company_total}</strong></div>
+                <div>正常基数：{fmtMoney(previewResult.normal_base)}</div>
+                <div>正常：个人 {fmtMoney(previewResult.normal_p)}，公司 {fmtMoney(previewResult.normal_c)}</div>
+                <div>补充：个人 {fmtMoney(previewResult.supp_p)}，公司 {fmtMoney(previewResult.supp_c)}</div>
+                <div>个人合计 <strong>{fmtMoney(previewResult.personal_total)}</strong>，公司合计 <strong>{fmtMoney(previewResult.company_total)}</strong></div>
               </div>
             )}
           </Card>

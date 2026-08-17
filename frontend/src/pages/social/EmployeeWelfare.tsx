@@ -364,12 +364,12 @@ const EmployeeWelfare: React.FC = () => {
           {formValues.personal_total !== undefined && (
             <Card title="计算结果" size="small" style={{ background: '#fafafa' }}>
               <Descriptions column={2} size="small">
-                <Descriptions.Item label="个人社保">{formValues.personal_social_total}</Descriptions.Item>
-                <Descriptions.Item label="个人公积金">{formValues.personal_housing_total}</Descriptions.Item>
-                <Descriptions.Item label="个人合计"><strong>{formValues.personal_total}</strong></Descriptions.Item>
-                <Descriptions.Item label="公司社保">{formValues.company_social_total}</Descriptions.Item>
-                <Descriptions.Item label="公司公积金">{formValues.company_housing_total}</Descriptions.Item>
-                <Descriptions.Item label="公司合计"><strong>{formValues.company_total}</strong></Descriptions.Item>
+                <Descriptions.Item label="个人社保">{fmtMoney(formValues.personal_social_total)}</Descriptions.Item>
+                <Descriptions.Item label="个人公积金">{fmtMoney(formValues.personal_housing_total)}</Descriptions.Item>
+                <Descriptions.Item label="个人合计"><strong>{fmtMoney(formValues.personal_total)}</strong></Descriptions.Item>
+                <Descriptions.Item label="公司社保">{fmtMoney(formValues.company_social_total)}</Descriptions.Item>
+                <Descriptions.Item label="公司公积金">{fmtMoney(formValues.company_housing_total)}</Descriptions.Item>
+                <Descriptions.Item label="公司合计"><strong>{fmtMoney(formValues.company_total)}</strong></Descriptions.Item>
               </Descriptions>
             </Card>
           )}
