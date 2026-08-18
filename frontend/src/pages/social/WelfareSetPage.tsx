@@ -232,15 +232,15 @@ const WelfareSetPage: React.FC = () => {
 
   // ====== 社保列表列 ======
   const socialColumns: any[] = [
-    { title: withSource('编码', '手动录入'), dataIndex: 'code', key: 'code', width: 100 },
-    { title: withSource('名称', '手动录入'), dataIndex: 'name', key: 'name', width: 130 },
+    { title: withSource('编码', '导入'), dataIndex: 'code', key: 'code', width: 100 },
+    { title: withSource('名称', '导入'), dataIndex: 'name', key: 'name', width: 130 },
     { title: '来源', dataIndex: 'is_builtin', key: 'src', width: 80, render: (v: boolean) => v ? <Tag color="blue">内置</Tag> : <Tag>自定义</Tag> },
-    { title: withSource('地区', '手动录入'), dataIndex: 'region', key: 'region', width: 70 },
-    { title: withSource('个人费率', '手动录入'), key: 'pr', width: 180, render: (_: any, r: SocialWelfareSet) =>
+    { title: withSource('地区', '导入'), dataIndex: 'region', key: 'region', width: 70 },
+    { title: withSource('个人费率', '导入'), key: 'pr', width: 180, render: (_: any, r: SocialWelfareSet) =>
       `${(r.pension_rate_p * 100).toFixed(1)}% / ${(r.medical_rate_p * 100).toFixed(1)}% / ${(r.unemployment_rate_p * 100).toFixed(1)}%` },
-    { title: withSource('公司费率', '手动录入'), key: 'cr', width: 200, render: (_: any, r: SocialWelfareSet) =>
+    { title: withSource('公司费率', '导入'), key: 'cr', width: 200, render: (_: any, r: SocialWelfareSet) =>
       `${(r.pension_rate_c * 100).toFixed(1)}% / ${(r.medical_rate_c * 100).toFixed(1)}% / ${(r.unemployment_rate_c * 100).toFixed(1)}% / ${(r.injury_rate_c * 100).toFixed(1)}% / ${(r.maternity_rate_c * 100).toFixed(1)}%` },
-    { title: withSource('状态', '手动录入'), dataIndex: 'status', key: 'status', width: 70, render: (v: string) => <Tag color={v === '启用' ? 'green' : 'red'}>{v}</Tag> },
+    { title: withSource('状态', '导入'), dataIndex: 'status', key: 'status', width: 70, render: (v: string) => <Tag color={v === '启用' ? 'green' : 'red'}>{v}</Tag> },
     {
       title: '操作', key: 'act', width: 120, fixed: 'right' as const,
       render: (_: any, r: SocialWelfareSet) => (
@@ -257,15 +257,15 @@ const WelfareSetPage: React.FC = () => {
 
   // ====== 公积金列表列 ======
   const housingColumns: any[] = [
-    { title: withSource('编码', '手动录入'), dataIndex: 'code', key: 'code', width: 100 },
-    { title: withSource('名称', '手动录入'), dataIndex: 'name', key: 'name', width: 130 },
+    { title: withSource('编码', '导入'), dataIndex: 'code', key: 'code', width: 100 },
+    { title: withSource('名称', '导入'), dataIndex: 'name', key: 'name', width: 130 },
     { title: '来源', dataIndex: 'is_builtin', key: 'src', width: 80, render: (v: boolean) => v ? <Tag color="blue">内置</Tag> : <Tag>自定义</Tag> },
-    { title: withSource('地区', '手动录入'), dataIndex: 'region', key: 'region', width: 70 },
-    { title: withSource('正常比例', '手动录入'), key: 'nr', width: 120, render: (_: any, r: HousingFundSet) =>
+    { title: withSource('地区', '导入'), dataIndex: 'region', key: 'region', width: 70 },
+    { title: withSource('正常比例', '导入'), key: 'nr', width: 120, render: (_: any, r: HousingFundSet) =>
       `个${(r.normal_rate_p * 100).toFixed(1)}% / 司${(r.normal_rate_c * 100).toFixed(1)}%` },
-    { title: withSource('补充公积金', '手动录入'), key: 'sp', width: 100, render: (_: any, r: HousingFundSet) =>
+    { title: withSource('补充公积金', '导入'), key: 'sp', width: 100, render: (_: any, r: HousingFundSet) =>
       r.supp_enabled ? `个${(r.supp_rate_p * 100).toFixed(1)}% / 司${(r.supp_rate_c * 100).toFixed(1)}%` : <Tag>未启用</Tag> },
-    { title: withSource('状态', '手动录入'), dataIndex: 'status', key: 'status', width: 70, render: (v: string) => <Tag color={v === '启用' ? 'green' : 'red'}>{v}</Tag> },
+    { title: withSource('状态', '导入'), dataIndex: 'status', key: 'status', width: 70, render: (v: string) => <Tag color={v === '启用' ? 'green' : 'red'}>{v}</Tag> },
     {
       title: '操作', key: 'act', width: 120, fixed: 'right' as const,
       render: (_: any, r: HousingFundSet) => (

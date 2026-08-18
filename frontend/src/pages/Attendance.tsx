@@ -306,7 +306,7 @@ const AttendancePage: React.FC = () => {
     { title: withSource('考勤制', '花名册同步'), dataIndex: 'attendance_type', key: 'ws', width: 100 },
     { title: withSource('基本工资', '花名册同步'), dataIndex: 'basic_salary', key: 'bs', width: 100,
       render: (v: number, r: any) => <InputNumber size="small" value={v} style={{ width: 90 }} onChange={val => updateCell(r.key, 'basic_salary', val)} /> },
-    { title: withSource('计薪天数', '手动录入'), dataIndex: 'pay_days', key: 'pd', width: 90,
+    { title: withSource('计薪天数', '导入'), dataIndex: 'pay_days', key: 'pd', width: 90,
       render: (v: number, r: any) => <InputNumber size="small" value={v} style={{ width: 70 }} onChange={val => updateCell(r.key, 'pay_days', val)} /> },
     { title: withSource('病假(天)', '导入'), dataIndex: 'sick_days', key: 'sd', width: 80,
       render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 60 }} onChange={val => updateCell(r.key, 'sick_days', val)} /> },
