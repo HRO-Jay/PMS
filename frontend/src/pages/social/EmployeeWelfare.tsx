@@ -8,6 +8,7 @@ import type { SocialWelfareSet, HousingFundSet, EmployeeWelfareRecord } from '..
 import { calcSocial, calcHousingFund } from '../../utils/welfareCalc';
 import { exportXlsx, importXlsx, type ExportDef } from '../../utils/importExport';
 import { withSource } from '../../components/SourceTag';
+import { useHorizontalScroll } from '../../utils/useHorizontalScroll';
 import dayjs from 'dayjs';
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
@@ -43,6 +44,7 @@ const EXPORT_DEF: ExportDef = {
 };
 
 const EmployeeWelfare: React.FC = () => {
+  const { ref: scrollRef, onWheel } = useHorizontalScroll<HTMLDivElement>();
   const [records, setRecords] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [socialSets, setSocialSets] = useState<SocialWelfareSet[]>([]);
@@ -64,7 +66,7 @@ const EmployeeWelfare: React.FC = () => {
     setLoading(true);
     try {
       const [empRes, sRes, hRes, recRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,status,pay_company,department'),
+        api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,attendance_type'),
         api.get('/social_welfare_sets?select=*&order=code'),
         api.get('/housing_fund_sets?select=*&order=code'),
         api.get(`/employee_welfare_records?select=*&period=eq.${period}`),
@@ -100,7 +102,12 @@ const EmployeeWelfare: React.FC = () => {
             unique_hash: e.unique_hash,
             employee_name: e.name,
             pay_company: e.pay_company || '',
+            cost_center: e.cost_center || '',
             department: e.department || '',
+            report_to: e.report_to || '',
+            position: e.position || '',
+            entry_date: e.entry_date || '',
+            attendance_type: e.attendance_type || '',
             social_adj_total: socialAdjTotal,
             housing_adj_total: housingAdjTotal,
             personal_social_with_adj: psWithAdj,
@@ -352,7 +359,13 @@ const EmployeeWelfare: React.FC = () => {
 
   const columns: any[] = [
     { title: withSource('姓名', '花名册同步'), dataIndex: 'employee_name', key: 'name', width: 90, fixed: 'left' },
-    { title: withSource('公司/部门', '花名册同步'), key: 'org', width: 160, render: (_: any, r: any) => `${r.pay_company} / ${r.department || '—'}` },
+    { title: withSource('发薪公司', '花名册同步'), dataIndex: 'pay_company', key: 'co', width: 130, ellipsis: true, fixed: 'left' },
+    { title: withSource('成本中心', '花名册同步'), dataIndex: 'cost_center', key: 'cc', width: 90 },
+    { title: withSource('部门', '花名册同步'), dataIndex: 'department', key: 'dept', width: 90 },
+    { title: withSource('汇报人', '花名册同步'), dataIndex: 'report_to', key: 'rpt', width: 80 },
+    { title: withSource('职位', '花名册同步'), dataIndex: 'position', key: 'pos', width: 90 },
+    { title: withSource('入职日期', '花名册同步'), dataIndex: 'entry_date', key: 'jd', width: 100 },
+    { title: withSource('考勤制', '花名册同步'), dataIndex: 'attendance_type', key: 'ws', width: 100 },
     { title: withSource('生效日期', '导入'), dataIndex: 'effective_month', key: 'em', width: 100, render: (v: string) => v || '—' },
     { title: withSource('结束日期', '导入'), dataIndex: 'expiry_month', key: 'xm', width: 100, render: (v: string) => v || '—' },
     { title: withSource('社保福利套', '导入'), dataIndex: 'social_welfare_code', key: 'sw', width: 120 },
@@ -403,7 +416,9 @@ const EmployeeWelfare: React.FC = () => {
         </Space>
       </Card>
 
-      <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 1400 }} size="small" pagination={{ pageSize: 50 }} />
+      <div ref={scrollRef} onWheel={onWheel}>
+        <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 1800 }} size="small" pagination={{ pageSize: 50 }} />
+      </div>
 
       {/* 编辑抽屉 */}
       <Drawer

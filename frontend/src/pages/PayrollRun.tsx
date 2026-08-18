@@ -4,6 +4,7 @@ import { DownOutlined, RightOutlined, DownloadOutlined, UploadOutlined, CheckCir
 import api from '../api/client';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
 import { withSource } from '../components/SourceTag';
+import { useHorizontalScroll } from '../utils/useHorizontalScroll';
 
 // 表头定义 — 导出时包含隐藏字段
 const EXPORT_DEF: ExportDef = {
@@ -69,6 +70,7 @@ const EXPORT_DEF: ExportDef = {
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
 const PayrollPage: React.FC = () => {
+  const { ref: scrollRef, onWheel } = useHorizontalScroll<HTMLDivElement>();
   const [records, setRecords] = useState<any[]>([]);
   const [employees, setEmployees] = useState<Record<string, any>>({});
   const [period, setPeriod] = useState(defaultPeriod);
@@ -292,14 +294,16 @@ const PayrollPage: React.FC = () => {
         </Space>
       </Card>
 
-      <Table
-        columns={columns}
-        dataSource={records}
-        loading={loading}
-        scroll={{ x: 5200 }}
-        size="small"
-        pagination={{ pageSize: 30 }}
-      />
+      <div ref={scrollRef} onWheel={onWheel}>
+        <Table
+          columns={columns}
+          dataSource={records}
+          loading={loading}
+          scroll={{ x: 5200 }}
+          size="small"
+          pagination={{ pageSize: 30 }}
+        />
+      </div>
     </div>
   );
 };

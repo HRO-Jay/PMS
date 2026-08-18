@@ -8,6 +8,7 @@ import api from '../api/client';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
 import { calcAttendance } from '../utils/attendanceCalc';
 import { withSource } from '../components/SourceTag';
+import { useHorizontalScroll } from '../utils/useHorizontalScroll';
 import dayjs from 'dayjs';
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
@@ -47,8 +48,8 @@ const EXPORT_DEF: ExportDef = {
     { key: 'marriage_leave', label: '婚假' },
     { key: 'maternity_leave', label: '产假' },
     { key: 'overtime_type', label: '加班类型' },
-    { key: 'overtime_unit', label: '加班单位' },
     { key: 'overtime_qty', label: '加班数量' },
+    { key: 'overtime_unit', label: '加班单位' },
     { key: 'hourly_rate', label: '时薪' },
     { key: 'holiday_fixed_amount', label: '法定节假日固定金额' },
     { key: 'actual_attendance_days', label: '实际出勤天数' },
@@ -59,6 +60,7 @@ const EXPORT_DEF: ExportDef = {
 
 const AttendancePage: React.FC = () => {
   const navigate = useNavigate();
+  const { ref: scrollRef, onWheel } = useHorizontalScroll<HTMLDivElement>();
   const [records, setRecords] = useState<any[]>([]);
   const [employees, setEmployees] = useState<Record<string, any>>({});
   const [period, setPeriod] = useState(defaultPeriod);
@@ -563,25 +565,15 @@ const AttendancePage: React.FC = () => {
     { title: withSource('考勤制', '花名册同步'), dataIndex: 'attendance_type', key: 'ws', width: 100 },
     { title: withSource('基本工资', '花名册同步'), dataIndex: 'basic_salary', key: 'bs', width: 100,
       render: (v: number) => fmtMoney(v) },
-    { title: withSource('计薪天数', '导入'), dataIndex: 'pay_days', key: 'pd', width: 90,
-      render: (v: number, r: any) => <Select size="small" value={v} style={{ width: 80 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'pay_days', val)}
-        options={[{ value: 21.75, label: '21.75' }, { value: 26, label: '26' }, { value: 30, label: '30' }]} /> },
-    { title: withSource('病假(天)', '导入'), dataIndex: 'sick_days', key: 'sd', width: 80,
-      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 60 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'sick_days', val)} /> },
+    { title: withSource('计薪天数', '导入'), dataIndex: 'pay_days', key: 'pd', width: 90, render: (v: any) => v || '—' },
+    { title: withSource('病假(天)', '导入'), dataIndex: 'sick_days', key: 'sd', width: 80, render: (v: any) => v ?? '—' },
     { title: withSource('病假金额', '系统计算'), dataIndex: 'sick_amount', key: 'sa', width: 90, render: (v: number) => <span style={{ color: v < 0 ? '#e74c3c' : undefined }}>{fmtMoney(v)}</span> },
-    { title: withSource('事假(天)', '导入'), dataIndex: 'personal_days', key: 'pd2', width: 80,
-      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 60 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'personal_days', val)} /> },
+    { title: withSource('事假(天)', '导入'), dataIndex: 'personal_days', key: 'pd2', width: 80, render: (v: any) => v ?? '—' },
     { title: withSource('事假金额', '系统计算'), dataIndex: 'personal_amount', key: 'pa', width: 90, render: (v: number) => <span style={{ color: v < 0 ? '#e74c3c' : undefined }}>{fmtMoney(v)}</span> },
-    { title: withSource('旷工(天)', '导入'), dataIndex: 'absenteeism_days', key: 'ad', width: 80,
-      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 60 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'absenteeism_days', val)} /> },
-    { title: withSource('加班类型', '导入'), dataIndex: 'overtime_type', key: 'ot', width: 130,
-      render: (v: string, r: any) => <Select size="small" value={v} style={{ width: 110 }} allowClear disabled={isLocked(r)} onChange={val => updateCell(r.key, 'overtime_type', val)}
-        options={['平时加班', '周末加班', '法定节假日加班'].map(t => ({ value: t, label: t }))} /> },
-    { title: withSource('加班数量', '导入'), dataIndex: 'overtime_qty', key: 'oq', width: 90,
-      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 70 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'overtime_qty', val)} /> },
-    { title: withSource('加班单位', '导入'), dataIndex: 'overtime_unit', key: 'ou', width: 90,
-      render: (v: string, r: any) => <Select size="small" value={v} style={{ width: 70 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'overtime_unit', val)}
-        options={[{ value: '天', label: '天' }, { value: '小时', label: '小时' }]} /> },
+    { title: withSource('旷工(天)', '导入'), dataIndex: 'absenteeism_days', key: 'ad', width: 80, render: (v: any) => v ?? '—' },
+    { title: withSource('加班类型', '导入'), dataIndex: 'overtime_type', key: 'ot', width: 120, render: (v: any) => v || '—' },
+    { title: withSource('加班数量', '导入'), dataIndex: 'overtime_qty', key: 'oq', width: 90, render: (v: any) => v ?? '—' },
+    { title: withSource('加班单位', '导入'), dataIndex: 'overtime_unit', key: 'ou', width: 90, render: (v: any) => v || '—' },
     { title: withSource('加班金额', '系统计算'), dataIndex: 'overtime_amount', key: 'oa', width: 90, render: (v: number) => fmtMoney(v) },
     { title: withSource('入离职调整', '系统计算'), dataIndex: 'on_off_adjust', key: 'oof', width: 100, render: (v: number) => fmtMoney(v) },
     { title: withSource('考勤调整合计', '系统计算'), dataIndex: 'attendance_adjust_total', key: 'aat', width: 110, fixed: 'right',
@@ -666,7 +658,9 @@ const AttendancePage: React.FC = () => {
         </Space>
       </Card>
 
-      <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 2400 }} size="small" pagination={{ pageSize: 50 }} />
+      <div ref={scrollRef} onWheel={onWheel}>
+        <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 2400 }} size="small" pagination={{ pageSize: 50 }} />
+      </div>
 
       {/* 详情抽屉 */}
       <Drawer title="考勤详情" open={detailOpen} onClose={() => setDetailOpen(false)} width={680}>
