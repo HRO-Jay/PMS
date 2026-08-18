@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Table, Card, Button, Space, Input, message, InputNumber, Upload, Popconfirm, Drawer, Tag, Descriptions, Select, DatePicker,
+  Table, Card, Button, Space, Input, message, InputNumber, Upload, Popconfirm, Drawer, Tag, Descriptions, Select, DatePicker, Form,
 } from 'antd';
 import { SaveOutlined, DownloadOutlined, UploadOutlined, CalculatorOutlined, PlusOutlined } from '@ant-design/icons';
 import api from '../api/client';
@@ -193,6 +193,31 @@ const AttendancePage: React.FC = () => {
     setAddOpen(true);
   };
 
+  // 添加记录保存
+  const handleAddSave = async () => {
+    if (!addForm.unique_hash) {
+      message.warning('请先选择员工');
+      return;
+    }
+    if (!addForm.pay_days) {
+      message.warning('请填写计薪天数');
+      return;
+    }
+    try {
+      await api.post('/attendance_records', {
+        ...addForm,
+        period,
+        data_status: '草稿',
+      });
+      message.success('添加成功');
+      setAddOpen(false);
+      setAddForm({});
+      loadData();
+    } catch (e: any) {
+      message.error(e.response?.data?.message || '添加失败');
+    }
+  };
+
   // 导出
   const handleExport = () => exportXlsx(EXPORT_DEF, records, period);
 
@@ -286,7 +311,7 @@ const AttendancePage: React.FC = () => {
           <span>月份：</span>
           <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 180 }} />
           <Button type="primary" icon={<CalculatorOutlined />} onClick={handleAutoCalc}>自动计算</Button>
-          <Button icon={<PlusOutlined />} onClick={openAdd}>单独新增</Button>
+          <Button icon={<PlusOutlined />} onClick={openAdd}>添加记录</Button>
           <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
           <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
             <Button icon={<UploadOutlined />}>导入</Button>
@@ -332,6 +357,79 @@ const AttendancePage: React.FC = () => {
             <Descriptions.Item label="数据状态" span={2}>{detailRecord.data_status}</Descriptions.Item>
           </Descriptions>
         )}
+      </Drawer>
+
+      {/* 添加记录抽屉 */}
+      <Drawer
+        title="添加考勤记录"
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        width={560}
+        extra={
+          <Space>
+            <Button onClick={() => setAddOpen(false)}>取消</Button>
+            <Button type="primary" onClick={handleAddSave}>保存</Button>
+          </Space>
+        }
+      >
+        <Form layout="vertical">
+          <Form.Item label="员工" required>
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="从花名册选择员工"
+              value={addForm.unique_hash}
+              onChange={(v) => {
+                const emp = Object.values(employees).find((e: any) => e.unique_hash === v);
+                setAddForm({ ...addForm, unique_hash: v, employee_name: emp?.name, pay_company: emp?.pay_company });
+              }}
+              options={Object.values(employees).map((e: any) => ({ value: e.unique_hash, label: `${e.name} — ${e.pay_company}` }))}
+            />
+          </Form.Item>
+          <Space style={{ width: '100%' }} size="large">
+            <Form.Item label="基本工资">
+              <InputNumber style={{ width: 160 }} value={addForm.basic_salary} onChange={(v) => setAddForm({ ...addForm, basic_salary: v })} />
+            </Form.Item>
+            <Form.Item label="计薪天数" required>
+              <InputNumber style={{ width: 160 }} min={0} value={addForm.pay_days} onChange={(v) => setAddForm({ ...addForm, pay_days: v })} placeholder="21.75/26/30" />
+            </Form.Item>
+          </Space>
+          <Space style={{ width: '100%' }} size="large">
+            <Form.Item label="病假(天)">
+              <InputNumber style={{ width: 120 }} min={0} value={addForm.sick_days} onChange={(v) => setAddForm({ ...addForm, sick_days: v })} />
+            </Form.Item>
+            <Form.Item label="事假(天)">
+              <InputNumber style={{ width: 120 }} min={0} value={addForm.personal_days} onChange={(v) => setAddForm({ ...addForm, personal_days: v })} />
+            </Form.Item>
+            <Form.Item label="旷工(天)">
+              <InputNumber style={{ width: 120 }} min={0} value={addForm.absenteeism_days} onChange={(v) => setAddForm({ ...addForm, absenteeism_days: v })} />
+            </Form.Item>
+          </Space>
+          <Space style={{ width: '100%' }} size="large">
+            <Form.Item label="年假">
+              <InputNumber style={{ width: 120 }} min={0} value={addForm.annual_leave} onChange={(v) => setAddForm({ ...addForm, annual_leave: v })} />
+            </Form.Item>
+            <Form.Item label="调休">
+              <InputNumber style={{ width: 120 }} min={0} value={addForm.compensatory_leave} onChange={(v) => setAddForm({ ...addForm, compensatory_leave: v })} />
+            </Form.Item>
+            <Form.Item label="加班数量">
+              <InputNumber style={{ width: 120 }} min={0} value={addForm.overtime_qty} onChange={(v) => setAddForm({ ...addForm, overtime_qty: v })} />
+            </Form.Item>
+          </Space>
+          <Space style={{ width: '100%' }} size="large">
+            <Form.Item label="加班类型">
+              <Select style={{ width: 160 }} allowClear value={addForm.overtime_type} onChange={(v) => setAddForm({ ...addForm, overtime_type: v })}
+                options={['平时加班', '周末加班', '法定节假日加班'].map(t => ({ value: t, label: t }))} />
+            </Form.Item>
+            <Form.Item label="加班单位">
+              <Select style={{ width: 120 }} allowClear value={addForm.overtime_unit} onChange={(v) => setAddForm({ ...addForm, overtime_unit: v })}
+                options={[{ value: '天', label: '天' }, { value: '小时', label: '小时' }]} />
+            </Form.Item>
+          </Space>
+          <Form.Item label="备注">
+            <Input.TextArea rows={2} value={addForm.remark} onChange={(e) => setAddForm({ ...addForm, remark: e.target.value })} />
+          </Form.Item>
+        </Form>
       </Drawer>
     </div>
   );
