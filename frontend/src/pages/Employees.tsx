@@ -7,6 +7,7 @@ import type { Employee, CompanyMapping } from '../types';
 import dayjs, { Dayjs } from 'dayjs';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
 import { genUniqueHash } from '../utils/hash';
+import { withSource } from '../components/SourceTag';
 import api from '../api/client';
 
 const { RangePicker } = DatePicker;
@@ -309,26 +310,26 @@ const EmployeesPage: React.FC = () => {
 
   // ====== 表格列（固定顺序） ======
   const columns: any[] = [
-    { title: '姓名', dataIndex: 'name', key: 'name', width: 100, fixed: 'left' },
+    { title: withSource('姓名', '手动录入'), dataIndex: 'name', key: 'name', width: 100, fixed: 'left' },
     {
-      title: '状态', dataIndex: 'status', key: 'status', width: 80,
+      title: withSource('状态', '手动录入'), dataIndex: 'status', key: 'status', width: 80,
       render: (v: string) => <Tag color={v === '在职' ? 'green' : 'red'}>{v}</Tag>,
     },
-    { title: '成本中心', dataIndex: 'cost_center', key: 'cost_center', width: 130 },
-    { title: '发薪公司', dataIndex: 'pay_company', key: 'pay_company', width: 130 },
+    { title: withSource('成本中心', '手动录入'), dataIndex: 'cost_center', key: 'cost_center', width: 130 },
+    { title: withSource('发薪公司', '手动录入'), dataIndex: 'pay_company', key: 'pay_company', width: 130 },
     {
-      title: '计税方式', dataIndex: 'tax_method', key: 'tax_method', width: 100,
+      title: withSource('计税方式', '手动录入'), dataIndex: 'tax_method', key: 'tax_method', width: 100,
       render: (v: string) => TAX_VALUE_TO_LABEL[v] || v,
     },
-    { title: '部门', dataIndex: 'department', key: 'department', width: 120 },
-    { title: '汇报人', dataIndex: 'report_to', key: 'report_to', width: 100 },
-    { title: '职位', dataIndex: 'position', key: 'position', width: 130 },
-    { title: '职级', dataIndex: 'job_level', key: 'job_level', width: 70 },
-    { title: '考勤制', dataIndex: 'attendance_type', key: 'attendance_type', width: 110 },
-    { title: '基本工资', dataIndex: 'basic_salary', key: 'basic_salary', width: 110, render: (v: any) => v ? `¥${Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—' },
-    { title: '入职日期', dataIndex: 'entry_date', key: 'entry_date', width: 110 },
+    { title: withSource('部门', '手动录入'), dataIndex: 'department', key: 'department', width: 120 },
+    { title: withSource('汇报人', '手动录入'), dataIndex: 'report_to', key: 'report_to', width: 100 },
+    { title: withSource('职位', '手动录入'), dataIndex: 'position', key: 'position', width: 130 },
+    { title: withSource('职级', '手动录入'), dataIndex: 'job_level', key: 'job_level', width: 70 },
+    { title: withSource('考勤制', '手动录入'), dataIndex: 'attendance_type', key: 'attendance_type', width: 110 },
+    { title: withSource('基本工资', '手动录入'), dataIndex: 'basic_salary', key: 'basic_salary', width: 110, render: (v: any) => v ? `¥${Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—' },
+    { title: withSource('入职日期', '手动录入'), dataIndex: 'entry_date', key: 'entry_date', width: 110 },
     {
-      title: '离职日期', dataIndex: 'leave_date', key: 'leave_date', width: 110,
+      title: withSource('离职日期', '手动录入'), dataIndex: 'leave_date', key: 'leave_date', width: 110,
       render: (v: string) => v || '—',
     },
     {

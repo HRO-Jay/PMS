@@ -6,6 +6,7 @@ import { SaveOutlined, DownloadOutlined, UploadOutlined, CalculatorOutlined, Plu
 import api from '../api/client';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
 import { calcAttendance } from '../utils/attendanceCalc';
+import { withSource } from '../components/SourceTag';
 import dayjs from 'dayjs';
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
@@ -61,31 +62,56 @@ const AttendancePage: React.FC = () => {
     setLoading(true);
     try {
       const [empRes, recRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,status,cost_center,pay_company,tax_method,department,report_to,position,job_level,attendance_type,entry_date,leave_date'),
+        api.get('/employees?select=unique_hash,name,status,cost_center,pay_company,tax_method,department,report_to,position,job_level,attendance_type,entry_date,leave_date,basic_salary'),
         api.get(`/attendance_records?select=*&period=eq.${period}&order=unique_hash`),
       ]);
+      // 员工列表（含基本工资）
+      const empList: any[] = empRes.data;
       const empMap: Record<string, any> = {};
-      empRes.data.forEach((e: any) => { empMap[e.unique_hash] = e; });
+      empList.forEach((e: any) => { empMap[e.unique_hash] = e; });
+      setEmployees(empMap);
 
-      setRecords(recRes.data.map((r: any) => {
-        const emp = empMap[r.unique_hash] || {};
-        return {
-          ...r,
-          key: r.id,
-          employee_name: emp.name || r.unique_hash,
-          status: emp.status || '',
-          pay_company: emp.pay_company || '',
-          cost_center: emp.cost_center || '',
-          department: emp.department || '',
-          report_to: emp.report_to || '',
-          position: emp.position || '',
-          entry_date: emp.entry_date || '',
-          leave_date: emp.leave_date || '',
-          attendance_type: emp.attendance_type || '',
-          tax_method: emp.tax_method || '',
-          job_level: emp.job_level || '',
-        };
-      }));
+      // 当月考勤记录映射
+      const recMap: Record<string, any> = {};
+      recRes.data.forEach((r: any) => { recMap[r.unique_hash] = r; });
+
+      // 左连接：以花名册员工为准，自动列出所有人（在职全显 + 离职但当月有记录也显示）
+      const merged = empList
+        .filter((e: any) => e.status === '在职' || recMap[e.unique_hash])
+        .map((e: any) => {
+          const rec = recMap[e.unique_hash];
+          return {
+            // 基础信息来自花名册
+            unique_hash: e.unique_hash,
+            employee_name: e.name,
+            status: e.status || '',
+            pay_company: e.pay_company || '',
+            cost_center: e.cost_center || '',
+            department: e.department || '',
+            report_to: e.report_to || '',
+            position: e.position || '',
+            entry_date: e.entry_date || '',
+            leave_date: e.leave_date || '',
+            attendance_type: e.attendance_type || '',
+            tax_method: e.tax_method || '',
+            job_level: e.job_level || '',
+            // 基本工资优先取考勤记录，否则取花名册
+            basic_salary: rec?.basic_salary ?? e.basic_salary ?? undefined,
+            // 业务数据来自考勤记录（无记录则空）
+            ...(rec || {
+              id: undefined,
+              pay_days: undefined,
+              sick_days: 0, personal_days: 0, annual_leave: 0, compensatory_leave: 0,
+              absenteeism_days: 0, funeral_leave: 0, parental_leave: 0, marriage_leave: 0,
+              maternity_leave: 0, overtime_type: undefined, overtime_unit: '天', overtime_qty: 0,
+              sick_amount: 0, personal_amount: 0, absenteeism_amount: 0, overtime_amount: 0,
+              on_off_adjust: 0, attendance_adjust_total: 0, data_status: '未录入',
+            }),
+            key: rec?.id ?? `emp-${e.unique_hash}`,
+          };
+        });
+
+      setRecords(merged);
     } catch { message.error('加载考勤数据失败'); }
     finally { setLoading(false); }
   };
@@ -121,7 +147,7 @@ const AttendancePage: React.FC = () => {
     for (const r of records) {
       try {
         const result = calcRecord(r);
-        await api.patch(`/attendance_records?id=eq.${r.id}`, {
+        const calcFields = {
           sick_pay_rate: result.sick_pay_rate,
           sick_amount: result.sick_amount,
           personal_amount: result.personal_amount,
@@ -130,7 +156,15 @@ const AttendancePage: React.FC = () => {
           on_off_adjust: result.on_off_adjust,
           attendance_adjust_total: result.attendance_adjust_total,
           data_status: '已计算',
-        });
+        };
+        const existing = await api.get(`/attendance_records?unique_hash=eq.${r.unique_hash}&period=eq.${period}`);
+        if (existing.data.length > 0) {
+          await api.patch(`/attendance_records?id=eq.${existing.data[0].id}`, calcFields);
+        } else {
+          await api.post('/attendance_records', {
+            unique_hash: r.unique_hash, period, ...calcFields,
+          });
+        }
         success++;
       } catch { /* skip */ }
     }
@@ -142,9 +176,20 @@ const AttendancePage: React.FC = () => {
   const handleSave = async (record: any) => {
     try {
       const result = calcRecord(record);
-      await api.post('/attendance_records', {
-        ...record,
+      const payload = {
+        unique_hash: record.unique_hash,
         period,
+        basic_salary: record.basic_salary,
+        pay_days: record.pay_days,
+        sick_days: record.sick_days, personal_days: record.personal_days,
+        annual_leave: record.annual_leave, compensatory_leave: record.compensatory_leave,
+        absenteeism_days: record.absenteeism_days, funeral_leave: record.funeral_leave,
+        parental_leave: record.parental_leave, marriage_leave: record.marriage_leave,
+        maternity_leave: record.maternity_leave,
+        overtime_type: record.overtime_type, overtime_unit: record.overtime_unit,
+        overtime_qty: record.overtime_qty, hourly_rate: record.hourly_rate,
+        holiday_fixed_amount: record.holiday_fixed_amount,
+        actual_attendance_days: record.actual_attendance_days,
         sick_pay_rate: result.sick_pay_rate,
         sick_amount: result.sick_amount,
         personal_amount: result.personal_amount,
@@ -153,34 +198,22 @@ const AttendancePage: React.FC = () => {
         on_off_adjust: result.on_off_adjust,
         attendance_adjust_total: result.attendance_adjust_total,
         data_status: '已计算',
-      });
+      };
+      const existing = await api.get(`/attendance_records?unique_hash=eq.${record.unique_hash}&period=eq.${period}`);
+      if (existing.data.length > 0) {
+        await api.patch(`/attendance_records?id=eq.${existing.data[0].id}`, payload);
+      } else {
+        await api.post('/attendance_records', payload);
+      }
       message.success('保存成功');
       loadData();
     } catch {
-      // 已存在则更新
-      try {
-        const result = calcRecord(record);
-        await api.patch(`/attendance_records?unique_hash=eq.${record.unique_hash}&period=eq.${period}`, {
-          ...record,
-          sick_pay_rate: result.sick_pay_rate,
-          sick_amount: result.sick_amount,
-          personal_amount: result.personal_amount,
-          absenteeism_amount: result.absenteeism_amount,
-          overtime_amount: result.overtime_amount,
-          on_off_adjust: result.on_off_adjust,
-          attendance_adjust_total: result.attendance_adjust_total,
-          data_status: '已计算',
-        });
-        message.success('更新成功');
-        loadData();
-      } catch {
-        message.error('保存失败');
-      }
+      message.error('保存失败');
     }
   };
 
-  const updateCell = (id: number, field: string, value: any) => {
-    setRecords(prev => prev.map(r => r.id === id ? { ...r, [field]: value ?? 0 } : r));
+  const updateCell = (key: string, field: string, value: any) => {
+    setRecords(prev => prev.map(r => r.key === key ? { ...r, [field]: value ?? 0 } : r));
   };
 
   const openDetail = (r: any) => {
@@ -263,31 +296,31 @@ const AttendancePage: React.FC = () => {
   };
 
   const columns: any[] = [
-    { title: '姓名', dataIndex: 'employee_name', key: 'name', width: 90, fixed: 'left' },
-    { title: '发薪公司', dataIndex: 'pay_company', key: 'co', width: 140, ellipsis: true, fixed: 'left' },
-    { title: '成本中心', dataIndex: 'cost_center', key: 'cc', width: 90 },
-    { title: '部门', dataIndex: 'department', key: 'dept', width: 90 },
-    { title: '汇报人', dataIndex: 'report_to', key: 'rpt', width: 80 },
-    { title: '职位', dataIndex: 'position', key: 'pos', width: 90 },
-    { title: '入职日期', dataIndex: 'entry_date', key: 'jd', width: 100 },
-    { title: '考勤制', dataIndex: 'attendance_type', key: 'ws', width: 100 },
-    { title: '基本工资', dataIndex: 'basic_salary', key: 'bs', width: 100,
-      render: (v: number, r: any) => <InputNumber size="small" value={v} style={{ width: 90 }} onChange={val => updateCell(r.id, 'basic_salary', val)} /> },
-    { title: '计薪天数', dataIndex: 'pay_days', key: 'pd', width: 90,
-      render: (v: number, r: any) => <InputNumber size="small" value={v} style={{ width: 70 }} onChange={val => updateCell(r.id, 'pay_days', val)} /> },
-    { title: '病假(天)', dataIndex: 'sick_days', key: 'sd', width: 80,
-      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 60 }} onChange={val => updateCell(r.id, 'sick_days', val)} /> },
-    { title: '病假金额', dataIndex: 'sick_amount', key: 'sa', width: 90, render: (v: number) => fmtMoney(v) },
-    { title: '事假(天)', dataIndex: 'personal_days', key: 'pd2', width: 80,
-      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 60 }} onChange={val => updateCell(r.id, 'personal_days', val)} /> },
-    { title: '事假金额', dataIndex: 'personal_amount', key: 'pa', width: 90, render: (v: number) => fmtMoney(v) },
-    { title: '旷工(天)', dataIndex: 'absenteeism_days', key: 'ad', width: 80,
-      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 60 }} onChange={val => updateCell(r.id, 'absenteeism_days', val)} /> },
-    { title: '加班金额', dataIndex: 'overtime_amount', key: 'oa', width: 90, render: (v: number) => fmtMoney(v) },
-    { title: '入离职调整', dataIndex: 'on_off_adjust', key: 'oof', width: 100, render: (v: number) => fmtMoney(v) },
-    { title: '考勤调整合计', dataIndex: 'attendance_adjust_total', key: 'aat', width: 110, fixed: 'right',
+    { title: withSource('姓名', '花名册同步'), dataIndex: 'employee_name', key: 'name', width: 90, fixed: 'left' },
+    { title: withSource('发薪公司', '花名册同步'), dataIndex: 'pay_company', key: 'co', width: 140, ellipsis: true, fixed: 'left' },
+    { title: withSource('成本中心', '花名册同步'), dataIndex: 'cost_center', key: 'cc', width: 90 },
+    { title: withSource('部门', '花名册同步'), dataIndex: 'department', key: 'dept', width: 90 },
+    { title: withSource('汇报人', '花名册同步'), dataIndex: 'report_to', key: 'rpt', width: 80 },
+    { title: withSource('职位', '花名册同步'), dataIndex: 'position', key: 'pos', width: 90 },
+    { title: withSource('入职日期', '花名册同步'), dataIndex: 'entry_date', key: 'jd', width: 100 },
+    { title: withSource('考勤制', '花名册同步'), dataIndex: 'attendance_type', key: 'ws', width: 100 },
+    { title: withSource('基本工资', '花名册同步'), dataIndex: 'basic_salary', key: 'bs', width: 100,
+      render: (v: number, r: any) => <InputNumber size="small" value={v} style={{ width: 90 }} onChange={val => updateCell(r.key, 'basic_salary', val)} /> },
+    { title: withSource('计薪天数', '手动录入'), dataIndex: 'pay_days', key: 'pd', width: 90,
+      render: (v: number, r: any) => <InputNumber size="small" value={v} style={{ width: 70 }} onChange={val => updateCell(r.key, 'pay_days', val)} /> },
+    { title: withSource('病假(天)', '导入'), dataIndex: 'sick_days', key: 'sd', width: 80,
+      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 60 }} onChange={val => updateCell(r.key, 'sick_days', val)} /> },
+    { title: withSource('病假金额', '系统计算'), dataIndex: 'sick_amount', key: 'sa', width: 90, render: (v: number) => fmtMoney(v) },
+    { title: withSource('事假(天)', '导入'), dataIndex: 'personal_days', key: 'pd2', width: 80,
+      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 60 }} onChange={val => updateCell(r.key, 'personal_days', val)} /> },
+    { title: withSource('事假金额', '系统计算'), dataIndex: 'personal_amount', key: 'pa', width: 90, render: (v: number) => fmtMoney(v) },
+    { title: withSource('旷工(天)', '导入'), dataIndex: 'absenteeism_days', key: 'ad', width: 80,
+      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 60 }} onChange={val => updateCell(r.key, 'absenteeism_days', val)} /> },
+    { title: withSource('加班金额', '系统计算'), dataIndex: 'overtime_amount', key: 'oa', width: 90, render: (v: number) => fmtMoney(v) },
+    { title: withSource('入离职调整', '系统计算'), dataIndex: 'on_off_adjust', key: 'oof', width: 100, render: (v: number) => fmtMoney(v) },
+    { title: withSource('考勤调整合计', '系统计算'), dataIndex: 'attendance_adjust_total', key: 'aat', width: 110, fixed: 'right',
       render: (v: number) => <strong style={{ color: v < 0 ? '#e74c3c' : '#27ae60' }}>{fmtMoney(v)}</strong> },
-    { title: '数据状态', dataIndex: 'data_status', key: 'ds', width: 100,
+    { title: withSource('数据状态', '系统计算'), dataIndex: 'data_status', key: 'ds', width: 100,
       render: (v: string) => <Tag color={v === '已锁定' ? 'red' : v === '草稿' ? 'default' : 'blue'}>{v}</Tag> },
     {
       title: '操作', key: 'act', width: 150, fixed: 'right',

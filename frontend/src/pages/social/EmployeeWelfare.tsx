@@ -7,6 +7,7 @@ import api from '../../api/client';
 import type { SocialWelfareSet, HousingFundSet, EmployeeWelfareRecord } from '../../types';
 import { calcSocial, calcHousingFund } from '../../utils/welfareCalc';
 import { exportXlsx, importXlsx, type ExportDef } from '../../utils/importExport';
+import { withSource } from '../../components/SourceTag';
 import dayjs from 'dayjs';
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
@@ -63,49 +64,57 @@ const EmployeeWelfare: React.FC = () => {
     setLoading(true);
     try {
       const [empRes, sRes, hRes, recRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,pay_company,department'),
+        api.get('/employees?select=unique_hash,name,status,pay_company,department'),
         api.get('/social_welfare_sets?select=*&order=code'),
         api.get('/housing_fund_sets?select=*&order=code'),
         api.get(`/employee_welfare_records?select=*&period=eq.${period}`),
       ]);
-      setEmployees(empRes.data);
+      const empList: any[] = empRes.data;
+      setEmployees(empList);
       setSocialSets(sRes.data);
       setHousingSets(hRes.data);
 
       const empMap: Record<string, any> = {};
-      empRes.data.forEach((e: any) => { empMap[e.unique_hash] = e; });
+      empList.forEach((e: any) => { empMap[e.unique_hash] = e; });
+      const recMap: Record<string, any> = {};
+      recRes.data.forEach((r: any) => { recMap[r.unique_hash] = r; });
 
-      setRecords(recRes.data.map((r: any) => {
-        const emp = empMap[r.unique_hash] || {};
-        // 含调整合计算
-        const psAdj = Number(r.personal_social_adj || 0);
-        const csAdj = Number(r.company_social_adj || 0);
-        const phAdj = Number(r.personal_housing_adj || 0);
-        const chAdj = Number(r.company_housing_adj || 0);
-        const socialAdjTotal = Number((psAdj + csAdj).toFixed(2));
-        const housingAdjTotal = Number((phAdj + chAdj).toFixed(2));
-        const psWithAdj = Number(((r.personal_social_total || 0) + psAdj).toFixed(2));
-        const csWithAdj = Number(((r.company_social_total || 0) + csAdj).toFixed(2));
-        const phWithAdj = Number(((r.personal_housing_total || 0) + phAdj).toFixed(2));
-        const chWithAdj = Number(((r.company_housing_total || 0) + chAdj).toFixed(2));
-        return {
-          ...r,
-          key: r.id,
-          employee_name: emp.name || r.unique_hash,
-          pay_company: emp.pay_company || '',
-          department: emp.department || '',
-          social_adj_total: socialAdjTotal,
-          housing_adj_total: housingAdjTotal,
-          personal_social_with_adj: psWithAdj,
-          company_social_with_adj: csWithAdj,
-          personal_housing_with_adj: phWithAdj,
-          company_housing_with_adj: chWithAdj,
-          social_total_with_adj: Number((psWithAdj + csWithAdj).toFixed(2)),
-          housing_total_with_adj: Number((phWithAdj + chWithAdj).toFixed(2)),
-          personal_total_with_adj: Number((psWithAdj + phWithAdj).toFixed(2)),
-          company_total_with_adj: Number((csWithAdj + chWithAdj).toFixed(2)),
-        };
-      }));
+      // 左连接：以花名册在职员工为准自动列出，离职但当月有记录也显示
+      const merged = empList
+        .filter((e: any) => e.status === '在职' || recMap[e.unique_hash])
+        .map((e: any) => {
+          const r = recMap[e.unique_hash];
+          const psAdj = Number(r?.personal_social_adj || 0);
+          const csAdj = Number(r?.company_social_adj || 0);
+          const phAdj = Number(r?.personal_housing_adj || 0);
+          const chAdj = Number(r?.company_housing_adj || 0);
+          const socialAdjTotal = Number((psAdj + csAdj).toFixed(2));
+          const housingAdjTotal = Number((phAdj + chAdj).toFixed(2));
+          const psWithAdj = Number(((r?.personal_social_total || 0) + psAdj).toFixed(2));
+          const csWithAdj = Number(((r?.company_social_total || 0) + csAdj).toFixed(2));
+          const phWithAdj = Number(((r?.personal_housing_total || 0) + phAdj).toFixed(2));
+          const chWithAdj = Number(((r?.company_housing_total || 0) + chAdj).toFixed(2));
+          return {
+            ...(r || { id: undefined, data_status: '未录入', supp_enabled: false }),
+            key: r?.id ?? `emp-${e.unique_hash}`,
+            unique_hash: e.unique_hash,
+            employee_name: e.name,
+            pay_company: e.pay_company || '',
+            department: e.department || '',
+            social_adj_total: socialAdjTotal,
+            housing_adj_total: housingAdjTotal,
+            personal_social_with_adj: psWithAdj,
+            company_social_with_adj: csWithAdj,
+            personal_housing_with_adj: phWithAdj,
+            company_housing_with_adj: chWithAdj,
+            social_total_with_adj: Number((psWithAdj + csWithAdj).toFixed(2)),
+            housing_total_with_adj: Number((phWithAdj + chWithAdj).toFixed(2)),
+            personal_total_with_adj: Number((psWithAdj + phWithAdj).toFixed(2)),
+            company_total_with_adj: Number((csWithAdj + chWithAdj).toFixed(2)),
+          };
+        });
+
+      setRecords(merged);
     } catch { message.error('加载数据失败'); }
     finally { setLoading(false); }
   };
@@ -299,27 +308,25 @@ const EmployeeWelfare: React.FC = () => {
   };
 
   const columns: any[] = [
-    { title: '姓名', dataIndex: 'employee_name', key: 'name', width: 90, fixed: 'left' },
-    { title: '公司/部门', key: 'org', width: 160, render: (_: any, r: any) => `${r.pay_company} / ${r.department || '—'}` },
-    { title: '生效日期', dataIndex: 'effective_month', key: 'em', width: 100, render: (v: string) => v || '—' },
-    { title: '结束日期', dataIndex: 'expiry_month', key: 'xm', width: 100, render: (v: string) => v || '—' },
-    { title: '社保福利套', dataIndex: 'social_welfare_code', key: 'sw', width: 120 },
-    { title: '公积金福利套', dataIndex: 'housing_fund_code', key: 'hw', width: 120 },
-    { title: '社保状态', dataIndex: 'social_status', key: 'ss', width: 90, render: (v: string) => <Tag color={v === '参保' ? 'green' : 'red'}>{v}</Tag> },
-    { title: '公积金状态', dataIndex: 'housing_status', key: 'hs', width: 90, render: (v: string) => <Tag color={v === '缴存' ? 'green' : 'red'}>{v}</Tag> },
-    { title: '社保基数', dataIndex: 'social_base', key: 'sb', width: 100, render: (v: any) => v ? `¥${Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—' },
-    { title: '公积金基数', dataIndex: 'housing_base', key: 'hb', width: 100, render: (v: any) => v ? `¥${Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—' },
-    { title: '个人合计', dataIndex: 'personal_total', key: 'pt', width: 100, render: (v: any) => <strong>¥${Number(v || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> },
-    { title: '公司合计', dataIndex: 'company_total', key: 'ct', width: 100, render: (v: any) => <strong>¥${Number(v || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> },
-    { title: '个人社保本月', dataIndex: 'personal_social_total', key: 'psm', width: 110, render: (v: any) => fmtMoney(v) },
-    { title: '公司社保本月', dataIndex: 'company_social_total', key: 'csm', width: 110, render: (v: any) => fmtMoney(v) },
-    { title: '社保调整金额', dataIndex: 'social_adj_total', key: 'sat', width: 110, render: (v: any) => fmtMoney(v) },
-    { title: '社保合计(含调整)', dataIndex: 'social_total_with_adj', key: 'stwa', width: 130, render: (v: any) => <strong>{fmtMoney(v)}</strong> },
-    { title: '公积金调整金额', dataIndex: 'housing_adj_total', key: 'hat', width: 120, render: (v: any) => fmtMoney(v) },
-    { title: '公积金合计(含调整)', dataIndex: 'housing_total_with_adj', key: 'htwa', width: 130, render: (v: any) => <strong>{fmtMoney(v)}</strong> },
-    { title: '个人福利合计(含调整)', dataIndex: 'personal_total_with_adj', key: 'ptwa', width: 140, render: (v: any) => <strong>{fmtMoney(v)}</strong> },
-    { title: '公司福利合计(含调整)', dataIndex: 'company_total_with_adj', key: 'ctwa', width: 140, render: (v: any) => <strong>{fmtMoney(v)}</strong> },
-    { title: '数据状态', dataIndex: 'data_status', key: 'ds', width: 100, render: statusTag },
+    { title: withSource('姓名', '花名册同步'), dataIndex: 'employee_name', key: 'name', width: 90, fixed: 'left' },
+    { title: withSource('公司/部门', '花名册同步'), key: 'org', width: 160, render: (_: any, r: any) => `${r.pay_company} / ${r.department || '—'}` },
+    { title: withSource('生效日期', '手动录入'), dataIndex: 'effective_month', key: 'em', width: 100, render: (v: string) => v || '—' },
+    { title: withSource('结束日期', '手动录入'), dataIndex: 'expiry_month', key: 'xm', width: 100, render: (v: string) => v || '—' },
+    { title: withSource('社保福利套', '手动录入'), dataIndex: 'social_welfare_code', key: 'sw', width: 120 },
+    { title: withSource('公积金福利套', '手动录入'), dataIndex: 'housing_fund_code', key: 'hw', width: 120 },
+    { title: withSource('社保状态', '系统计算'), dataIndex: 'social_status', key: 'ss', width: 90, render: (v: string) => <Tag color={v === '参保' ? 'green' : 'red'}>{v}</Tag> },
+    { title: withSource('公积金状态', '系统计算'), dataIndex: 'housing_status', key: 'hs', width: 90, render: (v: string) => <Tag color={v === '缴存' ? 'green' : 'red'}>{v}</Tag> },
+    { title: withSource('社保基数', '手动录入'), dataIndex: 'social_base', key: 'sb', width: 100, render: (v: any) => v ? `¥${Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—' },
+    { title: withSource('公积金基数', '手动录入'), dataIndex: 'housing_base', key: 'hb', width: 100, render: (v: any) => v ? `¥${Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—' },
+    { title: withSource('个人社保本月', '系统计算'), dataIndex: 'personal_social_total', key: 'psm', width: 110, render: (v: any) => fmtMoney(v) },
+    { title: withSource('公司社保本月', '系统计算'), dataIndex: 'company_social_total', key: 'csm', width: 110, render: (v: any) => fmtMoney(v) },
+    { title: withSource('社保调整金额', '导入'), dataIndex: 'social_adj_total', key: 'sat', width: 110, render: (v: any) => fmtMoney(v) },
+    { title: withSource('社保合计(含调整)', '系统计算'), dataIndex: 'social_total_with_adj', key: 'stwa', width: 130, render: (v: any) => <strong>{fmtMoney(v)}</strong> },
+    { title: withSource('公积金调整金额', '导入'), dataIndex: 'housing_adj_total', key: 'hat', width: 120, render: (v: any) => fmtMoney(v) },
+    { title: withSource('公积金合计(含调整)', '系统计算'), dataIndex: 'housing_total_with_adj', key: 'htwa', width: 130, render: (v: any) => <strong>{fmtMoney(v)}</strong> },
+    { title: withSource('个人福利合计(含调整)', '系统计算'), dataIndex: 'personal_total_with_adj', key: 'ptwa', width: 140, render: (v: any) => <strong>{fmtMoney(v)}</strong> },
+    { title: withSource('公司福利合计(含调整)', '系统计算'), dataIndex: 'company_total_with_adj', key: 'ctwa', width: 140, render: (v: any) => <strong>{fmtMoney(v)}</strong> },
+    { title: withSource('数据状态', '系统计算'), dataIndex: 'data_status', key: 'ds', width: 100, render: statusTag },
     {
       title: '操作', key: 'act', width: 120, fixed: 'right',
       render: (_: any, r: any) => (
