@@ -10,7 +10,7 @@ export type SourceType = '花名册同步' | '导入' | '单独新增' | '系统
 
 const SOURCE_COLORS: Record<string, string> = {
   '花名册同步': 'blue',
-  '导入': 'green',
+  '导入': 'orange',
   '单独新增': 'cyan',
   '系统计算': 'purple',
   '花名册同步+导入': 'geekblue',

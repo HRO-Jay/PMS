@@ -25,7 +25,7 @@ const fmtMoney = (v: any) => {
 const EXPORT_DEF: ExportDef = {
   module: '员工福利缴纳明细',
   columns: [
-    { key: 'unique_hash', label: '唯一值', hidden: true },
+    { key: 'unique_hash', label: '唯一值', hidden: false },
     { key: 'employee_name', label: '姓名', required: true },
     { key: 'pay_company', label: '发薪公司', required: true },
     { key: 'department', label: '部门' },
@@ -223,11 +223,54 @@ const EmployeeWelfare: React.FC = () => {
   const handleSave = async () => {
     await form.validateFields();
     const values = formValues;
+    // 只提交数据库表真实存在的字段（排除前端计算展示用的中间字段）
     const payload = {
-      ...values,
+      unique_hash: values.unique_hash,
       period,
+      effective_month: values.effective_month,
+      expiry_month: values.expiry_month,
+      social_welfare_code: values.social_welfare_code,
+      housing_fund_code: values.housing_fund_code,
       social_status: values.social_welfare_code === 'SI-00' ? '不参保' : '参保',
       housing_status: values.housing_fund_code === 'HF-00' ? '不缴存' : '缴存',
+      social_no_reason: values.social_no_reason,
+      housing_no_reason: values.housing_no_reason,
+      social_base: values.social_base,
+      housing_base: values.housing_base,
+      supp_enabled: values.supp_enabled,
+      supp_base: values.supp_base,
+      // 社保金额快照
+      pension_p_amt: values.pension_p_amt,
+      medical_p_amt: values.medical_p_amt,
+      unemployment_p_amt: values.unemployment_p_amt,
+      pension_c_amt: values.pension_c_amt,
+      medical_c_amt: values.medical_c_amt,
+      unemployment_c_amt: values.unemployment_c_amt,
+      injury_c_amt: values.injury_c_amt,
+      maternity_c_amt: values.maternity_c_amt,
+      // 公积金金额快照
+      normal_housing_p_amt: values.normal_housing_p_amt,
+      normal_housing_c_amt: values.normal_housing_c_amt,
+      supp_housing_p_amt: values.supp_housing_p_amt,
+      supp_housing_c_amt: values.supp_housing_c_amt,
+      // 汇总
+      personal_social_total: values.personal_social_total,
+      personal_housing_total: values.personal_housing_total,
+      personal_total: values.personal_total,
+      company_social_total: values.company_social_total,
+      company_housing_total: values.company_housing_total,
+      company_total: values.company_total,
+      // 调整金额
+      personal_social_adj: values.personal_social_adj,
+      company_social_adj: values.company_social_adj,
+      personal_housing_adj: values.personal_housing_adj,
+      company_housing_adj: values.company_housing_adj,
+      adj_start_month: values.adj_start_month,
+      adj_end_month: values.adj_end_month,
+      adj_reason: values.adj_reason,
+      adj_remark: values.adj_remark,
+      data_status: values.data_status,
+      remark: values.remark,
       last_calc_time: new Date().toISOString(),
     };
     try {
@@ -324,8 +367,8 @@ const EmployeeWelfare: React.FC = () => {
     { title: withSource('社保合计(含调整)', '系统计算'), dataIndex: 'social_total_with_adj', key: 'stwa', width: 130, render: (v: any) => <strong>{fmtMoney(v)}</strong> },
     { title: withSource('公积金调整金额', '导入'), dataIndex: 'housing_adj_total', key: 'hat', width: 120, render: (v: any) => fmtMoney(v) },
     { title: withSource('公积金合计(含调整)', '系统计算'), dataIndex: 'housing_total_with_adj', key: 'htwa', width: 130, render: (v: any) => <strong>{fmtMoney(v)}</strong> },
-    { title: withSource('个人福利合计(含调整)', '系统计算'), dataIndex: 'personal_total_with_adj', key: 'ptwa', width: 140, render: (v: any) => <strong>{fmtMoney(v)}</strong> },
-    { title: withSource('公司福利合计(含调整)', '系统计算'), dataIndex: 'company_total_with_adj', key: 'ctwa', width: 140, render: (v: any) => <strong>{fmtMoney(v)}</strong> },
+    { title: withSource('个人福利合计', '系统计算'), key: 'ptwa', width: 130,
+      render: (_: any, r: any) => <strong>{fmtMoney(Number((r.social_total_with_adj || 0) + (r.housing_total_with_adj || 0)).toFixed(2))}</strong> },
     { title: withSource('数据状态', '系统计算'), dataIndex: 'data_status', key: 'ds', width: 100, render: statusTag },
     {
       title: '操作', key: 'act', width: 120, fixed: 'right',

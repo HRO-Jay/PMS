@@ -21,7 +21,17 @@ const fmtMoney = (v: any) => {
 const EXPORT_DEF: ExportDef = {
   module: '考勤管理',
   columns: [
-    { key: 'unique_hash', label: '唯一值', hidden: true },
+    { key: 'unique_hash', label: '唯一值', hidden: false },
+    // 花名册同步字段（导出带出）
+    { key: 'employee_name', label: '姓名' },
+    { key: 'pay_company', label: '发薪公司' },
+    { key: 'cost_center', label: '成本中心' },
+    { key: 'department', label: '部门' },
+    { key: 'report_to', label: '汇报人' },
+    { key: 'position', label: '职位' },
+    { key: 'attendance_type', label: '考勤制' },
+    { key: 'entry_date', label: '入职日期' },
+    // 考勤业务字段
     { key: 'basic_salary', label: '基本工资' },
     { key: 'pay_days', label: '计薪天数', required: true },
     { key: 'sick_days', label: '病假(天)' },
@@ -303,6 +313,12 @@ const AttendancePage: React.FC = () => {
     setAddOpen(true);
   };
 
+  // 打开编辑抽屉
+  const openEdit = (r: any) => {
+    setAddForm({ ...r });
+    setAddOpen(true);
+  };
+
   // 打开特殊调整抽屉
   const openAdjust = () => {
     setAdjForm({ direction: '增发', currency: '人民币' });
@@ -396,17 +412,26 @@ const AttendancePage: React.FC = () => {
       return;
     }
     try {
-      await api.post('/attendance_records', {
-        ...addForm,
-        period,
-        data_status: '草稿',
-      });
-      message.success('添加成功');
+      // 有 id 说明是编辑已有记录
+      if (addForm.id) {
+        await api.patch(`/attendance_records?id=eq.${addForm.id}`, {
+          ...addForm,
+          period,
+        });
+        message.success('更新成功');
+      } else {
+        await api.post('/attendance_records', {
+          ...addForm,
+          period,
+          data_status: '草稿',
+        });
+        message.success('添加成功');
+      }
       setAddOpen(false);
       setAddForm({});
       loadData();
     } catch (e: any) {
-      message.error(e.response?.data?.message || '添加失败');
+      message.error(e.response?.data?.message || '保存失败');
     }
   };
 
@@ -470,7 +495,12 @@ const AttendancePage: React.FC = () => {
           }
 
           const existing = await api.get(`/attendance_records?unique_hash=eq.${row.unique_hash}&period=eq.${period}`);
-          const payload = { ...row, period };
+          // 剔除花名册同步字段（不属于考勤表，仅供导出展示）
+          const {
+            employee_name, pay_company, cost_center, department, report_to, position, attendance_type, entry_date,
+            ...dbRow
+          } = row;
+          const payload = { ...dbRow, period };
           if (existing.data.length > 0) {
             await api.patch(`/attendance_records?id=eq.${existing.data[0].id}`, payload);
           } else {
@@ -532,9 +562,10 @@ const AttendancePage: React.FC = () => {
     { title: withSource('入职日期', '花名册同步'), dataIndex: 'entry_date', key: 'jd', width: 100 },
     { title: withSource('考勤制', '花名册同步'), dataIndex: 'attendance_type', key: 'ws', width: 100 },
     { title: withSource('基本工资', '花名册同步'), dataIndex: 'basic_salary', key: 'bs', width: 100,
-      render: (v: number, r: any) => <InputNumber size="small" value={v} style={{ width: 90 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'basic_salary', val)} /> },
+      render: (v: number) => fmtMoney(v) },
     { title: withSource('计薪天数', '导入'), dataIndex: 'pay_days', key: 'pd', width: 90,
-      render: (v: number, r: any) => <InputNumber size="small" value={v} style={{ width: 70 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'pay_days', val)} /> },
+      render: (v: number, r: any) => <Select size="small" value={v} style={{ width: 80 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'pay_days', val)}
+        options={[{ value: 21.75, label: '21.75' }, { value: 26, label: '26' }, { value: 30, label: '30' }]} /> },
     { title: withSource('病假(天)', '导入'), dataIndex: 'sick_days', key: 'sd', width: 80,
       render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 60 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'sick_days', val)} /> },
     { title: withSource('病假金额', '系统计算'), dataIndex: 'sick_amount', key: 'sa', width: 90, render: (v: number) => <span style={{ color: v < 0 ? '#e74c3c' : undefined }}>{fmtMoney(v)}</span> },
@@ -546,15 +577,11 @@ const AttendancePage: React.FC = () => {
     { title: withSource('加班类型', '导入'), dataIndex: 'overtime_type', key: 'ot', width: 130,
       render: (v: string, r: any) => <Select size="small" value={v} style={{ width: 110 }} allowClear disabled={isLocked(r)} onChange={val => updateCell(r.key, 'overtime_type', val)}
         options={['平时加班', '周末加班', '法定节假日加班'].map(t => ({ value: t, label: t }))} /> },
+    { title: withSource('加班数量', '导入'), dataIndex: 'overtime_qty', key: 'oq', width: 90,
+      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 70 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'overtime_qty', val)} /> },
     { title: withSource('加班单位', '导入'), dataIndex: 'overtime_unit', key: 'ou', width: 90,
       render: (v: string, r: any) => <Select size="small" value={v} style={{ width: 70 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'overtime_unit', val)}
         options={[{ value: '天', label: '天' }, { value: '小时', label: '小时' }]} /> },
-    { title: withSource('加班数量', '导入'), dataIndex: 'overtime_qty', key: 'oq', width: 90,
-      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 70 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'overtime_qty', val)} /> },
-    { title: withSource('时薪', '导入'), dataIndex: 'hourly_rate', key: 'hr', width: 90,
-      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 80 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'hourly_rate', val)} /> },
-    { title: withSource('法定节假日固定金额', '导入'), dataIndex: 'holiday_fixed_amount', key: 'hfa', width: 130,
-      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 100 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'holiday_fixed_amount', val)} /> },
     { title: withSource('加班金额', '系统计算'), dataIndex: 'overtime_amount', key: 'oa', width: 90, render: (v: number) => fmtMoney(v) },
     { title: withSource('入离职调整', '系统计算'), dataIndex: 'on_off_adjust', key: 'oof', width: 100, render: (v: number) => fmtMoney(v) },
     { title: withSource('考勤调整合计', '系统计算'), dataIndex: 'attendance_adjust_total', key: 'aat', width: 110, fixed: 'right',
@@ -574,15 +601,11 @@ const AttendancePage: React.FC = () => {
         render: col.render,
       })),
     {
-      title: '操作', key: 'act', width: 150, fixed: 'right',
+      title: '操作', key: 'act', width: 120, fixed: 'right',
       render: (_: any, r: any) => (
         <Space size={4}>
           <Button size="small" onClick={() => openDetail(r)}>查看</Button>
-          <Button size="small" type="primary" icon={<SaveOutlined />} disabled={isLocked(r)} onClick={() => handleSave(r)}>保存</Button>
-          <Popconfirm title="确认删除该考勤记录？" okText="删除" cancelText="取消" okButtonProps={{ danger: true }}
-            onConfirm={async () => { await api.delete(`/attendance_records?id=eq.${r.id}`); message.success('已删除'); loadData(); }}>
-            <Button size="small" danger disabled={isLocked(r)}>删除</Button>
-          </Popconfirm>
+          <Button size="small" type="primary" disabled={isLocked(r)} onClick={() => openEdit(r)}>编辑</Button>
         </Space>
       ),
     },
@@ -765,9 +788,9 @@ const AttendancePage: React.FC = () => {
         </Form>
       </Drawer>
 
-      {/* 添加记录抽屉 */}
+      {/* 添加/编辑记录抽屉 */}
       <Drawer
-        title="添加考勤记录"
+        title={addForm.id ? '编辑考勤记录' : '添加考勤记录'}
         open={addOpen}
         onClose={() => setAddOpen(false)}
         width={560}
@@ -785,6 +808,7 @@ const AttendancePage: React.FC = () => {
               optionFilterProp="label"
               placeholder="从花名册选择员工"
               value={addForm.unique_hash}
+              disabled={!!addForm.id}
               onChange={(v) => {
                 const emp = Object.values(employees).find((e: any) => e.unique_hash === v);
                 setAddForm({ ...addForm, unique_hash: v, employee_name: emp?.name, pay_company: emp?.pay_company });
@@ -797,7 +821,8 @@ const AttendancePage: React.FC = () => {
               <InputNumber style={{ width: 160 }} value={addForm.basic_salary} onChange={(v) => setAddForm({ ...addForm, basic_salary: v })} />
             </Form.Item>
             <Form.Item label="计薪天数" required>
-              <InputNumber style={{ width: 160 }} min={0} value={addForm.pay_days} onChange={(v) => setAddForm({ ...addForm, pay_days: v })} placeholder="21.75/26/30" />
+              <Select style={{ width: 160 }} value={addForm.pay_days} onChange={(v) => setAddForm({ ...addForm, pay_days: v })}
+                options={[{ value: 21.75, label: '21.75' }, { value: 26, label: '26' }, { value: 30, label: '30' }]} />
             </Form.Item>
           </Space>
           <Space style={{ width: '100%' }} size="large">
@@ -830,6 +855,9 @@ const AttendancePage: React.FC = () => {
             <Form.Item label="加班单位">
               <Select style={{ width: 120 }} allowClear value={addForm.overtime_unit} onChange={(v) => setAddForm({ ...addForm, overtime_unit: v })}
                 options={[{ value: '天', label: '天' }, { value: '小时', label: '小时' }]} />
+            </Form.Item>
+            <Form.Item label="加班数量">
+              <InputNumber style={{ width: 120 }} min={0} value={addForm.overtime_qty} onChange={(v) => setAddForm({ ...addForm, overtime_qty: v })} />
             </Form.Item>
           </Space>
           <Space style={{ width: '100%' }} size="large">

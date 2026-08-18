@@ -313,7 +313,9 @@ const EmployeesPage: React.FC = () => {
     { title: withSource('姓名', '导入'), dataIndex: 'name', key: 'name', width: 100, fixed: 'left' },
     {
       title: withSource('状态', '导入'), dataIndex: 'status', key: 'status', width: 80,
-      render: (v: string) => <Tag color={v === '在职' ? 'green' : 'red'}>{v}</Tag>,
+      render: (v: string) => (
+        <Tag color={v === '在职' ? 'green' : 'red'} style={{ borderRadius: '12px', padding: '0 10px' }}>{v}</Tag>
+      ),
     },
     { title: withSource('成本中心', '导入'), dataIndex: 'cost_center', key: 'cost_center', width: 130 },
     { title: withSource('发薪公司', '导入'), dataIndex: 'pay_company', key: 'pay_company', width: 130 },

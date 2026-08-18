@@ -9,7 +9,16 @@ import { withSource } from '../components/SourceTag';
 const EXPORT_DEF: ExportDef = {
   module: '薪资计算',
   columns: [
-    { key: 'unique_hash', label: '唯一值', hidden: true },
+    { key: 'unique_hash', label: '唯一值', hidden: false },
+    // 花名册同步字段（导出带出）
+    { key: 'employee_name', label: '姓名' },
+    { key: 'pay_company', label: '发薪公司' },
+    { key: 'cost_center', label: '成本中心' },
+    { key: 'department', label: '部门' },
+    { key: 'report_to', label: '汇报人' },
+    { key: 'position', label: '职位' },
+    { key: 'attendance_type', label: '考勤制' },
+    { key: 'entry_date', label: '入职日期' },
     { key: 'base_salary', label: '基本工资' },
     { key: 'allowance_supp', label: '补贴/补充公积金' },
     { key: 'attendance_adjust', label: '考勤调整' },
@@ -257,11 +266,16 @@ const PayrollPage: React.FC = () => {
               let success = 0;
               for (const row of data) {
                 try {
+                  // 剔除花名册同步字段（不属于薪资表，仅供导出展示）
+                  const {
+                    employee_name, pay_company, cost_center, department, report_to, position, attendance_type, entry_date,
+                    ...dbRow
+                  } = row;
                   const existing = await api.get(`/salary_records?unique_hash=eq.${row.unique_hash}&period=eq.${period}`);
                   if (existing.data.length > 0) {
-                    await api.patch(`/salary_records?id=eq.${existing.data[0].id}`, { ...row, period, month_number: parseInt(period.split('-')[1]) || 1 });
+                    await api.patch(`/salary_records?id=eq.${existing.data[0].id}`, { ...dbRow, period, month_number: parseInt(period.split('-')[1]) || 1 });
                   } else {
-                    await api.post('/salary_records', { ...row, period, month_number: parseInt(period.split('-')[1]) || 1 });
+                    await api.post('/salary_records', { ...dbRow, period, month_number: parseInt(period.split('-')[1]) || 1 });
                   }
                   success++;
                 } catch { /* skip */ }
