@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import {
   Table, Card, Button, Space, Input, message, InputNumber, Upload, Popconfirm, Drawer, Tag, Descriptions, Select, DatePicker, Form,
 } from 'antd';
-import { SaveOutlined, DownloadOutlined, UploadOutlined, CalculatorOutlined, PlusOutlined } from '@ant-design/icons';
+import { SaveOutlined, DownloadOutlined, UploadOutlined, CalculatorOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
 import { calcAttendance } from '../utils/attendanceCalc';
@@ -47,6 +48,7 @@ const EXPORT_DEF: ExportDef = {
 };
 
 const AttendancePage: React.FC = () => {
+  const navigate = useNavigate();
   const [records, setRecords] = useState<any[]>([]);
   const [employees, setEmployees] = useState<Record<string, any>>({});
   const [period, setPeriod] = useState(defaultPeriod);
@@ -55,16 +57,37 @@ const AttendancePage: React.FC = () => {
   const [detailRecord, setDetailRecord] = useState<any>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [addForm, setAddForm] = useState<any>({});
+  // 特殊调整
+  const [adjOpen, setAdjOpen] = useState(false);
+  const [adjForm, setAdjForm] = useState<any>({});
+  const [adjustments, setAdjustments] = useState<any[]>([]);
 
-  useEffect(() => { loadData(); }, [period]);
+  // 筛选器状态
+  const [fPayCompany, setFPayCompany] = useState<string>();
+  const [fCostCenter, setFCostCenter] = useState<string>();
+  const [fDepartment, setFDepartment] = useState<string>();
+  const [fReportTo, setFReportTo] = useState<string>();
+  const [fAttType, setFAttType] = useState<string>();
+  const [fPayDays, setFPayDays] = useState<string>();
+  const [fStatus, setFStatus] = useState<string>();
+  const [fAbnormal, setFAbnormal] = useState<string>();
+  const [keyword, setKeyword] = useState('');
+
+  // 列设置：可选列（默认隐藏，勾选后显示）
+  const [visibleOptionalCols, setVisibleOptionalCols] = useState<string[]>([]);
+  const [colSettingOpen, setColSettingOpen] = useState(false);
+
+  useEffect(() => { loadData(); }, [period, fPayCompany, fCostCenter, fDepartment, fReportTo, fAttType, fPayDays, fStatus, fAbnormal, keyword]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [empRes, recRes] = await Promise.all([
+      const [empRes, recRes, adjRes] = await Promise.all([
         api.get('/employees?select=unique_hash,name,status,cost_center,pay_company,tax_method,department,report_to,position,job_level,attendance_type,entry_date,leave_date,basic_salary'),
         api.get(`/attendance_records?select=*&period=eq.${period}&order=unique_hash`),
+        api.get(`/attendance_adjustments?select=*&period=eq.${period}`),
       ]);
+      setAdjustments(adjRes.data);
       // 员工列表（含基本工资）
       const empList: any[] = empRes.data;
       const empMap: Record<string, any> = {};
@@ -75,9 +98,19 @@ const AttendancePage: React.FC = () => {
       const recMap: Record<string, any> = {};
       recRes.data.forEach((r: any) => { recMap[r.unique_hash] = r; });
 
+      // 特殊调整按员工汇总金额
+      const adjSumMap: Record<string, number> = {};
+      adjustments.forEach((a: any) => {
+        const amount = a.fixed_amount !== undefined && a.fixed_amount !== null
+          ? Number(a.fixed_amount)
+          : Number(a.adjust_base || 0) * Number(a.adjust_qty || 0) * Number(a.adjust_ratio || 1);
+        const signed = a.direction === '扣减' ? -Math.abs(amount) : Math.abs(amount);
+        adjSumMap[a.unique_hash] = Number(((adjSumMap[a.unique_hash] || 0) + signed).toFixed(2));
+      });
+
       // 左连接：以花名册员工为准，自动列出所有人（在职全显 + 离职但当月有记录也显示）
       const merged = empList
-        .filter((e: any) => e.status === '在职' || recMap[e.unique_hash])
+        .filter((e: any) => e.status === '在职' || recMap[e.unique_hash] || adjSumMap[e.unique_hash])
         .map((e: any) => {
           const rec = recMap[e.unique_hash];
           return {
@@ -97,6 +130,8 @@ const AttendancePage: React.FC = () => {
             job_level: e.job_level || '',
             // 基本工资优先取考勤记录，否则取花名册
             basic_salary: rec?.basic_salary ?? e.basic_salary ?? undefined,
+            // 特殊调整金额
+            special_adjust_amount: adjSumMap[e.unique_hash] || 0,
             // 业务数据来自考勤记录（无记录则空）
             ...(rec || {
               id: undefined,
@@ -111,7 +146,35 @@ const AttendancePage: React.FC = () => {
           };
         });
 
-      setRecords(merged);
+      // 前端筛选（同时计算工龄、日薪、病假系数、异常状态供可选列展示）
+      let filtered = merged.map((r: any) => {
+        const calc = calcRecord(r);
+        const validPayDays = [21.75, 26, 30];
+        const pd = Number(r.pay_days);
+        let abnormal = '正常';
+        if (pd && !validPayDays.includes(pd)) abnormal = '异常';
+        else if ((Number(r.sick_days) || 0) > 0 && r.is_continuous_sick === true && (!r.continuous_sick_start || !r.continuous_sick_end)) abnormal = '异常';
+        else if ((Number(r.overtime_qty) || 0) > 0 && (!r.overtime_type || !r.overtime_unit)) abnormal = '异常';
+        return {
+          ...r,
+          abnormal,
+          seniority: calc.seniority_years,
+          daily_wage: calc.daily_wage,
+          sick_pay_rate: calc.sick_pay_rate,
+        };
+      });
+      if (fPayCompany) filtered = filtered.filter((r: any) => r.pay_company === fPayCompany);
+      if (fCostCenter) filtered = filtered.filter((r: any) => (r.cost_center || '').includes(fCostCenter));
+      if (fDepartment) filtered = filtered.filter((r: any) => (r.department || '').includes(fDepartment));
+      if (fReportTo) filtered = filtered.filter((r: any) => (r.report_to || '').includes(fReportTo));
+      if (fAttType) filtered = filtered.filter((r: any) => r.attendance_type === fAttType);
+      if (fPayDays) filtered = filtered.filter((r: any) => String(r.pay_days) === fPayDays);
+      if (fStatus) filtered = filtered.filter((r: any) => r.data_status === fStatus);
+      if (fAbnormal === '仅异常') filtered = filtered.filter((r: any) => r.abnormal === '异常');
+      if (fAbnormal === '仅正常') filtered = filtered.filter((r: any) => r.abnormal === '正常');
+      if (keyword) filtered = filtered.filter((r: any) => (r.employee_name || '').includes(keyword));
+
+      setRecords(filtered);
     } catch { message.error('加载考勤数据失败'); }
     finally { setLoading(false); }
   };
@@ -143,8 +206,22 @@ const AttendancePage: React.FC = () => {
 
   // 全部自动计算
   const handleAutoCalc = async () => {
+    // 计薪天数校验
+    const validPayDays = [21.75, 26, 30];
+    let invalidCount = 0;
+    for (const r of records) {
+      if (r.pay_days !== undefined && r.pay_days !== null && !validPayDays.includes(Number(r.pay_days))) {
+        invalidCount++;
+      }
+    }
+    if (invalidCount > 0) {
+      message.warning(`有 ${invalidCount} 条记录计薪天数不是 21.75/26/30，请先修正`);
+      return;
+    }
+
     let success = 0;
     for (const r of records) {
+      if (r.data_status === '已锁定') continue;  // 已锁定跳过
       try {
         const result = calcRecord(r);
         const calcFields = {
@@ -226,6 +303,88 @@ const AttendancePage: React.FC = () => {
     setAddOpen(true);
   };
 
+  // 打开特殊调整抽屉
+  const openAdjust = () => {
+    setAdjForm({ direction: '增发', currency: '人民币' });
+    setAdjOpen(true);
+  };
+
+  // 保存特殊调整
+  const handleAdjSave = async () => {
+    if (!adjForm.unique_hash) { message.warning('请选择员工'); return; }
+    if (!adjForm.adjust_type) { message.warning('请选择调整类型'); return; }
+    if (!adjForm.reason) { message.warning('请填写调整原因'); return; }
+    try {
+      await api.post('/attendance_adjustments', { ...adjForm, period });
+      message.success('特殊调整已保存');
+      setAdjOpen(false);
+      setAdjForm({});
+      loadData();
+    } catch (e: any) {
+      message.error(e.response?.data?.message || '保存失败');
+    }
+  };
+
+  // 特殊调整导入表头
+  const ADJ_EXPORT_DEF: ExportDef = {
+    module: '特殊调整',
+    columns: [
+      { key: 'name', label: '姓名', required: true },
+      { key: 'pay_company', label: '发薪公司', required: true },
+      { key: 'adjust_type', label: '调整类型', required: true },
+      { key: 'adjust_base', label: '调整基数' },
+      { key: 'adjust_qty', label: '调整数量' },
+      { key: 'adjust_ratio', label: '绩效/计发比例' },
+      { key: 'fixed_amount', label: '固定调整金额' },
+      { key: 'direction', label: '调整方向', required: true },
+      { key: 'reason', label: '调整原因', required: true },
+      { key: 'attachment_note', label: '备注' },
+    ],
+  };
+
+  // 特殊调整批量导入
+  const handleAdjImport = async (file: File) => {
+    try {
+      const { data, import_errors } = await importXlsx(ADJ_EXPORT_DEF, file);
+      if (import_errors.length > 0) message.warning(`有 ${import_errors.length} 行数据存在问题`);
+      if (data.length === 0) { message.info('未找到有效数据'); return; }
+
+      // 建立 姓名+发薪公司 -> unique_hash 映射
+      const empList = Object.values(employees);
+      let success = 0;
+      const failures: string[] = [];
+
+      for (const row of data) {
+        try {
+          const emp = empList.find((e: any) => e.name === row.name && e.pay_company === row.pay_company);
+          if (!emp) {
+            failures.push(`${row.name}（${row.pay_company}）无法匹配花名册`);
+            continue;
+          }
+          if (!row.adjust_type) { failures.push(`${row.name}：缺调整类型`); continue; }
+          if (!row.reason) { failures.push(`${row.name}：缺调整原因`); continue; }
+          await api.post('/attendance_adjustments', {
+            ...row,
+            unique_hash: emp.unique_hash,
+            period,
+            currency: '人民币',
+          });
+          success++;
+        } catch {
+          failures.push(`${row.name}：导入失败`);
+        }
+      }
+      if (failures.length > 0) {
+        message.warning(`导入完成：成功 ${success} 条，失败 ${failures.length} 条。${failures.slice(0, 8).join('；')}`);
+      } else {
+        message.success(`导入完成：${success} / ${data.length} 条`);
+      }
+      loadData();
+    } catch (e: any) {
+      message.error(e.message || '导入失败');
+    }
+  };
+
   // 添加记录保存
   const handleAddSave = async () => {
     if (!addForm.unique_hash) {
@@ -260,10 +419,56 @@ const AttendancePage: React.FC = () => {
       const { data, import_errors } = await importXlsx(EXPORT_DEF, file);
       if (import_errors.length > 0) message.warning(`有 ${import_errors.length} 行数据存在问题`);
       if (data.length === 0) { message.info('未找到有效数据'); return; }
+
+      const validPayDays = [21.75, 26, 30];
       let success = 0;
+      const failures: string[] = [];
+
       for (const row of data) {
         try {
-          if (!row.unique_hash) { continue; }
+          // ===== 校验 =====
+          if (!row.unique_hash) {
+            failures.push('缺唯一值（姓名/发薪公司/入职日期未匹配花名册）');
+            continue;
+          }
+          // 计薪天数
+          const pd = Number(row.pay_days);
+          if (!pd) { failures.push(`${row.unique_hash}：计薪天数为空`); continue; }
+          if (!validPayDays.includes(pd)) { failures.push(`${row.unique_hash}：计薪天数 ${pd} 不是 21.75/26/30`); continue; }
+          // 病假连续信息
+          if ((Number(row.sick_days) || 0) > 0) {
+            const isCont = String(row.is_continuous_sick).toLowerCase();
+            if (isCont !== 'true' && isCont !== '是' && isCont !== 'false' && isCont !== '否' && isCont !== '') {
+              failures.push(`${row.unique_hash}：是否连续病假填写错误`);
+              continue;
+            }
+            if ((isCont === 'true' || isCont === '是') && (!row.continuous_sick_start || !row.continuous_sick_end)) {
+              failures.push(`${row.unique_hash}：连续病假缺少起止日期`);
+              continue;
+            }
+            if (row.continuous_sick_start && row.continuous_sick_end && row.continuous_sick_end < row.continuous_sick_start) {
+              failures.push(`${row.unique_hash}：连续病假结束日期早于开始日期`);
+              continue;
+            }
+          }
+          // 加班
+          if ((Number(row.overtime_qty) || 0) > 0 && (!row.overtime_type || !row.overtime_unit)) {
+            failures.push(`${row.unique_hash}：有加班数量但缺加班类型或单位`);
+            continue;
+          }
+          if (row.overtime_unit === '小时' && !row.hourly_rate) {
+            failures.push(`${row.unique_hash}：按小时加班缺时薪`);
+            continue;
+          }
+          // 天数不能为负
+          const dayFields = ['sick_days', 'personal_days', 'annual_leave', 'compensatory_leave', 'absenteeism_days', 'funeral_leave', 'parental_leave', 'marriage_leave', 'maternity_leave', 'overtime_qty'];
+          for (const f of dayFields) {
+            if (Number(row[f]) < 0) {
+              failures.push(`${row.unique_hash}：${f} 不能为负数`);
+              continue;
+            }
+          }
+
           const existing = await api.get(`/attendance_records?unique_hash=eq.${row.unique_hash}&period=eq.${period}`);
           const payload = { ...row, period };
           if (existing.data.length > 0) {
@@ -272,14 +477,36 @@ const AttendancePage: React.FC = () => {
             await api.post('/attendance_records', payload);
           }
           success++;
-        } catch { /* skip */ }
+        } catch {
+          failures.push('导入失败');
+        }
       }
-      message.success(`导入完成：${success} / ${data.length} 条`);
+      if (failures.length > 0) {
+        message.warning(`导入完成：成功 ${success} 条，失败 ${failures.length} 条。${failures.slice(0, 8).join('；')}`);
+      } else {
+        message.success(`导入完成：${success} / ${data.length} 条`);
+      }
       loadData();
     } catch (e: any) {
       message.error(e.message || '导入失败');
     }
   };
+
+  // 是否锁定（已锁定或已提交老板查看，均不可编辑）
+  const isLocked = (r: any) => r.data_status === '已锁定' || r.data_status === '已提交老板查看';
+
+  // 可选展示列（默认隐藏）
+  const optionalColumns: { key: string; title: string; source: any; dataIndex: string; render?: (v: any, r: any) => any }[] = [
+    { key: 'seniority', title: '本企业连续工龄', source: '系统计算', dataIndex: 'seniority', render: (v: any) => v !== undefined ? `${v} 年` : '—' },
+    { key: 'daily_wage', title: '日薪', source: '系统计算', dataIndex: 'daily_wage', render: (v: any) => fmtMoney(v) },
+    { key: 'sick_pay_rate', title: '病假支付系数', source: '系统计算', dataIndex: 'sick_pay_rate', render: (v: any) => v !== undefined ? `${(v * 100).toFixed(0)}%` : '—' },
+    { key: 'is_continuous_sick', title: '是否连续病假', source: '导入', dataIndex: 'is_continuous_sick', render: (v: any) => v === true ? '是' : v === false ? '否' : '—' },
+    { key: 'continuous_sick_start', title: '连续病假开始', source: '导入', dataIndex: 'continuous_sick_start', render: (v: any) => v || '—' },
+    { key: 'continuous_sick_end', title: '连续病假结束', source: '导入', dataIndex: 'continuous_sick_end', render: (v: any) => v || '—' },
+    { key: 'special_adjust_amount', title: '特殊调整金额', source: '导入', dataIndex: 'special_adjust_amount', render: (v: any) => fmtMoney(v) },
+    { key: 'data_source', title: '数据来源', source: '系统计算', dataIndex: 'data_source', render: (v: any) => v || '—' },
+    { key: 'abnormal', title: '异常状态', source: '系统计算', dataIndex: 'abnormal', render: (v: any) => v === '异常' ? <Tag color="orange">异常</Tag> : <Tag color="green">正常</Tag> },
+  ];
 
   // 汇总卡片
   const summary = {
@@ -305,32 +532,56 @@ const AttendancePage: React.FC = () => {
     { title: withSource('入职日期', '花名册同步'), dataIndex: 'entry_date', key: 'jd', width: 100 },
     { title: withSource('考勤制', '花名册同步'), dataIndex: 'attendance_type', key: 'ws', width: 100 },
     { title: withSource('基本工资', '花名册同步'), dataIndex: 'basic_salary', key: 'bs', width: 100,
-      render: (v: number, r: any) => <InputNumber size="small" value={v} style={{ width: 90 }} onChange={val => updateCell(r.key, 'basic_salary', val)} /> },
+      render: (v: number, r: any) => <InputNumber size="small" value={v} style={{ width: 90 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'basic_salary', val)} /> },
     { title: withSource('计薪天数', '导入'), dataIndex: 'pay_days', key: 'pd', width: 90,
-      render: (v: number, r: any) => <InputNumber size="small" value={v} style={{ width: 70 }} onChange={val => updateCell(r.key, 'pay_days', val)} /> },
+      render: (v: number, r: any) => <InputNumber size="small" value={v} style={{ width: 70 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'pay_days', val)} /> },
     { title: withSource('病假(天)', '导入'), dataIndex: 'sick_days', key: 'sd', width: 80,
-      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 60 }} onChange={val => updateCell(r.key, 'sick_days', val)} /> },
-    { title: withSource('病假金额', '系统计算'), dataIndex: 'sick_amount', key: 'sa', width: 90, render: (v: number) => fmtMoney(v) },
+      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 60 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'sick_days', val)} /> },
+    { title: withSource('病假金额', '系统计算'), dataIndex: 'sick_amount', key: 'sa', width: 90, render: (v: number) => <span style={{ color: v < 0 ? '#e74c3c' : undefined }}>{fmtMoney(v)}</span> },
     { title: withSource('事假(天)', '导入'), dataIndex: 'personal_days', key: 'pd2', width: 80,
-      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 60 }} onChange={val => updateCell(r.key, 'personal_days', val)} /> },
-    { title: withSource('事假金额', '系统计算'), dataIndex: 'personal_amount', key: 'pa', width: 90, render: (v: number) => fmtMoney(v) },
+      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 60 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'personal_days', val)} /> },
+    { title: withSource('事假金额', '系统计算'), dataIndex: 'personal_amount', key: 'pa', width: 90, render: (v: number) => <span style={{ color: v < 0 ? '#e74c3c' : undefined }}>{fmtMoney(v)}</span> },
     { title: withSource('旷工(天)', '导入'), dataIndex: 'absenteeism_days', key: 'ad', width: 80,
-      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 60 }} onChange={val => updateCell(r.key, 'absenteeism_days', val)} /> },
+      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 60 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'absenteeism_days', val)} /> },
+    { title: withSource('加班类型', '导入'), dataIndex: 'overtime_type', key: 'ot', width: 130,
+      render: (v: string, r: any) => <Select size="small" value={v} style={{ width: 110 }} allowClear disabled={isLocked(r)} onChange={val => updateCell(r.key, 'overtime_type', val)}
+        options={['平时加班', '周末加班', '法定节假日加班'].map(t => ({ value: t, label: t }))} /> },
+    { title: withSource('加班单位', '导入'), dataIndex: 'overtime_unit', key: 'ou', width: 90,
+      render: (v: string, r: any) => <Select size="small" value={v} style={{ width: 70 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'overtime_unit', val)}
+        options={[{ value: '天', label: '天' }, { value: '小时', label: '小时' }]} /> },
+    { title: withSource('加班数量', '导入'), dataIndex: 'overtime_qty', key: 'oq', width: 90,
+      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 70 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'overtime_qty', val)} /> },
+    { title: withSource('时薪', '导入'), dataIndex: 'hourly_rate', key: 'hr', width: 90,
+      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 80 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'hourly_rate', val)} /> },
+    { title: withSource('法定节假日固定金额', '导入'), dataIndex: 'holiday_fixed_amount', key: 'hfa', width: 130,
+      render: (v: number, r: any) => <InputNumber size="small" min={0} value={v} style={{ width: 100 }} disabled={isLocked(r)} onChange={val => updateCell(r.key, 'holiday_fixed_amount', val)} /> },
     { title: withSource('加班金额', '系统计算'), dataIndex: 'overtime_amount', key: 'oa', width: 90, render: (v: number) => fmtMoney(v) },
     { title: withSource('入离职调整', '系统计算'), dataIndex: 'on_off_adjust', key: 'oof', width: 100, render: (v: number) => fmtMoney(v) },
     { title: withSource('考勤调整合计', '系统计算'), dataIndex: 'attendance_adjust_total', key: 'aat', width: 110, fixed: 'right',
       render: (v: number) => <strong style={{ color: v < 0 ? '#e74c3c' : '#27ae60' }}>{fmtMoney(v)}</strong> },
     { title: withSource('数据状态', '系统计算'), dataIndex: 'data_status', key: 'ds', width: 100,
       render: (v: string) => <Tag color={v === '已锁定' ? 'red' : v === '草稿' ? 'default' : 'blue'}>{v}</Tag> },
+    { title: withSource('异常状态', '系统计算'), dataIndex: 'abnormal', key: 'abn', width: 90,
+      render: (v: string) => v === '异常' ? <Tag color="orange">异常</Tag> : <Tag color="green">正常</Tag> },
+    // 可选列（按列设置动态显示）
+    ...optionalColumns
+      .filter(col => visibleOptionalCols.includes(col.key))
+      .map(col => ({
+        title: withSource(col.title, col.source),
+        dataIndex: col.dataIndex,
+        key: col.key,
+        width: 110,
+        render: col.render,
+      })),
     {
       title: '操作', key: 'act', width: 150, fixed: 'right',
       render: (_: any, r: any) => (
         <Space size={4}>
           <Button size="small" onClick={() => openDetail(r)}>查看</Button>
-          <Button size="small" type="primary" icon={<SaveOutlined />} onClick={() => handleSave(r)}>保存</Button>
+          <Button size="small" type="primary" icon={<SaveOutlined />} disabled={isLocked(r)} onClick={() => handleSave(r)}>保存</Button>
           <Popconfirm title="确认删除该考勤记录？" okText="删除" cancelText="取消" okButtonProps={{ danger: true }}
             onConfirm={async () => { await api.delete(`/attendance_records?id=eq.${r.id}`); message.success('已删除'); loadData(); }}>
-            <Button size="small" danger>删除</Button>
+            <Button size="small" danger disabled={isLocked(r)}>删除</Button>
           </Popconfirm>
         </Space>
       ),
@@ -345,10 +596,36 @@ const AttendancePage: React.FC = () => {
           <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 180 }} />
           <Button type="primary" icon={<CalculatorOutlined />} onClick={handleAutoCalc}>自动计算</Button>
           <Button icon={<PlusOutlined />} onClick={openAdd}>添加记录</Button>
+          <Button icon={<PlusOutlined />} onClick={openAdjust}>特殊调整</Button>
           <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
+          <Button icon={<SettingOutlined />} onClick={() => setColSettingOpen(true)}>列设置</Button>
+          <Button icon={<SettingOutlined />} onClick={() => navigate('/attendance/rules')}>规则配置</Button>
           <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
-            <Button icon={<UploadOutlined />}>导入</Button>
+            <Button icon={<UploadOutlined />}>导入考勤</Button>
           </Upload>
+          <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleAdjImport(file); return false; }}>
+            <Button icon={<UploadOutlined />}>导入特殊调整</Button>
+          </Upload>
+        </Space>
+      </Card>
+
+      {/* 筛选区 */}
+      <Card size="small" style={{ marginBottom: 12 }}>
+        <Space wrap>
+          <Select placeholder="发薪公司" allowClear showSearch optionFilterProp="label" value={fPayCompany} onChange={setFPayCompany} style={{ width: 150 }}
+            options={Object.values(employees).map((e: any) => ({ value: e.pay_company, label: e.pay_company })).filter((v, i, a) => a.findIndex(x => x.value === v.value) === i)} />
+          <Input placeholder="成本中心" value={fCostCenter} onChange={e => setFCostCenter(e.target.value)} style={{ width: 120 }} allowClear />
+          <Input placeholder="部门" value={fDepartment} onChange={e => setFDepartment(e.target.value)} style={{ width: 120 }} allowClear />
+          <Input placeholder="汇报人" value={fReportTo} onChange={e => setFReportTo(e.target.value)} style={{ width: 100 }} allowClear />
+          <Select placeholder="考勤制" allowClear value={fAttType} onChange={setFAttType} style={{ width: 140 }}
+            options={['全日制', '非全日制', '代收代付残疾人', '不定时工作制'].map(s => ({ value: s, label: s }))} />
+          <Select placeholder="计薪天数" allowClear value={fPayDays} onChange={setFPayDays} style={{ width: 110 }}
+            options={[{ value: '21.75', label: '21.75天' }, { value: '26', label: '26天' }, { value: '30', label: '30天' }]} />
+          <Select placeholder="数据状态" allowClear value={fStatus} onChange={setFStatus} style={{ width: 140 }}
+            options={['草稿', '已计算', '已提交老板查看', '退回修改', '已导出', '已锁定', '未录入'].map(s => ({ value: s, label: s }))} />
+          <Select placeholder="异常状态" allowClear value={fAbnormal} onChange={setFAbnormal} style={{ width: 110 }}
+            options={[{ value: '仅异常', label: '仅异常' }, { value: '仅正常', label: '仅正常' }]} />
+          <Input placeholder="搜索姓名" value={keyword} onChange={e => setKeyword(e.target.value)} style={{ width: 120 }} allowClear />
         </Space>
       </Card>
 
@@ -370,26 +647,122 @@ const AttendancePage: React.FC = () => {
 
       {/* 详情抽屉 */}
       <Drawer title="考勤详情" open={detailOpen} onClose={() => setDetailOpen(false)} width={680}>
-        {detailRecord && (
+        {detailRecord && (() => {
+          const calcResult = calcRecord(detailRecord);
+          return (
           <Descriptions column={2} size="small" bordered>
             <Descriptions.Item label="姓名">{detailRecord.employee_name}</Descriptions.Item>
             <Descriptions.Item label="发薪公司">{detailRecord.pay_company}</Descriptions.Item>
+            <Descriptions.Item label="职位">{detailRecord.position}</Descriptions.Item>
+            <Descriptions.Item label="入职日期">{detailRecord.entry_date}</Descriptions.Item>
             <Descriptions.Item label="基本工资">{fmtMoney(detailRecord.basic_salary)}</Descriptions.Item>
             <Descriptions.Item label="计薪天数">{detailRecord.pay_days}</Descriptions.Item>
+
+            {/* 计算依据 */}
+            <Descriptions.Item label="本企业连续工龄">{calcResult.seniority_years} 年</Descriptions.Item>
+            <Descriptions.Item label="日薪">{fmtMoney(calcResult.daily_wage)}</Descriptions.Item>
+            <Descriptions.Item label="病假支付系数">{(calcResult.sick_pay_rate * 100).toFixed(0)}%</Descriptions.Item>
+            <Descriptions.Item label="病假扣款系数">{(calcResult.sick_deduct_rate * 100).toFixed(0)}%</Descriptions.Item>
+
+            {/* 考勤数据 */}
             <Descriptions.Item label="病假天数">{detailRecord.sick_days}</Descriptions.Item>
             <Descriptions.Item label="病假金额">{fmtMoney(detailRecord.sick_amount)}</Descriptions.Item>
             <Descriptions.Item label="事假天数">{detailRecord.personal_days}</Descriptions.Item>
             <Descriptions.Item label="事假金额">{fmtMoney(detailRecord.personal_amount)}</Descriptions.Item>
             <Descriptions.Item label="旷工天数">{detailRecord.absenteeism_days}</Descriptions.Item>
             <Descriptions.Item label="旷工金额">{fmtMoney(detailRecord.absenteeism_amount)}</Descriptions.Item>
+            <Descriptions.Item label="加班类型">{detailRecord.overtime_type || '—'}</Descriptions.Item>
+            <Descriptions.Item label="加班单位">{detailRecord.overtime_unit || '—'}</Descriptions.Item>
+            <Descriptions.Item label="加班数量">{detailRecord.overtime_qty}</Descriptions.Item>
             <Descriptions.Item label="加班金额">{fmtMoney(detailRecord.overtime_amount)}</Descriptions.Item>
+            <Descriptions.Item label="实际出勤天数">{detailRecord.actual_attendance_days || '—'}</Descriptions.Item>
             <Descriptions.Item label="入离职调整">{fmtMoney(detailRecord.on_off_adjust)}</Descriptions.Item>
             <Descriptions.Item label="考勤调整合计" span={2}>
               <strong>{fmtMoney(detailRecord.attendance_adjust_total)}</strong>
             </Descriptions.Item>
+            <Descriptions.Item label="数据来源">{detailRecord.data_source || '导入'}</Descriptions.Item>
+            <Descriptions.Item label="最近计算时间">{detailRecord.updated_at ? new Date(detailRecord.updated_at).toLocaleString() : '—'}</Descriptions.Item>
             <Descriptions.Item label="数据状态" span={2}>{detailRecord.data_status}</Descriptions.Item>
           </Descriptions>
-        )}
+          );
+        })()}
+      </Drawer>
+
+      {/* 列设置抽屉 */}
+      <Drawer title="列设置" open={colSettingOpen} onClose={() => setColSettingOpen(false)} width={360}>
+        <div style={{ marginBottom: 12, color: '#666' }}>勾选需要额外显示的列（默认隐藏）</div>
+        {optionalColumns.map(col => (
+          <div key={col.key} style={{ marginBottom: 8 }}>
+            <Space>
+              <input
+                type="checkbox"
+                checked={visibleOptionalCols.includes(col.key)}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setVisibleOptionalCols([...visibleOptionalCols, col.key]);
+                  } else {
+                    setVisibleOptionalCols(visibleOptionalCols.filter(k => k !== col.key));
+                  }
+                }}
+              />
+              <span>{col.title}</span>
+              <Tag color="purple" style={{ fontSize: 10 }}>{col.source}</Tag>
+            </Space>
+          </div>
+        ))}
+      </Drawer>
+
+      {/* 特殊调整抽屉 */}
+      <Drawer
+        title="特殊考勤调整"
+        open={adjOpen}
+        onClose={() => setAdjOpen(false)}
+        width={560}
+        extra={
+          <Space>
+            <Button onClick={() => setAdjOpen(false)}>取消</Button>
+            <Button type="primary" onClick={handleAdjSave}>保存</Button>
+          </Space>
+        }
+      >
+        <Form layout="vertical">
+          <Form.Item label="员工" required>
+            <Select showSearch optionFilterProp="label" placeholder="从花名册选择员工"
+              value={adjForm.unique_hash}
+              onChange={(v) => setAdjForm({ ...adjForm, unique_hash: v })}
+              options={Object.values(employees).map((e: any) => ({ value: e.unique_hash, label: `${e.name} — ${e.pay_company}` }))} />
+          </Form.Item>
+          <Space style={{ width: '100%' }} size="large">
+            <Form.Item label="调整类型" required>
+              <Select style={{ width: 160 }} value={adjForm.adjust_type} onChange={(v) => setAdjForm({ ...adjForm, adjust_type: v })}
+                options={['考勤调整', '津贴', '补贴', '实习津贴', '其他'].map(t => ({ value: t, label: t }))} />
+            </Form.Item>
+            <Form.Item label="调整方向" required>
+              <Select style={{ width: 120 }} value={adjForm.direction} onChange={(v) => setAdjForm({ ...adjForm, direction: v })}
+                options={[{ value: '增发', label: '增发' }, { value: '扣减', label: '扣减' }]} />
+            </Form.Item>
+          </Space>
+          <Space style={{ width: '100%' }} size="large">
+            <Form.Item label="调整基数">
+              <InputNumber style={{ width: 140 }} min={0} value={adjForm.adjust_base} onChange={(v) => setAdjForm({ ...adjForm, adjust_base: v })} />
+            </Form.Item>
+            <Form.Item label="调整数量">
+              <InputNumber style={{ width: 120 }} min={0} value={adjForm.adjust_qty} onChange={(v) => setAdjForm({ ...adjForm, adjust_qty: v })} />
+            </Form.Item>
+            <Form.Item label="计发比例">
+              <InputNumber style={{ width: 120 }} min={0} max={10} step={0.1} value={adjForm.adjust_ratio} onChange={(v) => setAdjForm({ ...adjForm, adjust_ratio: v })} placeholder="如1=100%" />
+            </Form.Item>
+          </Space>
+          <Form.Item label="固定调整金额（填此项则按固定金额计算）">
+            <InputNumber style={{ width: 180 }} value={adjForm.fixed_amount} onChange={(v) => setAdjForm({ ...adjForm, fixed_amount: v })} />
+          </Form.Item>
+          <Form.Item label="调整原因" required>
+            <Input value={adjForm.reason} onChange={(e) => setAdjForm({ ...adjForm, reason: e.target.value })} />
+          </Form.Item>
+          <Form.Item label="备注">
+            <Input.TextArea rows={2} value={adjForm.attachment_note} onChange={(e) => setAdjForm({ ...adjForm, attachment_note: e.target.value })} />
+          </Form.Item>
+        </Form>
       </Drawer>
 
       {/* 添加记录抽屉 */}
@@ -459,6 +832,60 @@ const AttendancePage: React.FC = () => {
                 options={[{ value: '天', label: '天' }, { value: '小时', label: '小时' }]} />
             </Form.Item>
           </Space>
+          <Space style={{ width: '100%' }} size="large">
+            <Form.Item label="时薪（按小时加班时填）">
+              <InputNumber style={{ width: 160 }} min={0} value={addForm.hourly_rate} onChange={(v) => setAddForm({ ...addForm, hourly_rate: v })} />
+            </Form.Item>
+            <Form.Item label="法定节假日固定金额（保洁）">
+              <InputNumber style={{ width: 180 }} min={0} value={addForm.holiday_fixed_amount} onChange={(v) => setAddForm({ ...addForm, holiday_fixed_amount: v })} />
+            </Form.Item>
+          </Space>
+
+          {/* 连续病假 */}
+          <Card size="small" title="连续病假（病假天数>0 时建议填写）" style={{ marginBottom: 12 }}>
+            <Space style={{ width: '100%' }} size="large">
+              <Form.Item label="是否连续病假">
+                <Select style={{ width: 120 }} allowClear value={addForm.is_continuous_sick} onChange={(v) => setAddForm({ ...addForm, is_continuous_sick: v })}
+                  options={[{ value: true, label: '是' }, { value: false, label: '否' }]} />
+              </Form.Item>
+              <Form.Item label="连续病假开始日期">
+                <DatePicker style={{ width: 150 }} value={addForm.continuous_sick_start ? dayjs(addForm.continuous_sick_start) : undefined}
+                  onChange={(_, dateStr) => setAddForm({ ...addForm, continuous_sick_start: dateStr })} />
+              </Form.Item>
+              <Form.Item label="连续病假结束日期">
+                <DatePicker style={{ width: 150 }} value={addForm.continuous_sick_end ? dayjs(addForm.continuous_sick_end) : undefined}
+                  onChange={(_, dateStr) => setAddForm({ ...addForm, continuous_sick_end: dateStr })} />
+              </Form.Item>
+            </Space>
+          </Card>
+
+          {/* 其他假期 */}
+          <Space style={{ width: '100%' }} size="large" wrap>
+            <Form.Item label="丧假">
+              <InputNumber style={{ width: 100 }} min={0} value={addForm.funeral_leave} onChange={(v) => setAddForm({ ...addForm, funeral_leave: v })} />
+            </Form.Item>
+            <Form.Item label="育儿假">
+              <InputNumber style={{ width: 100 }} min={0} value={addForm.parental_leave} onChange={(v) => setAddForm({ ...addForm, parental_leave: v })} />
+            </Form.Item>
+            <Form.Item label="婚假">
+              <InputNumber style={{ width: 100 }} min={0} value={addForm.marriage_leave} onChange={(v) => setAddForm({ ...addForm, marriage_leave: v })} />
+            </Form.Item>
+            <Form.Item label="产假">
+              <InputNumber style={{ width: 100 }} min={0} value={addForm.maternity_leave} onChange={(v) => setAddForm({ ...addForm, maternity_leave: v })} />
+            </Form.Item>
+          </Space>
+
+          {/* 入离职 */}
+          <Space style={{ width: '100%' }} size="large">
+            <Form.Item label="实际出勤天数">
+              <InputNumber style={{ width: 140 }} min={0} value={addForm.actual_attendance_days} onChange={(v) => setAddForm({ ...addForm, actual_attendance_days: v })} />
+            </Form.Item>
+            <Form.Item label="发薪公司转移日期">
+              <DatePicker style={{ width: 150 }} value={addForm.transfer_date ? dayjs(addForm.transfer_date) : undefined}
+                onChange={(_, dateStr) => setAddForm({ ...addForm, transfer_date: dateStr })} />
+            </Form.Item>
+          </Space>
+
           <Form.Item label="备注">
             <Input.TextArea rows={2} value={addForm.remark} onChange={(e) => setAddForm({ ...addForm, remark: e.target.value })} />
           </Form.Item>

@@ -85,6 +85,7 @@ export interface AttendanceResult {
   seniority_years: number;
   daily_wage: number;
   sick_pay_rate: number;
+  sick_deduct_rate: number;
   sick_amount: number;
   personal_amount: number;
   absenteeism_amount: number;
@@ -149,7 +150,7 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
     }
   }
 
-  // 入离职调整（月中入职/离职：折算工资 - 整月工资）
+  // 入离职调整（月中入职/离职：折算工资 - 整月工资，通常为负）
   let onOffAdjust = 0;
   const actualDays = Number(input.actual_attendance_days || 0);
   const hasOnOff = actualDays > 0 && actualDays < payDays;
@@ -161,18 +162,22 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
   // 特殊调整
   const specialAdjust = Number(input.special_adjust_amount || 0);
 
-  // 合计（扣款为负：病假、事假、旷工、入离职调整都是扣款）
+  // 扣款字段存负数，增发字段存正数，合计 = 直接相加
+  const sickAmountSigned = -sickAmount;
+  const personalAmountSigned = -personalAmount;
+  const absenteeismAmountSigned = -absenteeismAmount;
   const attendanceAdjustTotal = round2(
-    -sickAmount - personalAmount - absenteeismAmount + overtimeAmount + onOffAdjust + specialAdjust
+    sickAmountSigned + personalAmountSigned + absenteeismAmountSigned + overtimeAmount + onOffAdjust + specialAdjust
   );
 
   return {
     seniority_years: round2(seniorityYears),
     daily_wage: dailyWage,
     sick_pay_rate: sickPayRate,
-    sick_amount: sickAmount,
-    personal_amount: personalAmount,
-    absenteeism_amount: absenteeismAmount,
+    sick_deduct_rate: sickDeductRate,
+    sick_amount: sickAmountSigned,
+    personal_amount: personalAmountSigned,
+    absenteeism_amount: absenteeismAmountSigned,
     overtime_amount: overtimeAmount,
     on_off_adjust: onOffAdjust,
     special_adjust_amount: specialAdjust,

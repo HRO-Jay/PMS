@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import EmployeesPage from './pages/Employees';
 import SocialPage from './pages/Social';
 import AttendancePage from './pages/Attendance';
+import AttendanceRulesPage from './pages/attendance/AttendanceRules';
 import PayrollPage from './pages/PayrollRun';
 import SettingsPage from './pages/Settings';
 
@@ -38,6 +39,7 @@ const App: React.FC = () => {
                   <Route path="/social/*" element={<SocialPage />} />
                   <Route path="/payroll" element={<PayrollPage />} />
                   <Route path="/attendance" element={<AttendancePage />} />
+                  <Route path="/attendance/rules" element={<AttendanceRulesPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
