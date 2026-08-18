@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Table, Button, Drawer, Form, Input, Select, Space, message, Tag, Card, DatePicker, Upload, Dropdown, Popconfirm,
+  Table, Button, Drawer, Form, Input, Select, Space, message, Tag, Card, DatePicker, Upload, Dropdown, Popconfirm, InputNumber,
 } from 'antd';
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import type { Employee, CompanyMapping } from '../types';
@@ -45,6 +45,7 @@ const EXPORT_DEF: ExportDef = {
     { key: 'position', label: '职位' },
     { key: 'job_level', label: '职级' },
     { key: 'attendance_type', label: '考勤制' },
+    { key: 'basic_salary', label: '基本工资' },
     { key: 'entry_date', label: '入职日期', required: true },
     { key: 'leave_date', label: '离职日期' },
   ],
@@ -276,6 +277,7 @@ const EmployeesPage: React.FC = () => {
             position: row.position,
             job_level: jobLevel,
             attendance_type: attType,
+            basic_salary: row.basic_salary !== undefined && row.basic_salary !== '' ? Number(row.basic_salary) : undefined,
             entry_date: entryDate,
             leave_date: leaveDate,
             unique_hash: uniqueHash,
@@ -322,7 +324,8 @@ const EmployeesPage: React.FC = () => {
     { title: '汇报人', dataIndex: 'report_to', key: 'report_to', width: 100 },
     { title: '职位', dataIndex: 'position', key: 'position', width: 130 },
     { title: '职级', dataIndex: 'job_level', key: 'job_level', width: 70 },
-    { title: '考勤制', dataIndex: 'attendance_type', key: 'attendance_type', width: 130 },
+    { title: '考勤制', dataIndex: 'attendance_type', key: 'attendance_type', width: 110 },
+    { title: '基本工资', dataIndex: 'basic_salary', key: 'basic_salary', width: 110, render: (v: any) => v ? `¥${Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—' },
     { title: '入职日期', dataIndex: 'entry_date', key: 'entry_date', width: 110 },
     {
       title: '离职日期', dataIndex: 'leave_date', key: 'leave_date', width: 110,
@@ -432,6 +435,9 @@ const EmployeesPage: React.FC = () => {
           </Form.Item>
           <Form.Item name="attendance_type" label="考勤制" rules={[{ required: true }]}>
             <Select options={ATTENDANCE_OPTIONS.map(s => ({ value: s, label: s }))} />
+          </Form.Item>
+          <Form.Item name="basic_salary" label="基本工资">
+            <InputNumber style={{ width: '100%' }} min={0} placeholder="后续板块基本工资来源" />
           </Form.Item>
           <Form.Item name="entry_date" label="入职日期" rules={[{ required: true, message: '请选择入职日期' }]}
             extra={editingEmployee?.entry_date ? '入职日期不可修改' : undefined}>
