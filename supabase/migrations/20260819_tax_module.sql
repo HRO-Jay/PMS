@@ -41,7 +41,7 @@ CREATE TABLE tax_opening_balances (
     cumul_other_deduction    DECIMAL(14,2) DEFAULT 0,     -- 累计其他扣除(1-7月)
     cumul_tax_relief         DECIMAL(14,2) DEFAULT 0,     -- 累计减免税额(1-7月)
     cumul_tax_paid           DECIMAL(14,2) DEFAULT 0,     -- 累计预扣缴个税(1-7月)
-    employed_months          INT DEFAULT 7,               -- 已任职月份数
+    employed_months          INT DEFAULT 6,               -- 已任职月份数（期初为1-6月）
     remark                   TEXT,
     created_at               TIMESTAMPTZ DEFAULT NOW(),
     updated_at               TIMESTAMPTZ DEFAULT NOW(),

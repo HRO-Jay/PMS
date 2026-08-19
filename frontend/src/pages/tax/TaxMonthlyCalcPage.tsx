@@ -7,7 +7,7 @@ import { withSource } from '../../components/SourceTag';
 
 /**
  * 个税扣缴 — Tab 3：月度计算（累计预扣法）
- * 8月起每月一行，输出「当月个人所得税」联动薪酬板块
+ * 7月起每月一行，输出「当月个人所得税」联动薪酬板块
  */
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
@@ -102,7 +102,7 @@ const TaxMonthlyCalcPage: React.FC = () => {
             prev: prev,
             // 本月专项附加完整字段（供计算用）
             special: special,
-            employed_months: opening.employed_months || 7,
+            employed_months: opening.employed_months || 6,
           };
         });
 
@@ -125,7 +125,7 @@ const TaxMonthlyCalcPage: React.FC = () => {
       try {
         const opening = r.opening || {};
         const prev = r.prev || {};
-        const isFirstMonth = period === '2026-08'; // 8月首个计算月
+        const isFirstMonth = period === '2026-07'; // 7月首个计算月
         const monthNum = parseInt(period.split('-')[1]);
 
         // 累计数

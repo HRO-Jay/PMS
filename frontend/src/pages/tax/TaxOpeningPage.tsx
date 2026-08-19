@@ -15,12 +15,12 @@ const EXPORT_DEF: ExportDef = {
     { key: 'unique_hash', label: '唯一值', hidden: false },
     { key: 'employee_name', label: '姓名', required: true },
     { key: 'pay_company', label: '发薪公司', required: true },
-    { key: 'cumul_income', label: '累计应税收入(1-7月)' },
-    { key: 'cumul_five_insurance', label: '累计五险一金(1-7月)' },
-    { key: 'cumul_special_deduction', label: '累计专项附加扣除(1-7月)' },
-    { key: 'cumul_other_deduction', label: '累计其他扣除(1-7月)' },
-    { key: 'cumul_tax_relief', label: '累计减免税额(1-7月)' },
-    { key: 'cumul_tax_paid', label: '累计预扣缴个税(1-7月)' },
+    { key: 'cumul_income', label: '累计应税收入(1-6月)' },
+    { key: 'cumul_five_insurance', label: '累计五险一金(1-6月)' },
+    { key: 'cumul_special_deduction', label: '累计专项附加扣除(1-6月)' },
+    { key: 'cumul_other_deduction', label: '累计其他扣除(1-6月)' },
+    { key: 'cumul_tax_relief', label: '累计减免税额(1-6月)' },
+    { key: 'cumul_tax_paid', label: '累计预扣缴个税(1-6月)' },
     { key: 'employed_months', label: '已任职月份数' },
   ],
 };
@@ -144,7 +144,7 @@ const TaxOpeningPage: React.FC = () => {
   ];
 
   return (
-    <Card size="small" title="期初累计数（2026年1-7月，一次性录入后锁定）">
+    <Card size="small" title="期初累计数（2026年1-6月，一次性录入后锁定）">
       <Space style={{ marginBottom: 12 }}>
         <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
         <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
