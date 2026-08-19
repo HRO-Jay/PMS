@@ -68,7 +68,7 @@ const PayrollPage: React.FC = () => {
     setLoading(true);
     try {
       const [empRes, attRes, addRes, welfareRes, taxRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,attendance_type,basic_salary'),
+        api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,attendance_type,tax_method,basic_salary'),
         api.get(`/attendance_records?select=unique_hash,attendance_adjust_total,data_status&period=eq.${period}`),
         api.get(`/additional_salary_records?select=*&period=eq.${period}`),
         api.get(`/employee_welfare_records?select=unique_hash,personal_total,company_total&period=eq.${period}`),
@@ -126,6 +126,7 @@ const PayrollPage: React.FC = () => {
             position: e.position || '',
             entry_date: e.entry_date || '',
             attendance_type: e.attendance_type || '',
+            tax_method: e.tax_method || 'normal',
             basic_salary: basicSalary,
             attendance_adjust_total: attendanceAdjust,
             additional_total: additionalTotal,
@@ -250,6 +251,8 @@ const PayrollPage: React.FC = () => {
     { title: withSource('职位', '花名册同步'), dataIndex: 'position', key: 'pos', width: 90 },
     { title: withSource('入职日期', '花名册同步'), dataIndex: 'entry_date', key: 'jd', width: 100 },
     { title: withSource('考勤制', '花名册同步'), dataIndex: 'attendance_type', key: 'ws', width: 100 },
+    { title: withSource('计税方式', '花名册同步'), dataIndex: 'tax_method', key: 'tm', width: 90,
+      render: (v: string) => <Tag color={v === 'normal' ? 'blue' : v === 'service' ? 'orange' : 'green'}>{v === 'normal' ? '正常计税' : v === 'service' ? '劳务计税' : '不计税'}</Tag> },
     { title: withSource('基本工资', '花名册同步'), dataIndex: 'basic_salary', key: 'bs', width: 110, render: fmtMoney },
     { title: withSource('考勤调整合计', '考勤同步'), dataIndex: 'attendance_adjust_total', key: 'aat', width: 120, render: fmtMoney },
     { title: withSource('附加薪酬合计', '附加薪酬同步'), dataIndex: 'additional_total', key: 'at', width: 120, render: fmtMoney },
