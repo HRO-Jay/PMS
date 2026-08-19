@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Button, Space, message, Input, Tag, Select, Modal, Input as AntInput } from 'antd';
+import { Card, Table, Button, Space, message, Input, Tag, Select, Modal, Input as AntInput, Drawer, Descriptions } from 'antd';
 import { DownloadOutlined, CheckCircleOutlined, RollbackOutlined, SendOutlined, SearchOutlined } from '@ant-design/icons';
 import api from '../api/client';
 import { exportXlsx, type ExportDef } from '../utils/importExport';
@@ -61,6 +61,9 @@ const PayrollPage: React.FC = () => {
   // 审批弹窗
   const [approveModal, setApproveModal] = useState<{ type: 'submit' | 'approve' | 'reject' } | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  // 详情抽屉
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailRecord, setDetailRecord] = useState<any>(null);
 
   useEffect(() => { loadData(); }, [period, fPayCompany, fCostCenter, fDepartment, keyword]);
 
@@ -71,7 +74,7 @@ const PayrollPage: React.FC = () => {
         api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,attendance_type,tax_method,basic_salary'),
         api.get(`/attendance_records?select=unique_hash,attendance_adjust_total,data_status&period=eq.${period}`),
         api.get(`/additional_salary_records?select=*&period=eq.${period}`),
-        api.get(`/employee_welfare_records?select=unique_hash,personal_total,company_total&period=eq.${period}`),
+        api.get(`/employee_welfare_records?select=unique_hash,personal_total,company_total,pension_p_amt,medical_p_amt,unemployment_p_amt,normal_housing_p_amt,supp_housing_p_amt,pension_c_amt,medical_c_amt,unemployment_c_amt,injury_c_amt,maternity_c_amt,normal_housing_c_amt,supp_housing_c_amt&period=eq.${period}`),
         api.get(`/tax_monthly_calcs?select=unique_hash,monthly_tax&period=eq.${period}`),
       ]);
 
@@ -93,6 +96,7 @@ const PayrollPage: React.FC = () => {
         .filter((e: any) => e.status === '在职')
         .map((e: any) => {
           const add = addMap[e.unique_hash] || {};
+          const welfare = welfareMap[e.unique_hash] || {};
           // 附加薪酬合计 = 12项之和
           const additionalTotal = Number((
             (add.allowance_supp || 0) + (add.other_adjust || 0) + (add.insurance_amount || 0) +
@@ -103,10 +107,12 @@ const PayrollPage: React.FC = () => {
 
           const basicSalary = Number(e.basic_salary || 0);
           const attendanceAdjust = Number(attMap[e.unique_hash]?.attendance_adjust_total || 0);
-          const personalWelfare = Number(welfareMap[e.unique_hash]?.personal_total || 0);
-          const companyWelfare = Number(welfareMap[e.unique_hash]?.company_total || 0);
+          const personalWelfare = Number(welfare.personal_total || 0);
+          const companyWelfare = Number(welfare.company_total || 0);
           const monthlyTax = Number(taxMap[e.unique_hash]?.monthly_tax || 0);
           const insuranceAmount = Number(add.insurance_amount || 0);
+          // 商保调整 = 商保金额的负数
+          const insuranceAdjust = -insuranceAmount;
 
           // 薪资小计 = 基本工资 + 考勤调整合计 + 附加薪酬合计
           const wageSubtotal = Number((basicSalary + attendanceAdjust + additionalTotal).toFixed(2));
@@ -134,10 +140,35 @@ const PayrollPage: React.FC = () => {
             company_welfare_total: companyWelfare,
             monthly_tax: monthlyTax,
             insurance_amount: insuranceAmount,
+            insurance_adjust: insuranceAdjust,
             wage_subtotal: wageSubtotal,
             net_pay: netPay,
             total_cost: totalCost,
             data_status: attMap[e.unique_hash]?.data_status || '未录入',
+            // 明细（抽屉用）
+            allowance_supp: add.allowance_supp || 0,
+            other_adjust: add.other_adjust || 0,
+            kpi_provision: add.kpi_provision || 0,
+            office_comm: add.office_comm || 0,
+            performance_pay: add.performance_pay || 0,
+            apartment_comm: add.apartment_comm || 0,
+            talent_kpi: add.talent_kpi || 0,
+            heat_allowance: add.heat_allowance || 0,
+            other_allowance: add.other_allowance || 0,
+            security_bonus: add.security_bonus || 0,
+            cleaning_bonus: add.cleaning_bonus || 0,
+            pension_p: welfare.pension_p_amt || 0,
+            medical_p: welfare.medical_p_amt || 0,
+            unemployment_p: welfare.unemployment_p_amt || 0,
+            housing_fund_p: welfare.normal_housing_p_amt || 0,
+            supp_housing_p: welfare.supp_housing_p_amt || 0,
+            pension_c: welfare.pension_c_amt || 0,
+            medical_c: welfare.medical_c_amt || 0,
+            unemployment_c: welfare.unemployment_c_amt || 0,
+            injury_c: welfare.injury_c_amt || 0,
+            maternity_c: welfare.maternity_c_amt || 0,
+            housing_fund_c: welfare.normal_housing_c_amt || 0,
+            supp_housing_c: welfare.supp_housing_c_amt || 0,
           };
         });
 
@@ -153,6 +184,46 @@ const PayrollPage: React.FC = () => {
   };
 
   const handleExport = () => exportXlsx(EXPORT_DEF, records, period);
+
+  // 工资条导出定义（抽屉详情数据）
+  const PAYSLIP_EXPORT_DEF: ExportDef = {
+    module: '工资条',
+    columns: [
+      { key: 'unique_hash', label: '唯一值', hidden: false },
+      { key: 'employee_name', label: '姓名' },
+      { key: 'net_pay', label: '实收' },
+      { key: 'basic_salary', label: '基本工资' },
+      { key: 'allowance_supp', label: '补贴/补充公积金' },
+      { key: 'attendance_adjust_total', label: '考勤调整合计' },
+      { key: 'other_adjust', label: '其他补贴/调整' },
+      { key: 'insurance_amount', label: '商保金额' },
+      { key: 'kpi_provision', label: 'KPI预提' },
+      { key: 'office_comm', label: '商办佣金' },
+      { key: 'performance_pay', label: '绩效' },
+      { key: 'apartment_comm', label: '公寓佣金' },
+      { key: 'talent_kpi', label: '人才系KPI' },
+      { key: 'heat_allowance', label: '防暑降温费' },
+      { key: 'other_allowance', label: '津贴' },
+      { key: 'security_bonus', label: '保安奖金' },
+      { key: 'cleaning_bonus', label: '保洁奖金' },
+      { key: 'wage_subtotal', label: '薪资小计' },
+      { key: 'pension_p', label: '个人养老' },
+      { key: 'medical_p', label: '个人医疗' },
+      { key: 'unemployment_p', label: '个人失业' },
+      { key: 'housing_fund_p', label: '个人公积金' },
+      { key: 'supp_housing_p', label: '个人补充公积金' },
+      { key: 'personal_welfare_total', label: '个人福利合计' },
+      { key: 'monthly_tax', label: '当月个人所得税' },
+      { key: 'insurance_adjust', label: '商保调整' },
+    ],
+  };
+
+  const handleExportPayslip = () => exportXlsx(PAYSLIP_EXPORT_DEF, records, period);
+
+  const openDetail = (r: any) => {
+    setDetailRecord(r);
+    setDetailOpen(true);
+  };
 
   // 保存计算结果（落库 salary_records）
   const handleSaveResult = async () => {
@@ -265,6 +336,12 @@ const PayrollPage: React.FC = () => {
     { title: withSource('企业人力成本总计', '系统计算'), dataIndex: 'total_cost', key: 'tc', width: 140, render: (v: any) => <strong>{fmtMoney(v)}</strong> },
     { title: withSource('数据状态', '系统计算'), dataIndex: 'data_status', key: 'ds', width: 100, fixed: 'right',
       render: (v: string) => <Tag color={v === '已锁定' ? 'red' : v === '已提交老板查看' ? 'gold' : 'blue'}>{v}</Tag> },
+    {
+      title: '操作', key: 'act', width: 80, fixed: 'right',
+      render: (_: any, r: any) => (
+        <Button size="small" onClick={() => openDetail(r)}>查看</Button>
+      ),
+    },
   ];
 
   return (
@@ -273,7 +350,8 @@ const PayrollPage: React.FC = () => {
         <Space wrap>
           <span>月份：</span>
           <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 180 }} />
-          <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
+          <Button icon={<DownloadOutlined />} onClick={handleExport}>导出工资报表</Button>
+          <Button icon={<DownloadOutlined />} onClick={handleExportPayslip}>导出工资条</Button>
           <Button type="primary" onClick={handleSaveResult}>保存计算结果</Button>
           {isOperator && (
             <Button type="primary" icon={<SendOutlined />} onClick={handleSubmit}>提交审批</Button>
@@ -319,6 +397,39 @@ const PayrollPage: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      {/* 工资条详情抽屉 */}
+      <Drawer title="工资条详情" open={detailOpen} onClose={() => setDetailOpen(false)} width={620}>
+        {detailRecord && (
+          <Descriptions column={2} size="small" bordered>
+            <Descriptions.Item label="姓名">{detailRecord.employee_name}</Descriptions.Item>
+            <Descriptions.Item label="实收"><strong style={{ color: '#27ae60' }}>{fmtMoney(detailRecord.net_pay)}</strong></Descriptions.Item>
+            <Descriptions.Item label="基本工资（花名册）">{fmtMoney(detailRecord.basic_salary)}</Descriptions.Item>
+            <Descriptions.Item label="补贴/补充公积金（附加薪酬）">{fmtMoney(detailRecord.allowance_supp)}</Descriptions.Item>
+            <Descriptions.Item label="考勤调整合计（考勤管理）">{fmtMoney(detailRecord.attendance_adjust_total)}</Descriptions.Item>
+            <Descriptions.Item label="其他补贴/调整（附加薪酬）">{fmtMoney(detailRecord.other_adjust)}</Descriptions.Item>
+            <Descriptions.Item label="商保金额（附加薪酬）">{fmtMoney(detailRecord.insurance_amount)}</Descriptions.Item>
+            <Descriptions.Item label="KPI预提（附加薪酬）">{fmtMoney(detailRecord.kpi_provision)}</Descriptions.Item>
+            <Descriptions.Item label="商办佣金（附加薪酬）">{fmtMoney(detailRecord.office_comm)}</Descriptions.Item>
+            <Descriptions.Item label="绩效（附加薪酬）">{fmtMoney(detailRecord.performance_pay)}</Descriptions.Item>
+            <Descriptions.Item label="公寓佣金（附加薪酬）">{fmtMoney(detailRecord.apartment_comm)}</Descriptions.Item>
+            <Descriptions.Item label="人才系KPI（附加薪酬）">{fmtMoney(detailRecord.talent_kpi)}</Descriptions.Item>
+            <Descriptions.Item label="防暑降温费（附加薪酬）">{fmtMoney(detailRecord.heat_allowance)}</Descriptions.Item>
+            <Descriptions.Item label="津贴（附加薪酬）">{fmtMoney(detailRecord.other_allowance)}</Descriptions.Item>
+            <Descriptions.Item label="保安奖金（附加薪酬）">{fmtMoney(detailRecord.security_bonus)}</Descriptions.Item>
+            <Descriptions.Item label="保洁奖金（附加薪酬）">{fmtMoney(detailRecord.cleaning_bonus)}</Descriptions.Item>
+            <Descriptions.Item label="薪资小计（薪资计算）"><strong>{fmtMoney(detailRecord.wage_subtotal)}</strong></Descriptions.Item>
+            <Descriptions.Item label="个人养老（社保）">{fmtMoney(detailRecord.pension_p)}</Descriptions.Item>
+            <Descriptions.Item label="个人医疗（社保）">{fmtMoney(detailRecord.medical_p)}</Descriptions.Item>
+            <Descriptions.Item label="个人失业（社保）">{fmtMoney(detailRecord.unemployment_p)}</Descriptions.Item>
+            <Descriptions.Item label="个人公积金（社保）">{fmtMoney(detailRecord.housing_fund_p)}</Descriptions.Item>
+            <Descriptions.Item label="个人补充公积金（社保）">{fmtMoney(detailRecord.supp_housing_p)}</Descriptions.Item>
+            <Descriptions.Item label="个人福利合计（社保）"><strong>{fmtMoney(detailRecord.personal_welfare_total)}</strong></Descriptions.Item>
+            <Descriptions.Item label="当月个人所得税（个税）"><span style={{ color: '#e74c3c' }}>{fmtMoney(detailRecord.monthly_tax)}</span></Descriptions.Item>
+            <Descriptions.Item label="商保调整（附加薪酬负数）"><span style={{ color: detailRecord.insurance_adjust < 0 ? '#e74c3c' : undefined }}>{fmtMoney(detailRecord.insurance_adjust)}</span></Descriptions.Item>
+          </Descriptions>
+        )}
+      </Drawer>
     </div>
   );
 };
