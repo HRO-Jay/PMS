@@ -153,6 +153,39 @@ const PayrollPage: React.FC = () => {
 
   const handleExport = () => exportXlsx(EXPORT_DEF, records, period);
 
+  // 保存计算结果（落库 salary_records）
+  const handleSaveResult = async () => {
+    let success = 0;
+    for (const r of records) {
+      try {
+        const payload = {
+          unique_hash: r.unique_hash,
+          period,
+          month_number: parseInt(period.split('-')[1]) || 1,
+          base_salary: r.basic_salary,
+          attendance_adjust_total: r.attendance_adjust_total,
+          additional_total: r.additional_total,
+          personal_welfare_total: r.personal_welfare_total,
+          company_welfare_total: r.company_welfare_total,
+          monthly_tax: r.monthly_tax,
+          insurance_amount: r.insurance_amount,
+          wage_subtotal: r.wage_subtotal,
+          net_pay: r.net_pay,
+          total_cost: r.total_cost,
+          data_status: '已计算',
+        };
+        const existing = await api.get(`/salary_records?unique_hash=eq.${r.unique_hash}&period=eq.${period}`);
+        if (existing.data.length > 0) {
+          await api.patch(`/salary_records?id=eq.${existing.data[0].id}`, payload);
+        } else {
+          await api.post('/salary_records', payload);
+        }
+        success++;
+      } catch { /* skip */ }
+    }
+    message.success(`已保存 ${success} / ${records.length} 条计算结果到数据库`);
+  };
+
   // 审批流
   const role = localStorage.getItem('user_role') || 'hr_staff';
   const isApprover = role === 'approver' || role === 'admin';
@@ -238,6 +271,7 @@ const PayrollPage: React.FC = () => {
           <span>月份：</span>
           <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 180 }} />
           <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
+          <Button type="primary" onClick={handleSaveResult}>保存计算结果</Button>
           {isOperator && (
             <Button type="primary" icon={<SendOutlined />} onClick={handleSubmit}>提交审批</Button>
           )}
