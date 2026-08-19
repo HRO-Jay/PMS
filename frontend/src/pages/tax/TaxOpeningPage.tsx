@@ -41,7 +41,7 @@ const TaxOpeningPage: React.FC = () => {
     setLoading(true);
     try {
       const [empRes, recRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,pay_company,entry_date'),
+        api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,attendance_type'),
         api.get('/tax_opening_balances?select=*'),
       ]);
       const empMap: Record<string, any> = {};
@@ -61,6 +61,12 @@ const TaxOpeningPage: React.FC = () => {
             unique_hash: e.unique_hash,
             employee_name: e.name,
             pay_company: e.pay_company || '',
+            cost_center: e.cost_center || '',
+            department: e.department || '',
+            report_to: e.report_to || '',
+            position: e.position || '',
+            entry_date: e.entry_date || '',
+            attendance_type: e.attendance_type || '',
           };
         });
       setEmployees(empMap);
@@ -121,7 +127,13 @@ const TaxOpeningPage: React.FC = () => {
 
   const columns: any[] = [
     { title: withSource('姓名', '花名册同步'), dataIndex: 'employee_name', key: 'name', width: 90, fixed: 'left' },
-    { title: withSource('发薪公司', '花名册同步'), dataIndex: 'pay_company', key: 'co', width: 140, ellipsis: true, fixed: 'left' },
+    { title: withSource('发薪公司', '花名册同步'), dataIndex: 'pay_company', key: 'co', width: 130, ellipsis: true, fixed: 'left' },
+    { title: withSource('成本中心', '花名册同步'), dataIndex: 'cost_center', key: 'cc', width: 90 },
+    { title: withSource('部门', '花名册同步'), dataIndex: 'department', key: 'dept', width: 90 },
+    { title: withSource('汇报人', '花名册同步'), dataIndex: 'report_to', key: 'rpt', width: 80 },
+    { title: withSource('职位', '花名册同步'), dataIndex: 'position', key: 'pos', width: 90 },
+    { title: withSource('入职日期', '花名册同步'), dataIndex: 'entry_date', key: 'jd', width: 100 },
+    { title: withSource('考勤制', '花名册同步'), dataIndex: 'attendance_type', key: 'ws', width: 100 },
     { title: withSource('累计应税收入', '导入'), dataIndex: 'cumul_income', key: 'ci', width: 120, render: fmtMoney },
     { title: withSource('累计五险一金', '导入'), dataIndex: 'cumul_five_insurance', key: 'cfi', width: 120, render: fmtMoney },
     { title: withSource('累计专项附加扣除', '导入'), dataIndex: 'cumul_special_deduction', key: 'csd', width: 140, render: fmtMoney },
