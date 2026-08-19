@@ -27,10 +27,10 @@ const LoginPage: React.FC = () => {
         // 解析 JWT 里的角色信息
         try {
           const payload = JSON.parse(atob(res.data.access_token.split('.')[1]));
-          const role = payload?.user_metadata?.role || 'operator';
+          const role = payload?.user_metadata?.role || 'hr_staff';
           localStorage.setItem('user_role', role);
         } catch {
-          localStorage.setItem('user_role', 'operator');
+          localStorage.setItem('user_role', 'hr_staff');
         }
         message.success('登录成功');
         navigate('/');

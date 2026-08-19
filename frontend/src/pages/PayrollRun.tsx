@@ -317,7 +317,11 @@ interface PayrollApprovalProps {
 }
 
 const PayrollApproval: React.FC<PayrollApprovalProps> = ({ period, onChanged }) => {
-  const role = localStorage.getItem('user_role') || 'operator';
+  const role = localStorage.getItem('user_role') || 'hr_staff';
+
+  // 判断角色能力
+  const isApprover = role === 'approver' || role === 'admin';
+  const isOperator = role === 'hr_lead' || role === 'hr_staff' || role === 'it_staff' || role === 'admin';
 
   // 更新某表当月所有记录的状态
   const updateTableStatus = async (table: string, status: string) => {
@@ -355,10 +359,10 @@ const PayrollApproval: React.FC<PayrollApprovalProps> = ({ period, onChanged }) 
 
   return (
     <>
-      {(role === 'operator' || role === 'admin') && (
+      {isOperator && (
         <Button type="primary" icon={<SendOutlined />} onClick={handleSubmit}>提交审批</Button>
       )}
-      {(role === 'boss' || role === 'admin') && (
+      {isApprover && (
         <>
           <Button type="primary" style={{ background: '#27ae60', borderColor: '#27ae60' }} icon={<CheckCircleOutlined />} onClick={handleApprove}>通过审批</Button>
           <Button danger icon={<RollbackOutlined />} onClick={handleReject}>退回修改</Button>

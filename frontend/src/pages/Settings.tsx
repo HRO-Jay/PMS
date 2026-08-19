@@ -9,7 +9,7 @@ const SettingsPage: React.FC = () => {
   const [pwdModalOpen, setPwdModalOpen] = useState(false);
   const [pwdLoading, setPwdLoading] = useState(false);
   const [pwdForm] = Form.useForm();
-  const role = localStorage.getItem('user_role') || 'operator';
+  const role = localStorage.getItem('user_role') || 'hr_staff';
 
   const testApi = async () => {
     try {

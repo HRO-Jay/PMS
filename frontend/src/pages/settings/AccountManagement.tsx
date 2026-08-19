@@ -7,14 +7,18 @@ const SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhY
 
 const ROLE_LABELS: Record<string, string> = {
   admin: '管理员',
-  boss: '老板',
-  operator: '操作',
+  approver: '终审人',
+  hr_lead: '人事负责人',
+  hr_staff: '人事专员',
+  it_staff: '技术部',
 };
 
 const ROLE_COLORS: Record<string, string> = {
   admin: 'red',
-  boss: 'gold',
-  operator: 'blue',
+  approver: 'gold',
+  hr_lead: 'blue',
+  hr_staff: 'cyan',
+  it_staff: 'geekblue',
 };
 
 const AccountManagementPage: React.FC = () => {
@@ -40,7 +44,7 @@ const AccountManagementPage: React.FC = () => {
       setUsers(list.map((u: any) => ({
         ...u,
         key: u.id,
-        role: u.user_metadata?.role || 'operator',
+        role: u.user_metadata?.role || 'hr_staff',
       })));
     } catch {
       message.error('加载账号列表失败');
@@ -51,7 +55,7 @@ const AccountManagementPage: React.FC = () => {
 
   const openCreate = () => {
     form.resetFields();
-    form.setFieldsValue({ role: 'operator' });
+    form.setFieldsValue({ role: 'hr_staff' });
     setModalOpen(true);
   };
 
@@ -86,11 +90,11 @@ const AccountManagementPage: React.FC = () => {
     }
   };
 
-  // 修改角色（管理员唯一：把 admin 给别人时，当前 admin 自动降为 operator）
+  // 修改角色（管理员唯一：把 admin 给别人时，当前 admin 自动降为 hr_staff）
   const handleChangeRole = async (userId: string, role: string) => {
     const currentUserId = users.find(u => u.role === 'admin')?.id;
     try {
-      // 如果要把某个人设为 admin，且当前有另一个 admin，则当前 admin 降为 operator
+      // 如果要把某个人设为 admin，且当前有另一个 admin，则当前 admin 降为 hr_staff
       if (role === 'admin' && currentUserId && currentUserId !== userId) {
         await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${currentUserId}`, {
           method: 'PUT',
@@ -99,7 +103,7 @@ const AccountManagementPage: React.FC = () => {
             Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ user_metadata: { role: 'operator' } }),
+          body: JSON.stringify({ user_metadata: { role: 'hr_staff' } }),
         });
       }
       // 如果要降级当前的唯一 admin 且没有别人是 admin，则阻止
@@ -197,12 +201,14 @@ const AccountManagementPage: React.FC = () => {
           <Select
             size="small"
             value={u.role}
-            style={{ width: 90 }}
+            style={{ width: 110 }}
             onChange={(val) => handleChangeRole(u.id, val)}
             options={[
               { value: 'admin', label: '管理员' },
-              { value: 'boss', label: '老板' },
-              { value: 'operator', label: '操作' },
+              { value: 'approver', label: '终审人' },
+              { value: 'hr_lead', label: '人事负责人' },
+              { value: 'hr_staff', label: '人事专员' },
+              { value: 'it_staff', label: '技术部' },
             ]}
           />
           <Button size="small" onClick={() => handleResetPassword(u.id)}>重置密码</Button>
@@ -242,8 +248,10 @@ const AccountManagementPage: React.FC = () => {
           <Form.Item name="role" label="角色" rules={[{ required: true }]}>
             <Select options={[
               { value: 'admin', label: '管理员（全部权限）' },
-              { value: 'boss', label: '老板（审批）' },
-              { value: 'operator', label: '操作（工资制作）' },
+              { value: 'approver', label: '终审人（审批）' },
+              { value: 'hr_lead', label: '人事负责人（工资制作）' },
+              { value: 'hr_staff', label: '人事专员（工资制作）' },
+              { value: 'it_staff', label: '技术部（工资制作）' },
             ]} />
           </Form.Item>
         </Form>
