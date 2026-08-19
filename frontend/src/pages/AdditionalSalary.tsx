@@ -180,7 +180,7 @@ const AdditionalSalaryPage: React.FC = () => {
     { title: withSource('津贴', '导入'), dataIndex: 'other_allowance', key: 'oal', width: 80, render: fmtMoney },
     { title: withSource('保安奖金', '导入'), dataIndex: 'security_bonus', key: 'sb', width: 90, render: fmtMoney },
     { title: withSource('保洁奖金', '导入'), dataIndex: 'cleaning_bonus', key: 'cb', width: 90, render: fmtMoney },
-    { title: withSource('绩效&佣金合计', '系统计算'), dataIndex: 'perf_comm_total', key: 'pct', width: 120, render: fmtMoney },
+    { title: withSource('绩效&佣金合计', '系统计算'), dataIndex: 'perf_comm_total', key: 'pct', width: 120, fixed: 'right', render: fmtMoney },
     { title: withSource('附加薪酬合计', '系统计算'), dataIndex: 'additional_total', key: 'at', width: 120, fixed: 'right',
       render: (v: any) => <strong>{fmtMoney(v)}</strong> },
   ];
