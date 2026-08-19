@@ -35,7 +35,7 @@ const TAX_LABEL_TO_VALUE: Record<string, string> = {
 const EXPORT_DEF: ExportDef = {
   module: '员工花名册',
   columns: [
-    { key: 'unique_hash', label: '唯一值', hidden: true },
+    { key: 'unique_hash', label: '唯一值', hidden: false },
     { key: 'name', label: '姓名', required: true },
     { key: 'status', label: '状态' },
     { key: 'cost_center', label: '成本中心' },

@@ -220,6 +220,12 @@ const TaxMonthlyCalcPage: React.FC = () => {
   const columns: any[] = [
     { title: withSource('姓名', '花名册同步'), dataIndex: 'employee_name', key: 'name', width: 90, fixed: 'left' },
     { title: withSource('发薪公司', '花名册同步'), dataIndex: 'pay_company', key: 'co', width: 130, ellipsis: true, fixed: 'left' },
+    { title: withSource('成本中心', '花名册同步'), dataIndex: 'cost_center', key: 'cc', width: 90 },
+    { title: withSource('部门', '花名册同步'), dataIndex: 'department', key: 'dept', width: 90 },
+    { title: withSource('汇报人', '花名册同步'), dataIndex: 'report_to', key: 'rpt', width: 80 },
+    { title: withSource('职位', '花名册同步'), dataIndex: 'position', key: 'pos', width: 90 },
+    { title: withSource('入职日期', '花名册同步'), dataIndex: 'entry_date', key: 'jd', width: 100 },
+    { title: withSource('考勤制', '花名册同步'), dataIndex: 'attendance_type', key: 'ws', width: 100 },
     { title: withSource('本期应税收入', '系统计算'), dataIndex: 'current_taxable_income', key: 'cti', width: 120, render: fmtMoney },
     { title: withSource('本期五险一金', '系统计算'), dataIndex: 'current_five_insurance', key: 'cfi', width: 120, render: fmtMoney },
     { title: withSource('本期专项附加', '系统计算'), dataIndex: 'current_special_deduct', key: 'csd', width: 120, render: fmtMoney },
