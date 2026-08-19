@@ -3,7 +3,7 @@ import { Layout, Menu, Typography, Avatar, Dropdown } from 'antd';
 import {
   TeamOutlined, DollarOutlined, CalculatorOutlined,
   LogoutOutlined, ScheduleOutlined,
-  UserOutlined, SettingOutlined, SafetyCertificateOutlined,
+  UserOutlined, SettingOutlined, SafetyCertificateOutlined, PercentageOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -14,6 +14,7 @@ const menuItems = [
   { key: '/employees', icon: <TeamOutlined />, label: '员工花名册' },
   { key: '/social', icon: <SafetyCertificateOutlined />, label: '社保管理' },
   { key: '/attendance', icon: <ScheduleOutlined />, label: '考勤管理' },
+  { key: '/tax', icon: <PercentageOutlined />, label: '个税扣缴' },
   { key: '/payroll', icon: <DollarOutlined />, label: '薪资计算' },
   { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
 ];

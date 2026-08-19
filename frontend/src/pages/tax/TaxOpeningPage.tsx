@@ -1,0 +1,147 @@
+import React, { useEffect, useState } from 'react';
+import { Table, Card, Button, Space, message, Upload } from 'antd';
+import { DownloadOutlined, UploadOutlined } from '@ant-design/icons';
+import api from '../../api/client';
+import { exportXlsx, importXlsx, type ExportDef } from '../../utils/importExport';
+import { withSource } from '../../components/SourceTag';
+
+/**
+ * 个税扣缴 — Tab 1：期初累计数（1-7月一次性录入）
+ */
+
+const EXPORT_DEF: ExportDef = {
+  module: '个税期初累计数',
+  columns: [
+    { key: 'unique_hash', label: '唯一值', hidden: false },
+    { key: 'employee_name', label: '姓名', required: true },
+    { key: 'pay_company', label: '发薪公司', required: true },
+    { key: 'cumul_income', label: '累计应税收入(1-7月)' },
+    { key: 'cumul_five_insurance', label: '累计五险一金(1-7月)' },
+    { key: 'cumul_special_deduction', label: '累计专项附加扣除(1-7月)' },
+    { key: 'cumul_other_deduction', label: '累计其他扣除(1-7月)' },
+    { key: 'cumul_tax_relief', label: '累计减免税额(1-7月)' },
+    { key: 'cumul_tax_paid', label: '累计预扣缴个税(1-7月)' },
+    { key: 'employed_months', label: '已任职月份数' },
+  ],
+};
+
+const fmtMoney = (v: any) => {
+  if (v === undefined || v === null || v === '') return '—';
+  return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+const TaxOpeningPage: React.FC = () => {
+  const [records, setRecords] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<Record<string, any>>({});
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => { loadData(); }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [empRes, recRes] = await Promise.all([
+        api.get('/employees?select=unique_hash,name,pay_company,entry_date'),
+        api.get('/tax_opening_balances?select=*'),
+      ]);
+      const empMap: Record<string, any> = {};
+      empRes.data.forEach((e: any) => { empMap[e.unique_hash] = e; });
+
+      const recMap: Record<string, any> = {};
+      recRes.data.forEach((r: any) => { recMap[r.unique_hash] = r; });
+
+      // 左连接：在职员工全列出
+      const merged = empRes.data
+        .filter((e: any) => e.status === '在职' || recMap[e.unique_hash])
+        .map((e: any) => {
+          const r = recMap[e.unique_hash];
+          return {
+            ...(r || {}),
+            key: r?.id ?? `emp-${e.unique_hash}`,
+            unique_hash: e.unique_hash,
+            employee_name: e.name,
+            pay_company: e.pay_company || '',
+          };
+        });
+      setEmployees(empMap);
+      setRecords(merged);
+    } catch { message.error('加载期初累计数失败'); }
+    finally { setLoading(false); }
+  };
+
+  // 导出
+  const handleExport = () => exportXlsx(EXPORT_DEF, records);
+
+  // 导入
+  const handleImport = async (file: File) => {
+    try {
+      const { data, import_errors } = await importXlsx(EXPORT_DEF, file);
+      if (import_errors.length > 0) message.warning(`有 ${import_errors.length} 行数据存在问题`);
+      if (data.length === 0) { message.info('未找到有效数据'); return; }
+
+      let success = 0;
+      const failures: string[] = [];
+      for (const row of data) {
+        try {
+          if (!row.unique_hash) {
+            failures.push(`${row.employee_name || '?'}：缺唯一值`);
+            continue;
+          }
+          // 校验非负
+          const numFields = ['cumul_income', 'cumul_five_insurance', 'cumul_special_deduction', 'cumul_other_deduction', 'cumul_tax_relief', 'cumul_tax_paid', 'employed_months'];
+          for (const f of numFields) {
+            if (Number(row[f]) < 0) {
+              failures.push(`${row.employee_name}：${f} 不能为负`);
+              continue;
+            }
+          }
+          // 剔除展示字段
+          const { employee_name, pay_company, ...dbRow } = row;
+          const existing = await api.get(`/tax_opening_balances?unique_hash=eq.${row.unique_hash}`);
+          if (existing.data.length > 0) {
+            await api.patch(`/tax_opening_balances?id=eq.${existing.data[0].id}`, dbRow);
+          } else {
+            await api.post('/tax_opening_balances', dbRow);
+          }
+          success++;
+        } catch {
+          failures.push(`${row.employee_name || '?'}：导入失败`);
+        }
+      }
+      if (failures.length > 0) {
+        message.warning(`导入完成：成功 ${success} 条，失败 ${failures.length} 条。${failures.slice(0, 8).join('；')}`);
+      } else {
+        message.success(`导入完成：${success} / ${data.length} 条`);
+      }
+      loadData();
+    } catch (e: any) {
+      message.error(e.message || '导入失败');
+    }
+  };
+
+  const columns: any[] = [
+    { title: withSource('姓名', '花名册同步'), dataIndex: 'employee_name', key: 'name', width: 90, fixed: 'left' },
+    { title: withSource('发薪公司', '花名册同步'), dataIndex: 'pay_company', key: 'co', width: 140, ellipsis: true, fixed: 'left' },
+    { title: withSource('累计应税收入', '导入'), dataIndex: 'cumul_income', key: 'ci', width: 120, render: fmtMoney },
+    { title: withSource('累计五险一金', '导入'), dataIndex: 'cumul_five_insurance', key: 'cfi', width: 120, render: fmtMoney },
+    { title: withSource('累计专项附加扣除', '导入'), dataIndex: 'cumul_special_deduction', key: 'csd', width: 140, render: fmtMoney },
+    { title: withSource('累计其他扣除', '导入'), dataIndex: 'cumul_other_deduction', key: 'cod', width: 120, render: fmtMoney },
+    { title: withSource('累计减免税额', '导入'), dataIndex: 'cumul_tax_relief', key: 'ctr', width: 120, render: fmtMoney },
+    { title: withSource('累计预扣缴个税', '导入'), dataIndex: 'cumul_tax_paid', key: 'ctp', width: 130, render: fmtMoney },
+    { title: withSource('已任职月份数', '导入'), dataIndex: 'employed_months', key: 'em', width: 110 },
+  ];
+
+  return (
+    <Card size="small" title="期初累计数（2026年1-7月，一次性录入后锁定）">
+      <Space style={{ marginBottom: 12 }}>
+        <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
+        <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
+          <Button icon={<UploadOutlined />}>导入</Button>
+        </Upload>
+      </Space>
+      <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 1400 }} size="small" pagination={{ pageSize: 50 }} />
+    </Card>
+  );
+};
+
+export default TaxOpeningPage;
