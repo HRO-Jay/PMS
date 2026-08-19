@@ -404,29 +404,29 @@ const PayrollPage: React.FC = () => {
           <Descriptions column={2} size="small" bordered>
             <Descriptions.Item label="姓名">{detailRecord.employee_name}</Descriptions.Item>
             <Descriptions.Item label="实收"><strong style={{ color: '#27ae60' }}>{fmtMoney(detailRecord.net_pay)}</strong></Descriptions.Item>
-            <Descriptions.Item label="基本工资（花名册）">{fmtMoney(detailRecord.basic_salary)}</Descriptions.Item>
-            <Descriptions.Item label="补贴/补充公积金（附加薪酬）">{fmtMoney(detailRecord.allowance_supp)}</Descriptions.Item>
-            <Descriptions.Item label="考勤调整合计（考勤管理）">{fmtMoney(detailRecord.attendance_adjust_total)}</Descriptions.Item>
-            <Descriptions.Item label="其他补贴/调整（附加薪酬）">{fmtMoney(detailRecord.other_adjust)}</Descriptions.Item>
-            <Descriptions.Item label="商保金额（附加薪酬）">{fmtMoney(detailRecord.insurance_amount)}</Descriptions.Item>
-            <Descriptions.Item label="KPI预提（附加薪酬）">{fmtMoney(detailRecord.kpi_provision)}</Descriptions.Item>
-            <Descriptions.Item label="商办佣金（附加薪酬）">{fmtMoney(detailRecord.office_comm)}</Descriptions.Item>
-            <Descriptions.Item label="绩效（附加薪酬）">{fmtMoney(detailRecord.performance_pay)}</Descriptions.Item>
-            <Descriptions.Item label="公寓佣金（附加薪酬）">{fmtMoney(detailRecord.apartment_comm)}</Descriptions.Item>
-            <Descriptions.Item label="人才系KPI（附加薪酬）">{fmtMoney(detailRecord.talent_kpi)}</Descriptions.Item>
-            <Descriptions.Item label="防暑降温费（附加薪酬）">{fmtMoney(detailRecord.heat_allowance)}</Descriptions.Item>
-            <Descriptions.Item label="津贴（附加薪酬）">{fmtMoney(detailRecord.other_allowance)}</Descriptions.Item>
-            <Descriptions.Item label="保安奖金（附加薪酬）">{fmtMoney(detailRecord.security_bonus)}</Descriptions.Item>
-            <Descriptions.Item label="保洁奖金（附加薪酬）">{fmtMoney(detailRecord.cleaning_bonus)}</Descriptions.Item>
-            <Descriptions.Item label="薪资小计（薪资计算）"><strong>{fmtMoney(detailRecord.wage_subtotal)}</strong></Descriptions.Item>
-            <Descriptions.Item label="个人养老（社保）">{fmtMoney(detailRecord.pension_p)}</Descriptions.Item>
-            <Descriptions.Item label="个人医疗（社保）">{fmtMoney(detailRecord.medical_p)}</Descriptions.Item>
-            <Descriptions.Item label="个人失业（社保）">{fmtMoney(detailRecord.unemployment_p)}</Descriptions.Item>
-            <Descriptions.Item label="个人公积金（社保）">{fmtMoney(detailRecord.housing_fund_p)}</Descriptions.Item>
-            <Descriptions.Item label="个人补充公积金（社保）">{fmtMoney(detailRecord.supp_housing_p)}</Descriptions.Item>
-            <Descriptions.Item label="个人福利合计（社保）"><strong>{fmtMoney(detailRecord.personal_welfare_total)}</strong></Descriptions.Item>
-            <Descriptions.Item label="当月个人所得税（个税）"><span style={{ color: '#e74c3c' }}>{fmtMoney(detailRecord.monthly_tax)}</span></Descriptions.Item>
-            <Descriptions.Item label="商保调整（附加薪酬负数）"><span style={{ color: detailRecord.insurance_adjust < 0 ? '#e74c3c' : undefined }}>{fmtMoney(detailRecord.insurance_adjust)}</span></Descriptions.Item>
+            <Descriptions.Item label="基本工资">{fmtMoney(detailRecord.basic_salary)}</Descriptions.Item>
+            <Descriptions.Item label="补贴/补充公积金">{fmtMoney(detailRecord.allowance_supp)}</Descriptions.Item>
+            <Descriptions.Item label="考勤调整合计">{fmtMoney(detailRecord.attendance_adjust_total)}</Descriptions.Item>
+            <Descriptions.Item label="其他补贴/调整">{fmtMoney(detailRecord.other_adjust)}</Descriptions.Item>
+            <Descriptions.Item label="商保金额">{fmtMoney(detailRecord.insurance_amount)}</Descriptions.Item>
+            <Descriptions.Item label="KPI预提">{fmtMoney(detailRecord.kpi_provision)}</Descriptions.Item>
+            <Descriptions.Item label="商办佣金">{fmtMoney(detailRecord.office_comm)}</Descriptions.Item>
+            <Descriptions.Item label="绩效">{fmtMoney(detailRecord.performance_pay)}</Descriptions.Item>
+            <Descriptions.Item label="公寓佣金">{fmtMoney(detailRecord.apartment_comm)}</Descriptions.Item>
+            <Descriptions.Item label="人才系KPI">{fmtMoney(detailRecord.talent_kpi)}</Descriptions.Item>
+            <Descriptions.Item label="防暑降温费">{fmtMoney(detailRecord.heat_allowance)}</Descriptions.Item>
+            <Descriptions.Item label="津贴">{fmtMoney(detailRecord.other_allowance)}</Descriptions.Item>
+            <Descriptions.Item label="保安奖金">{fmtMoney(detailRecord.security_bonus)}</Descriptions.Item>
+            <Descriptions.Item label="保洁奖金">{fmtMoney(detailRecord.cleaning_bonus)}</Descriptions.Item>
+            <Descriptions.Item label="薪资小计"><strong>{fmtMoney(detailRecord.wage_subtotal)}</strong></Descriptions.Item>
+            <Descriptions.Item label="个人养老">{fmtMoney(detailRecord.pension_p)}</Descriptions.Item>
+            <Descriptions.Item label="个人医疗">{fmtMoney(detailRecord.medical_p)}</Descriptions.Item>
+            <Descriptions.Item label="个人失业">{fmtMoney(detailRecord.unemployment_p)}</Descriptions.Item>
+            <Descriptions.Item label="个人公积金">{fmtMoney(detailRecord.housing_fund_p)}</Descriptions.Item>
+            <Descriptions.Item label="个人补充公积金">{fmtMoney(detailRecord.supp_housing_p)}</Descriptions.Item>
+            <Descriptions.Item label="个人福利合计"><strong>{fmtMoney(detailRecord.personal_welfare_total)}</strong></Descriptions.Item>
+            <Descriptions.Item label="当月个人所得税"><span style={{ color: '#e74c3c' }}>{fmtMoney(detailRecord.monthly_tax)}</span></Descriptions.Item>
+            <Descriptions.Item label="商保调整"><span style={{ color: detailRecord.insurance_adjust < 0 ? '#e74c3c' : undefined }}>{fmtMoney(detailRecord.insurance_adjust)}</span></Descriptions.Item>
           </Descriptions>
         )}
       </Drawer>

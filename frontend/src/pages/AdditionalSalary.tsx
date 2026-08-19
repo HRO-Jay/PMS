@@ -86,6 +86,12 @@ const AdditionalSalaryPage: React.FC = () => {
             (r?.apartment_comm || 0) + (r?.talent_kpi || 0) + (r?.heat_allowance || 0) +
             (r?.other_allowance || 0) + (r?.security_bonus || 0) + (r?.cleaning_bonus || 0)
           ).toFixed(2));
+          // 绩效&佣金合计 = 商办佣金 + 绩效 + 公寓佣金 + 人才系KPI + 防暑降温费 + 津贴 + 保安奖金 + 保洁奖金
+          const perfCommTotal = Number((
+            (r?.office_comm || 0) + (r?.performance_pay || 0) + (r?.apartment_comm || 0) +
+            (r?.talent_kpi || 0) + (r?.heat_allowance || 0) + (r?.other_allowance || 0) +
+            (r?.security_bonus || 0) + (r?.cleaning_bonus || 0)
+          ).toFixed(2));
           return {
             ...(r || {}),
             key: r?.id ?? `emp-${e.unique_hash}`,
@@ -99,6 +105,7 @@ const AdditionalSalaryPage: React.FC = () => {
             entry_date: e.entry_date || '',
             attendance_type: e.attendance_type || '',
             additional_total: additionalTotal,
+            perf_comm_total: perfCommTotal,
           };
         });
 
@@ -173,6 +180,7 @@ const AdditionalSalaryPage: React.FC = () => {
     { title: withSource('津贴', '导入'), dataIndex: 'other_allowance', key: 'oal', width: 80, render: fmtMoney },
     { title: withSource('保安奖金', '导入'), dataIndex: 'security_bonus', key: 'sb', width: 90, render: fmtMoney },
     { title: withSource('保洁奖金', '导入'), dataIndex: 'cleaning_bonus', key: 'cb', width: 90, render: fmtMoney },
+    { title: withSource('绩效&佣金合计', '系统计算'), dataIndex: 'perf_comm_total', key: 'pct', width: 120, render: fmtMoney },
     { title: withSource('附加薪酬合计', '系统计算'), dataIndex: 'additional_total', key: 'at', width: 120, fixed: 'right',
       render: (v: any) => <strong>{fmtMoney(v)}</strong> },
   ];
