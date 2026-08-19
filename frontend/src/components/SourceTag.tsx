@@ -6,7 +6,7 @@ import { Tag } from 'antd';
  * 用于表格列标题下方，标出该列数据来源
  */
 
-export type SourceType = '花名册同步' | '导入' | '单独新增' | '系统计算' | '花名册同步+导入' | '系统计算+导入';
+export type SourceType = '花名册同步' | '导入' | '单独新增' | '系统计算' | '花名册同步+导入' | '系统计算+导入' | '考勤同步' | '附加薪酬同步' | '社保同步' | '个税同步';
 
 const SOURCE_COLORS: Record<string, string> = {
   '花名册同步': 'blue',
@@ -15,6 +15,10 @@ const SOURCE_COLORS: Record<string, string> = {
   '系统计算': 'purple',
   '花名册同步+导入': 'geekblue',
   '系统计算+导入': 'magenta',
+  '考勤同步': 'green',
+  '附加薪酬同步': 'volcano',
+  '社保同步': 'gold',
+  '个税同步': 'lime',
 };
 
 /**

@@ -11,6 +11,7 @@ import AttendancePage from './pages/Attendance';
 import AttendanceRulesPage from './pages/attendance/AttendanceRules';
 import PayrollPage from './pages/PayrollRun';
 import TaxPage from './pages/Tax';
+import AdditionalSalaryPage from './pages/AdditionalSalary';
 import SettingsPage from './pages/Settings';
 
 // 简单的认证守卫
@@ -40,6 +41,7 @@ const App: React.FC = () => {
                   <Route path="/social/*" element={<SocialPage />} />
                   <Route path="/payroll" element={<PayrollPage />} />
                   <Route path="/tax" element={<TaxPage />} />
+                  <Route path="/additional" element={<AdditionalSalaryPage />} />
                   <Route path="/attendance" element={<AttendancePage />} />
                   <Route path="/attendance/rules" element={<AttendanceRulesPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
