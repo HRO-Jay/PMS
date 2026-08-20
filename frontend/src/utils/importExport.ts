@@ -77,6 +77,22 @@ function formatDateCell(val: any): any {
 }
 
 /**
+ * 清洗单元格值：把带千分位逗号的数字字符串（如 " 7,500.00 "）转成数字。
+ * raw:false 读取时，超过1000的数字会带逗号，导致 Number() 变成 NaN。
+ */
+function cleanNumberString(val: any): any {
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    // 匹配带千分位逗号的数字（如 7,500.00、1,448.3、-3,295.01）
+    if (/^-?[\d,]+\.?\d*$/.test(trimmed) && trimmed.includes(',')) {
+      const num = Number(trimmed.replace(/,/g, ''));
+      if (!isNaN(num)) return num;
+    }
+  }
+  return val;
+}
+
+/**
  * 导入 XLSX 文件，返回解析后的数据。
  * 自动匹配表头文字 → key，日期单元格自动转成 YYYY-MM-DD。
  *
@@ -126,7 +142,7 @@ export function importXlsx(def: ExportDef, file: File): Promise<{
             const key = labelToKey[label];
             if (key) {
               const val = row[j];
-              record[key] = val !== undefined && val !== null && val !== '' ? formatDateCell(val) : undefined;
+              record[key] = val !== undefined && val !== null && val !== '' ? cleanNumberString(formatDateCell(val)) : undefined;
             }
           }
 
