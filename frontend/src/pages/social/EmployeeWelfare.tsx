@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Table, Button, Drawer, Form, Input, Select, Space, message, Card, InputNumber, Switch, Tag, Descriptions, DatePicker, Upload, Dropdown, Popconfirm,
 } from 'antd';
-import { PlusOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
+import { PlusOutlined, DownloadOutlined, UploadOutlined, CalculatorOutlined } from '@ant-design/icons';
 import api from '../../api/client';
 import type { SocialWelfareSet, HousingFundSet, EmployeeWelfareRecord } from '../../types';
 import { calcSocial, calcHousingFund } from '../../utils/welfareCalc';
@@ -40,6 +40,13 @@ const EXPORT_DEF: ExportDef = {
     { key: 'supp_base', label: '补充公积金基数' },
     { key: 'social_no_reason', label: '社保不缴纳原因' },
     { key: 'housing_no_reason', label: '公积金不缴纳原因' },
+    { key: 'personal_social_adj', label: '个人社保调整金额' },
+    { key: 'company_social_adj', label: '公司社保调整金额' },
+    { key: 'personal_housing_adj', label: '个人公积金调整金额' },
+    { key: 'company_housing_adj', label: '公司公积金调整金额' },
+    { key: 'adj_start_month', label: '调整开始月份' },
+    { key: 'adj_end_month', label: '调整结束月份' },
+    { key: 'adj_reason', label: '调整原因' },
   ],
 };
 
@@ -227,6 +234,87 @@ const EmployeeWelfare: React.FC = () => {
     message.success('计算完成');
   };
 
+  // 一键自动计算：遍历所有记录，逐条计算并保存
+  const handleBatchCalc = async () => {
+    let success = 0;
+    let skipped = 0;
+    for (const rec of records) {
+      try {
+        const v = rec;
+        if (!v.social_welfare_code || !v.housing_fund_code) {
+          skipped++;
+          continue;
+        }
+        const sSet = socialSets.find(s => s.code === v.social_welfare_code);
+        const hSet = housingSets.find(h => h.code === v.housing_fund_code);
+        if (!sSet || !hSet) { skipped++; continue; }
+
+        const socialBase = Number(v.social_base || 0);
+        const housingBase = Number(v.housing_base || 0);
+        const suppBase = Number(v.supp_base || housingBase);
+
+        const social = sSet.code === 'SI-00' ? null : calcSocial(sSet as any, socialBase);
+        const housing = hSet.code === 'HF-00' ? null : calcHousingFund(hSet as any, housingBase, suppBase, v.supp_enabled);
+
+        const psAdj = Number(v.personal_social_adj || 0);
+        const csAdj = Number(v.company_social_adj || 0);
+        const phAdj = Number(v.personal_housing_adj || 0);
+        const chAdj = Number(v.company_housing_adj || 0);
+
+        const personalSocial = social?.personal_total || 0;
+        const personalHousing = housing?.personal_total || 0;
+        const companySocial = social?.company_total || 0;
+        const companyHousing = housing?.company_total || 0;
+
+        // 状态校验
+        let data_status = '正常';
+        if (v.social_welfare_code !== 'SI-00' && !v.social_base) data_status = '社保基数缺失';
+        else if (v.housing_fund_code !== 'HF-00' && !v.housing_base) data_status = '公积金基数缺失';
+        else if (v.supp_enabled && !v.supp_base) data_status = '补充公积金基数缺失';
+        else if (v.social_welfare_code === 'SI-00' && !v.social_no_reason) data_status = '不缴纳原因缺失';
+        else if (v.housing_fund_code === 'HF-00' && !v.housing_no_reason) data_status = '不缴纳原因缺失';
+        else if (psAdj !== 0 || csAdj !== 0 || phAdj !== 0 || chAdj !== 0) {
+          if (!v.adj_reason) data_status = '调整原因缺失';
+          else if (!v.adj_start_month || !v.adj_end_month) data_status = '调整期间缺失';
+          else data_status = '含调整';
+        }
+
+        const payload = {
+          pension_p_amt: social?.pension_p || 0,
+          medical_p_amt: social?.medical_p || 0,
+          unemployment_p_amt: social?.unemployment_p || 0,
+          pension_c_amt: social?.pension_c || 0,
+          medical_c_amt: social?.medical_c || 0,
+          unemployment_c_amt: social?.unemployment_c || 0,
+          injury_c_amt: social?.injury_c || 0,
+          maternity_c_amt: social?.maternity_c || 0,
+          normal_housing_p_amt: housing?.normal_p || 0,
+          normal_housing_c_amt: housing?.normal_c || 0,
+          supp_housing_p_amt: housing?.supp_p || 0,
+          supp_housing_c_amt: housing?.supp_c || 0,
+          personal_social_total: personalSocial,
+          personal_housing_total: personalHousing,
+          company_social_total: companySocial,
+          company_housing_total: companyHousing,
+          personal_total: Number((personalSocial + personalHousing).toFixed(2)),
+          company_total: Number((companySocial + companyHousing).toFixed(2)),
+          data_status,
+          last_calc_time: new Date().toISOString(),
+        };
+
+        const existing = await api.get(`/employee_welfare_records?unique_hash=eq.${v.unique_hash}&period=eq.${period}`);
+        if (existing.data.length > 0) {
+          await api.patch(`/employee_welfare_records?id=eq.${existing.data[0].id}`, payload);
+        } else {
+          await api.post('/employee_welfare_records', { ...payload, unique_hash: v.unique_hash, period });
+        }
+        success++;
+      } catch { skipped++; }
+    }
+    message.success(`一键计算完成：${success} 条，跳过 ${skipped} 条（缺少福利套或基数）`);
+    loadData();
+  };
+
   const handleSave = async () => {
     await form.validateFields();
     const values = formValues;
@@ -407,6 +495,7 @@ const EmployeeWelfare: React.FC = () => {
           <span>薪酬月份：</span>
           <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 180 }} />
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>添加记录</Button>
+          <Button type="primary" icon={<CalculatorOutlined />} onClick={handleBatchCalc}>一键计算</Button>
           <Dropdown menu={{
             items: [
               { key: 'template', label: '导出空白模板' },
