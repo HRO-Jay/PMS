@@ -32,6 +32,7 @@ const EXPORT_DEF: ExportDef = {
     { key: 'entry_date', label: '入职日期' },
     { key: 'attendance_type', label: '考勤制' },
     { key: 'basic_salary', label: '基本工资' },
+    { key: 'attendance_wage', label: '考勤工资' },
     { key: 'attendance_adjust_total', label: '考勤调整合计' },
     { key: 'additional_total', label: '附加薪酬合计' },
     { key: 'personal_welfare_total', label: '个人福利合计' },
@@ -72,7 +73,7 @@ const PayrollPage: React.FC = () => {
     try {
       const [empRes, attRes, addRes, welfareRes, taxRes] = await Promise.all([
         api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,attendance_type,tax_method,basic_salary'),
-        api.get(`/attendance_records?select=unique_hash,attendance_adjust_total,data_status&period=eq.${period}`),
+        api.get(`/attendance_records?select=unique_hash,attendance_adjust_total,attendance_wage,data_status&period=eq.${period}`),
         api.get(`/additional_salary_records?select=*&period=eq.${period}`),
         api.get(`/employee_welfare_records?select=unique_hash,personal_total,company_total,pension_p_amt,medical_p_amt,unemployment_p_amt,normal_housing_p_amt,supp_housing_p_amt,pension_c_amt,medical_c_amt,unemployment_c_amt,injury_c_amt,maternity_c_amt,normal_housing_c_amt,supp_housing_c_amt&period=eq.${period}`),
         api.get(`/tax_monthly_calcs?select=unique_hash,monthly_tax&period=eq.${period}`),
@@ -106,6 +107,8 @@ const PayrollPage: React.FC = () => {
           ).toFixed(2));
 
           const basicSalary = Number(e.basic_salary || 0);
+          // 考勤工资（数据来源-导入）：凡涉及基本工资的计算均改用它
+          const attendanceWage = Number(attMap[e.unique_hash]?.attendance_wage || 0);
           const attendanceAdjust = Number(attMap[e.unique_hash]?.attendance_adjust_total || 0);
           const personalWelfare = Number(welfare.personal_total || 0);
           const companyWelfare = Number(welfare.company_total || 0);
@@ -114,8 +117,8 @@ const PayrollPage: React.FC = () => {
           // 商保调整 = 商保金额的负数
           const insuranceAdjust = -insuranceAmount;
 
-          // 薪资小计 = 基本工资 + 考勤调整合计 + 附加薪酬合计
-          const wageSubtotal = Number((basicSalary + attendanceAdjust + additionalTotal).toFixed(2));
+          // 薪资小计 = 考勤工资 + 考勤调整合计 + 附加薪酬合计
+          const wageSubtotal = Number((attendanceWage + attendanceAdjust + additionalTotal).toFixed(2));
           // 实收工资 = 薪资小计 - 个人福利合计 - 当月个人所得税 - 商保金额
           const netPay = Number((wageSubtotal - personalWelfare - monthlyTax - insuranceAmount).toFixed(2));
           // 企业人力成本总计 = 薪资小计 + 公司福利合计
@@ -134,6 +137,7 @@ const PayrollPage: React.FC = () => {
             attendance_type: e.attendance_type || '',
             tax_method: e.tax_method || 'normal',
             basic_salary: basicSalary,
+            attendance_wage: attendanceWage,
             attendance_adjust_total: attendanceAdjust,
             additional_total: additionalTotal,
             personal_welfare_total: personalWelfare,
@@ -193,6 +197,7 @@ const PayrollPage: React.FC = () => {
       { key: 'employee_name', label: '姓名' },
       { key: 'net_pay', label: '实收' },
       { key: 'basic_salary', label: '基本工资' },
+      { key: 'attendance_wage', label: '考勤工资' },
       { key: 'allowance_supp', label: '补贴/补充公积金' },
       { key: 'attendance_adjust_total', label: '考勤调整合计' },
       { key: 'other_adjust', label: '其他补贴/调整' },
@@ -235,6 +240,7 @@ const PayrollPage: React.FC = () => {
           period,
           month_number: parseInt(period.split('-')[1]) || 1,
           base_salary: r.basic_salary,
+          attendance_wage: r.attendance_wage,
           attendance_adjust_total: r.attendance_adjust_total,
           additional_total: r.additional_total,
           personal_welfare_total: r.personal_welfare_total,
@@ -325,6 +331,7 @@ const PayrollPage: React.FC = () => {
     { title: withSource('计税方式', '花名册同步'), dataIndex: 'tax_method', key: 'tm', width: 90,
       render: (v: string) => <Tag color={v === 'normal' ? 'blue' : v === 'service' ? 'orange' : 'green'}>{v === 'normal' ? '正常计税' : v === 'service' ? '劳务计税' : '不计税'}</Tag> },
     { title: withSource('基本工资', '花名册同步'), dataIndex: 'basic_salary', key: 'bs', width: 110, render: fmtMoney },
+    { title: withSource('考勤工资', '导入'), dataIndex: 'attendance_wage', key: 'aw', width: 110, render: fmtMoney },
     { title: withSource('考勤调整合计', '考勤同步'), dataIndex: 'attendance_adjust_total', key: 'aat', width: 120, render: fmtMoney },
     { title: withSource('附加薪酬合计', '附加薪酬同步'), dataIndex: 'additional_total', key: 'at', width: 120, render: fmtMoney },
     { title: withSource('个人福利合计', '社保同步'), dataIndex: 'personal_welfare_total', key: 'pwt', width: 120, render: fmtMoney },
@@ -405,6 +412,7 @@ const PayrollPage: React.FC = () => {
             <Descriptions.Item label="姓名">{detailRecord.employee_name}</Descriptions.Item>
             <Descriptions.Item label="实收"><strong style={{ color: '#27ae60' }}>{fmtMoney(detailRecord.net_pay)}</strong></Descriptions.Item>
             <Descriptions.Item label="基本工资">{fmtMoney(detailRecord.basic_salary)}</Descriptions.Item>
+            <Descriptions.Item label="考勤工资">{fmtMoney(detailRecord.attendance_wage)}</Descriptions.Item>
             <Descriptions.Item label="补贴/补充公积金">{fmtMoney(detailRecord.allowance_supp)}</Descriptions.Item>
             <Descriptions.Item label="考勤调整合计">{fmtMoney(detailRecord.attendance_adjust_total)}</Descriptions.Item>
             <Descriptions.Item label="其他补贴/调整">{fmtMoney(detailRecord.other_adjust)}</Descriptions.Item>

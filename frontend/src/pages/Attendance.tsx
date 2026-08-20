@@ -34,6 +34,7 @@ const EXPORT_DEF: ExportDef = {
     { key: 'entry_date', label: '入职日期' },
     // 考勤业务字段
     { key: 'basic_salary', label: '基本工资' },
+    { key: 'attendance_wage', label: '考勤工资' },
     { key: 'pay_days', label: '计薪天数', required: true },
     { key: 'sick_days', label: '病假(天)' },
     { key: 'is_continuous_sick', label: '是否连续病假' },
@@ -151,6 +152,8 @@ const AttendancePage: React.FC = () => {
               on_off_adjust: 0, attendance_adjust_total: 0, data_status: '未录入',
             }),
             key: rec?.id ?? `emp-${e.unique_hash}`,
+            // 基本工资优先取考勤记录，否则取花名册（仅供展示，不参与计算）
+            basic_salary: rec?.basic_salary ?? e.basic_salary ?? undefined,
             // 以下必须在考勤记录展开之后再赋值，避免被记录里的空值覆盖成横杠
             // 考勤工资来自考勤记录导入
             attendance_wage: rec?.attendance_wage ?? undefined,
@@ -270,6 +273,7 @@ const AttendancePage: React.FC = () => {
         unique_hash: record.unique_hash,
         period,
         basic_salary: record.basic_salary,
+        attendance_wage: record.attendance_wage,
         pay_days: record.pay_days,
         sick_days: record.sick_days, personal_days: record.personal_days,
         annual_leave: record.annual_leave, compensatory_leave: record.compensatory_leave,
@@ -584,6 +588,7 @@ const AttendancePage: React.FC = () => {
     { title: withSource('考勤制', '花名册同步'), dataIndex: 'attendance_type', key: 'ws', width: 100 },
     { title: withSource('基本工资', '花名册同步'), dataIndex: 'basic_salary', key: 'bs', width: 100,
       render: (v: number) => fmtMoney(v) },
+    { title: withSource('考勤工资', '导入'), dataIndex: 'attendance_wage', key: 'aw', width: 110, render: (v: any) => fmtMoney(v) },
     { title: withSource('计薪天数', '导入'), dataIndex: 'pay_days', key: 'pd', width: 90, render: (v: any) => v || '—' },
     { title: withSource('病假(天)', '导入'), dataIndex: 'sick_days', key: 'sd', width: 80, render: (v: any) => v ?? '—' },
     { title: withSource('病假金额', '系统计算'), dataIndex: 'sick_amount', key: 'sa', width: 90, render: (v: number) => <span style={{ color: v < 0 ? '#e74c3c' : undefined }}>{fmtMoney(v)}</span> },
@@ -715,6 +720,7 @@ const AttendancePage: React.FC = () => {
             <Descriptions.Item label="职位">{detailRecord.position}</Descriptions.Item>
             <Descriptions.Item label="入职日期">{detailRecord.entry_date}</Descriptions.Item>
             <Descriptions.Item label="基本工资">{fmtMoney(detailRecord.basic_salary)}</Descriptions.Item>
+            <Descriptions.Item label="考勤工资">{fmtMoney(detailRecord.attendance_wage)}</Descriptions.Item>
             <Descriptions.Item label="计薪天数">{detailRecord.pay_days}</Descriptions.Item>
 
             {/* 计算依据 */}
@@ -855,6 +861,9 @@ const AttendancePage: React.FC = () => {
           <Space style={{ width: '100%' }} size="large">
             <Form.Item label="基本工资">
               <InputNumber style={{ width: 160 }} value={addForm.basic_salary} onChange={(v) => setAddForm({ ...addForm, basic_salary: v })} />
+            </Form.Item>
+            <Form.Item label="考勤工资">
+              <InputNumber style={{ width: 160 }} value={addForm.attendance_wage} onChange={(v) => setAddForm({ ...addForm, attendance_wage: v })} />
             </Form.Item>
             <Form.Item label="计薪天数" required>
               <Select style={{ width: 160 }} value={addForm.pay_days} onChange={(v) => setAddForm({ ...addForm, pay_days: v })}

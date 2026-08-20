@@ -205,6 +205,8 @@ export interface AttendanceRecord {
   period: string;
   employee_no: string;
   name: string;
+  basic_salary?: number;
+  attendance_wage?: number;
   sick_days: number;
   sick_adjust: number;
   personal_days: number;
@@ -228,6 +230,7 @@ export interface SalaryRecord {
   month_number: number;
   // 收入项
   base_salary?: number;
+  attendance_wage?: number;
   allowance_supp?: number;
   attendance_adjust?: number;
   other_adjust?: number;
