@@ -28,20 +28,20 @@ INSERT INTO tax_brackets (level, min_income, max_income, rate, quick_deduction) 
 (7, 960000,   NULL,    0.45, 181920);
 
 -- ============================================================
--- Tab 1：期初累计数表（1-7月累计，一次性录入）
+-- Tab 1：期初累计数表（1-5月累计，一次性录入）
 -- ============================================================
 DROP TABLE IF EXISTS tax_opening_balances CASCADE;
 
 CREATE TABLE tax_opening_balances (
     id                       BIGSERIAL PRIMARY KEY,
     unique_hash              VARCHAR(16) NOT NULL,        -- 关联员工
-    cumul_income             DECIMAL(14,2) DEFAULT 0,     -- 累计应税收入(1-7月)
-    cumul_five_insurance     DECIMAL(14,2) DEFAULT 0,     -- 累计五险一金(1-7月)
-    cumul_special_deduction  DECIMAL(14,2) DEFAULT 0,     -- 累计专项附加扣除(1-7月)
-    cumul_other_deduction    DECIMAL(14,2) DEFAULT 0,     -- 累计其他扣除(1-7月)
-    cumul_tax_relief         DECIMAL(14,2) DEFAULT 0,     -- 累计减免税额(1-7月)
-    cumul_tax_paid           DECIMAL(14,2) DEFAULT 0,     -- 累计预扣缴个税(1-7月)
-    employed_months          INT DEFAULT 6,               -- 已任职月份数（期初为1-6月）
+    cumul_income             DECIMAL(14,2) DEFAULT 0,     -- 累计应税收入(1-5月)
+    cumul_five_insurance     DECIMAL(14,2) DEFAULT 0,     -- 累计五险一金(1-5月)
+    cumul_special_deduction  DECIMAL(14,2) DEFAULT 0,     -- 累计专项附加扣除(1-5月)
+    cumul_other_deduction    DECIMAL(14,2) DEFAULT 0,     -- 累计其他扣除(1-5月)
+    cumul_tax_relief         DECIMAL(14,2) DEFAULT 0,     -- 累计减免税额(1-5月)
+    cumul_tax_paid           DECIMAL(14,2) DEFAULT 0,     -- 累计预扣缴个税(1-5月)
+    employed_months          INT DEFAULT 5,               -- 已任职月份数（期初为1-5月）
     remark                   TEXT,
     created_at               TIMESTAMPTZ DEFAULT NOW(),
     updated_at               TIMESTAMPTZ DEFAULT NOW(),
@@ -77,7 +77,7 @@ CREATE TABLE tax_special_deductions (
 );
 
 -- ============================================================
--- Tab 3：个税月度计算表（8月起每月一行，滚动累计）
+-- Tab 3：个税月度计算表（6月起每月一行，滚动累计）
 -- ============================================================
 DROP TABLE IF EXISTS tax_monthly_calcs CASCADE;
 

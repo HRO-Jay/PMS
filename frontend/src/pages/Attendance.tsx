@@ -152,8 +152,8 @@ const AttendancePage: React.FC = () => {
             }),
             key: rec?.id ?? `emp-${e.unique_hash}`,
             // 以下必须在考勤记录展开之后再赋值，避免被记录里的空值覆盖成横杠
-            // 基本工资优先取考勤记录，否则取花名册
-            basic_salary: rec?.basic_salary ?? e.basic_salary ?? undefined,
+            // 考勤工资来自考勤记录导入
+            attendance_wage: rec?.attendance_wage ?? undefined,
             // 特殊调整金额
             special_adjust_amount: adjSumMap[e.unique_hash] || 0,
           };
@@ -197,7 +197,7 @@ const AttendancePage: React.FC = () => {
     const result = calcAttendance({
       entry_date: r.entry_date,
       period,
-      basic_salary: r.basic_salary,
+      attendance_wage: r.attendance_wage,
       pay_days: r.pay_days,
       sick_days: r.sick_days,
       is_continuous_sick: r.is_continuous_sick,

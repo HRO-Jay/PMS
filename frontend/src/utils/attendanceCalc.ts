@@ -57,7 +57,7 @@ export function calcSickPayRate(entryDate: string, period: string, isContinuous:
 export interface AttendanceInput {
   entry_date?: string;
   period: string;
-  basic_salary?: number;
+  attendance_wage?: number;     // 考勤工资（导入，作为计薪基数）
   pay_days?: number;            // 21.75 / 26 / 30
   // 病假
   sick_days?: number;
@@ -103,9 +103,10 @@ function isCleaner(position?: string): boolean {
 
 /** 主计算函数 */
 export function calcAttendance(input: AttendanceInput): AttendanceResult {
-  const basic = Number(input.basic_salary || 0);
+  // 考勤工资作为计薪基数
+  const wage = Number(input.attendance_wage || 0);
   const payDays = Number(input.pay_days || 21.75);
-  const dailyWage = payDays > 0 ? round2(basic / payDays) : 0;
+  const dailyWage = payDays > 0 ? round2(wage / payDays) : 0;
   const seniorityYears = calcSeniorityYears(input.entry_date || '', input.period);
 
   // 病假
@@ -157,7 +158,7 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
   const hasOnOff = actualDays > 0 && actualDays < payDays;
   if (hasOnOff) {
     const prorated = round2(dailyWage * actualDays);
-    onOffAdjust = round2(prorated - basic);
+    onOffAdjust = round2(prorated - wage);
   }
 
   // 特殊调整
