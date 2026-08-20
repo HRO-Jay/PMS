@@ -18,7 +18,7 @@ const HOUSING_NO_REASONS = ['异地缴纳', '其他单位缴纳', '其他'];
 
 // 金额格式化：固定两位小数
 const fmtMoney = (v: any) => {
-  if (v === undefined || v === null || v === '') return '—';
+  if (v === undefined || v === null || v === '' || Number(v) === 0) return '—';
   return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 

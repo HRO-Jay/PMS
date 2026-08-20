@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Table, Card, Button, Space, Input, message, InputNumber, Upload, Popconfirm, Drawer, Tag, Descriptions, Select, DatePicker, Form,
+  Table, Card, Button, Space, Input, message, InputNumber, Upload, Popconfirm, Drawer, Tag, Descriptions, Select, DatePicker, Form, Dropdown,
 } from 'antd';
 import { SaveOutlined, DownloadOutlined, UploadOutlined, CalculatorOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -14,7 +14,7 @@ import dayjs from 'dayjs';
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
 const fmtMoney = (v: any) => {
-  if (v === undefined || v === null || v === '') return '—';
+  if (v === undefined || v === null || v === '' || Number(v) === 0) return '—';
   return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
@@ -361,6 +361,24 @@ const AttendancePage: React.FC = () => {
     ],
   };
 
+  // 特殊调整导出
+  const handleAdjExport = (mode: 'template' | 'full') => {
+    if (mode === 'template') {
+      exportXlsx(ADJ_EXPORT_DEF, [], period);
+    } else {
+      // 全量：导出当前特殊调整记录（带姓名公司）
+      const adjWithEmp = adjustments.map((a: any) => {
+        const emp = Object.values(employees).find((e: any) => e.unique_hash === a.unique_hash);
+        return {
+          ...a,
+          name: emp?.name || '',
+          pay_company: emp?.pay_company || '',
+        };
+      });
+      exportXlsx(ADJ_EXPORT_DEF, adjWithEmp, period);
+    }
+  };
+
   // 特殊调整批量导入
   const handleAdjImport = async (file: File) => {
     try {
@@ -612,14 +630,37 @@ const AttendancePage: React.FC = () => {
           <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 180 }} />
           <Button type="primary" icon={<CalculatorOutlined />} onClick={handleAutoCalc}>自动计算</Button>
           <Button icon={<PlusOutlined />} onClick={openAdd}>添加记录</Button>
-          <Button icon={<PlusOutlined />} onClick={openAdjust}>特殊调整</Button>
+          <Dropdown menu={{
+            items: [
+              { key: 'import', label: '导入' },
+              { type: 'divider' },
+              { key: 'template', label: '导出空白模板' },
+              { key: 'full', label: '导出报表' },
+            ],
+            onClick: ({ key }) => {
+              if (key === 'import') {
+                // 触发导入
+                document.getElementById('adj-import-upload')?.click();
+              } else {
+                handleAdjExport(key as 'template' | 'full');
+              }
+            },
+          }}>
+            <Button icon={<PlusOutlined />}>特殊调整</Button>
+          </Dropdown>
           <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
           <Button icon={<SettingOutlined />} onClick={() => setColSettingOpen(true)}>列设置</Button>
           <Button icon={<SettingOutlined />} onClick={() => navigate('/attendance/rules')}>规则配置</Button>
           <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
             <Button icon={<UploadOutlined />}>导入考勤</Button>
           </Upload>
-          <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleAdjImport(file); return false; }}>
+          <Upload
+            id="adj-import-upload"
+            accept=".xlsx,.xls"
+            showUploadList={false}
+            style={{ display: 'none' }}
+            beforeUpload={(file) => { handleAdjImport(file); return false; }}
+          >
             <Button icon={<UploadOutlined />}>导入特殊调整</Button>
           </Upload>
         </Space>

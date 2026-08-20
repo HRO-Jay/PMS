@@ -24,7 +24,7 @@ const rateInput = (step = 0.0001) => ({ step, min: 0, max: 1, style: { width: 11
 
 // 金额格式化：固定两位小数
 const fmtMoney = (v: any) => {
-  if (v === undefined || v === null || v === '') return '—';
+  if (v === undefined || v === null || v === '' || Number(v) === 0) return '—';
   return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 

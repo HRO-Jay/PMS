@@ -12,7 +12,7 @@ import { withSource } from '../../components/SourceTag';
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
 const fmtMoney = (v: any) => {
-  if (v === undefined || v === null || v === '') return '—';
+  if (v === undefined || v === null || v === '' || Number(v) === 0) return '—';
   return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
