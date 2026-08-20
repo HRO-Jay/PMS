@@ -26,31 +26,32 @@ export function calcContinuousSickDays(start: string, end: string): number {
   return Math.max(0, Math.round((e.getTime() - s.getTime()) / (24 * 3600 * 1000)) + 1);
 }
 
-/** 病假支付系数（根据工龄 + 是否连续病假超6个月） */
+/**
+ * 病假支付系数（按本企业连续工龄分档）
+ *
+ * 两档规则：
+ * 1. 连续病假 ≤ 6 个月 → 疾病休假工资：
+ *    不满2年60% / 满2年不满4年70% / 满4年不满6年80% / 满6年不满8年90% / 满8年及以上100%
+ * 2. 连续病假 > 6 个月 → 疾病救济费：
+ *    不满1年40% / 满1年不满3年50% / 满3年及以上60%
+ */
 export function calcSickPayRate(entryDate: string, period: string, isContinuous: boolean, continuousDays: number): number {
   const years = calcSeniorityYears(entryDate, period);
   const overSixMonths = continuousDays > 180; // 约6个月
 
-  if (!isContinuous) {
-    // 非连续病假：默认按工龄满8年100%外，其余按固定简化的档位（60%）
-    // 这里非连续病假不区分工龄档，按 60% 支付（即扣40%），可按需调整
-    return years >= 8 ? 1.0 : 0.6;
-  }
-
-  // 连续病假
-  if (overSixMonths) {
-    // 疾病救济费
+  // 连续病假超过 6 个月 → 疾病救济费（待遇下降一档）
+  if (isContinuous && overSixMonths) {
     if (years < 1) return 0.40;
     if (years < 3) return 0.50;
     return 0.60;
-  } else {
-    // 连续病假6个月内
-    if (years < 2) return 0.60;
-    if (years < 4) return 0.70;
-    if (years < 6) return 0.80;
-    if (years < 8) return 0.90;
-    return 1.00;
   }
+
+  // 其余情况（含非连续病假）→ 疾病休假工资，统一按工龄分档
+  if (years < 2) return 0.60;
+  if (years < 4) return 0.70;
+  if (years < 6) return 0.80;
+  if (years < 8) return 0.90;
+  return 1.00;
 }
 
 export interface AttendanceInput {

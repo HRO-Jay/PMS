@@ -322,6 +322,9 @@ const EmployeeWelfare: React.FC = () => {
         }
 
         const payload = {
+          // 状态随福利套刷新（与单条保存逻辑一致）
+          social_status: v.social_welfare_code === 'SI-00' ? '不参保' : '参保',
+          housing_status: v.housing_fund_code === 'HF-00' ? '不缴存' : '缴存',
           pension_p_amt: social?.pension_p || 0,
           medical_p_amt: social?.medical_p || 0,
           unemployment_p_amt: social?.unemployment_p || 0,
