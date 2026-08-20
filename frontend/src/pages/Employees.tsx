@@ -62,6 +62,7 @@ const EmployeesPage: React.FC = () => {
   const [fCostCenter, setFCostCenter] = useState<string>();
   const [fPayCompany, setFPayCompany] = useState<string>();
   const [fDepartment, setFDepartment] = useState<string>();
+  const [fTaxMethod, setFTaxMethod] = useState<string>();
   const [fEntryRange, setFEntryRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [fLeaveRange, setFLeaveRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [search, setSearch] = useState('');
@@ -70,9 +71,12 @@ const EmployeesPage: React.FC = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [form] = Form.useForm();
+  // 筛选下拉选项
+  const [costCenterOptions, setCostCenterOptions] = useState<string[]>([]);
+  const [deptOptions, setDeptOptions] = useState<string[]>([]);
 
   useEffect(() => { loadCompanyMapping(); }, []);
-  useEffect(() => { loadEmployees(); }, [fStatus, fCostCenter, fPayCompany, fDepartment, fEntryRange, fLeaveRange, search]);
+  useEffect(() => { loadEmployees(); }, [fStatus, fCostCenter, fPayCompany, fDepartment, fTaxMethod, fEntryRange, fLeaveRange, search]);
 
   const loadCompanyMapping = async () => {
     try {
@@ -86,11 +90,17 @@ const EmployeesPage: React.FC = () => {
     try {
       const res = await api.get('/employees?select=*&order=id');
       let data: Employee[] = res.data;
+      // 收集可选的成本中心和部门（用于筛选下拉）
+      const ccOptions = Array.from(new Set(data.map(e => e.cost_center).filter(Boolean))).sort();
+      const deptOptions = Array.from(new Set(data.map(e => e.department).filter(Boolean))).sort();
+      setCostCenterOptions(ccOptions as string[]);
+      setDeptOptions(deptOptions as string[]);
       // 前端筛选
       if (fStatus) data = data.filter(e => e.status === fStatus);
       if (fCostCenter) data = data.filter(e => (e.cost_center || '').includes(fCostCenter));
       if (fPayCompany) data = data.filter(e => e.pay_company === fPayCompany);
       if (fDepartment) data = data.filter(e => (e.department || '').includes(fDepartment));
+      if (fTaxMethod) data = data.filter(e => e.tax_method === fTaxMethod);
       if (fEntryRange && fEntryRange[0] && fEntryRange[1]) {
         const s = fEntryRange[0].format('YYYY-MM-DD');
         const t = fEntryRange[1].format('YYYY-MM-DD');
@@ -376,10 +386,14 @@ const EmployeesPage: React.FC = () => {
         <Space wrap>
           <Select placeholder="状态" allowClear value={fStatus} onChange={setFStatus} style={{ width: 100 }}
             options={STATUS_OPTIONS.map(s => ({ value: s, label: s }))} />
-          <Input placeholder="成本中心" value={fCostCenter} onChange={e => setFCostCenter(e.target.value)} style={{ width: 130 }} allowClear />
+          <Select placeholder="成本中心" allowClear showSearch optionFilterProp="label" value={fCostCenter} onChange={setFCostCenter} style={{ width: 160 }}
+            options={costCenterOptions.map(c => ({ value: c, label: c }))} />
           <Select placeholder="发薪公司" allowClear showSearch optionFilterProp="label" value={fPayCompany} onChange={setFPayCompany} style={{ width: 160 }}
             options={companyList.map(c => ({ value: c.display_value, label: c.display_value }))} />
-          <Input placeholder="部门" value={fDepartment} onChange={e => setFDepartment(e.target.value)} style={{ width: 130 }} allowClear />
+          <Select placeholder="部门" allowClear showSearch optionFilterProp="label" value={fDepartment} onChange={setFDepartment} style={{ width: 140 }}
+            options={deptOptions.map(d => ({ value: d, label: d }))} />
+          <Select placeholder="计税方式" allowClear value={fTaxMethod} onChange={setFTaxMethod} style={{ width: 120 }}
+            options={TAX_METHODS} />
           <RangePicker value={fEntryRange} onChange={(v) => setFEntryRange(v as any)} placeholder={['入职起', '入职止']} />
           <RangePicker value={fLeaveRange} onChange={(v) => setFLeaveRange(v as any)} placeholder={['离职起', '离职止']} />
         </Space>
