@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Table, Button, Space, message, Input, Tag, Select, Modal, Input as AntInput, Drawer, Descriptions } from 'antd';
-import { DownloadOutlined, CheckCircleOutlined, RollbackOutlined, SendOutlined, SearchOutlined } from '@ant-design/icons';
+import { DownloadOutlined, CheckCircleOutlined, RollbackOutlined, SendOutlined, SearchOutlined, SyncOutlined } from '@ant-design/icons';
 import api from '../api/client';
 import { exportXlsx, type ExportDef } from '../utils/importExport';
 import { withSource } from '../components/SourceTag';
@@ -68,122 +68,189 @@ const PayrollPage: React.FC = () => {
 
   useEffect(() => { loadData(); }, [period, fPayCompany, fCostCenter, fDepartment, keyword]);
 
+  // 拉取各模块数据源并按当月口径计算（返回员工映射 + 合并后的所有在职行）
+  const fetchAndCompute = async (): Promise<{ empMap: Record<string, any>; merged: any[] }> => {
+    const [empRes, attRes, addRes, welfareRes, taxRes] = await Promise.all([
+      api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,attendance_type,tax_method,basic_salary'),
+      api.get(`/attendance_records?select=unique_hash,attendance_adjust_total,attendance_wage,data_status&period=eq.${period}`),
+      api.get(`/additional_salary_records?select=*&period=eq.${period}`),
+      api.get(`/employee_welfare_records?select=unique_hash,personal_total,company_total,pension_p_amt,medical_p_amt,unemployment_p_amt,normal_housing_p_amt,supp_housing_p_amt,pension_c_amt,medical_c_amt,unemployment_c_amt,injury_c_amt,maternity_c_amt,normal_housing_c_amt,supp_housing_c_amt&period=eq.${period}`),
+      api.get(`/tax_monthly_calcs?select=unique_hash,monthly_tax&period=eq.${period}`),
+    ]);
+
+    const empList: any[] = empRes.data;
+    const empMap: Record<string, any> = {};
+    empList.forEach((e: any) => { empMap[e.unique_hash] = e; });
+
+    const attMap: Record<string, any> = {};
+    attRes.data.forEach((r: any) => { attMap[r.unique_hash] = r; });
+    const addMap: Record<string, any> = {};
+    addRes.data.forEach((r: any) => { addMap[r.unique_hash] = r; });
+    const welfareMap: Record<string, any> = {};
+    welfareRes.data.forEach((r: any) => { welfareMap[r.unique_hash] = r; });
+    const taxMap: Record<string, any> = {};
+    taxRes.data.forEach((r: any) => { taxMap[r.unique_hash] = r; });
+
+    const merged = empList
+      .filter((e: any) => e.status === '在职')
+      .map((e: any) => {
+        const add = addMap[e.unique_hash] || {};
+        const welfare = welfareMap[e.unique_hash] || {};
+        // 附加薪酬合计 = 12项之和
+        const additionalTotal = Number((
+          (add.allowance_supp || 0) + (add.other_adjust || 0) + (add.insurance_amount || 0) +
+          (add.kpi_provision || 0) + (add.office_comm || 0) + (add.performance_pay || 0) +
+          (add.apartment_comm || 0) + (add.talent_kpi || 0) + (add.heat_allowance || 0) +
+          (add.other_allowance || 0) + (add.security_bonus || 0) + (add.cleaning_bonus || 0)
+        ).toFixed(2));
+
+        const basicSalary = Number(e.basic_salary || 0);
+        // 考勤工资（数据来源-导入）：凡涉及基本工资的计算均改用它
+        const attendanceWage = Number(attMap[e.unique_hash]?.attendance_wage || 0);
+        const attendanceAdjust = Number(attMap[e.unique_hash]?.attendance_adjust_total || 0);
+        const personalWelfare = Number(welfare.personal_total || 0);
+        const companyWelfare = Number(welfare.company_total || 0);
+        const insuranceAmount = Number(add.insurance_amount || 0);
+        // 商保调整 = 商保金额的负数
+        const insuranceAdjust = -insuranceAmount;
+
+        // 薪资小计 = 考勤工资 + 考勤调整合计 + 附加薪酬合计
+        const wageSubtotal = Number((attendanceWage + attendanceAdjust + additionalTotal).toFixed(2));
+
+        // 当月个税按计税方式分支：
+        // - 劳务计税(service)：直接按（薪资小计 - 800）× 20% 计算（劳务个税板块后补，这里打通链接）
+        // - 不计税(non_taxable)：0
+        // - 正常计税(normal)：从个税月度计算表取
+        const taxMethod = e.tax_method || 'normal';
+        let monthlyTax: number;
+        if (taxMethod === 'service') {
+          monthlyTax = wageSubtotal <= 800 ? 0 : Number(((wageSubtotal - 800) * 0.20).toFixed(2));
+        } else if (taxMethod === 'non_taxable') {
+          monthlyTax = 0;
+        } else {
+          monthlyTax = Number(taxMap[e.unique_hash]?.monthly_tax || 0);
+        }
+
+        // 实收工资 = 薪资小计 - 个人福利合计 - 当月个人所得税 - 商保金额
+        const netPay = Number((wageSubtotal - personalWelfare - monthlyTax - insuranceAmount).toFixed(2));
+        // 企业人力成本总计 = 薪资小计 + 公司福利合计
+        const totalCost = Number((wageSubtotal + companyWelfare).toFixed(2));
+
+        return {
+          key: `emp-${e.unique_hash}`,
+          unique_hash: e.unique_hash,
+          employee_name: e.name,
+          pay_company: e.pay_company || '',
+          cost_center: e.cost_center || '',
+          department: e.department || '',
+          report_to: e.report_to || '',
+          position: e.position || '',
+          entry_date: e.entry_date || '',
+          attendance_type: e.attendance_type || '',
+          tax_method: taxMethod,
+          basic_salary: basicSalary,
+          attendance_wage: attendanceWage,
+          attendance_adjust_total: attendanceAdjust,
+          additional_total: additionalTotal,
+          personal_welfare_total: personalWelfare,
+          company_welfare_total: companyWelfare,
+          monthly_tax: monthlyTax,
+          insurance_amount: insuranceAmount,
+          insurance_adjust: insuranceAdjust,
+          wage_subtotal: wageSubtotal,
+          net_pay: netPay,
+          total_cost: totalCost,
+          data_status: attMap[e.unique_hash]?.data_status || '未录入',
+          // 明细（抽屉用）
+          allowance_supp: add.allowance_supp || 0,
+          other_adjust: add.other_adjust || 0,
+          kpi_provision: add.kpi_provision || 0,
+          office_comm: add.office_comm || 0,
+          performance_pay: add.performance_pay || 0,
+          apartment_comm: add.apartment_comm || 0,
+          talent_kpi: add.talent_kpi || 0,
+          heat_allowance: add.heat_allowance || 0,
+          other_allowance: add.other_allowance || 0,
+          security_bonus: add.security_bonus || 0,
+          cleaning_bonus: add.cleaning_bonus || 0,
+          pension_p: welfare.pension_p_amt || 0,
+          medical_p: welfare.medical_p_amt || 0,
+          unemployment_p: welfare.unemployment_p_amt || 0,
+          housing_fund_p: welfare.normal_housing_p_amt || 0,
+          supp_housing_p: welfare.supp_housing_p_amt || 0,
+          pension_c: welfare.pension_c_amt || 0,
+          medical_c: welfare.medical_c_amt || 0,
+          unemployment_c: welfare.unemployment_c_amt || 0,
+          injury_c: welfare.injury_c_amt || 0,
+          maternity_c: welfare.maternity_c_amt || 0,
+          housing_fund_c: welfare.normal_housing_c_amt || 0,
+          supp_housing_c: welfare.supp_housing_c_amt || 0,
+        };
+      });
+
+    return { empMap, merged };
+  };
+
+  // 应用前端筛选
+  const applyFilters = (rows: any[]) => {
+    let merged = rows;
+    if (fPayCompany) merged = merged.filter((r: any) => r.pay_company === fPayCompany);
+    if (fCostCenter) merged = merged.filter((r: any) => (r.cost_center || '').includes(fCostCenter));
+    if (fDepartment) merged = merged.filter((r: any) => (r.department || '').includes(fDepartment));
+    if (keyword) merged = merged.filter((r: any) => (r.employee_name || '').includes(keyword));
+    return merged;
+  };
+
   const loadData = async () => {
     setLoading(true);
     try {
-      const [empRes, attRes, addRes, welfareRes, taxRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,attendance_type,tax_method,basic_salary'),
-        api.get(`/attendance_records?select=unique_hash,attendance_adjust_total,attendance_wage,data_status&period=eq.${period}`),
-        api.get(`/additional_salary_records?select=*&period=eq.${period}`),
-        api.get(`/employee_welfare_records?select=unique_hash,personal_total,company_total,pension_p_amt,medical_p_amt,unemployment_p_amt,normal_housing_p_amt,supp_housing_p_amt,pension_c_amt,medical_c_amt,unemployment_c_amt,injury_c_amt,maternity_c_amt,normal_housing_c_amt,supp_housing_c_amt&period=eq.${period}`),
-        api.get(`/tax_monthly_calcs?select=unique_hash,monthly_tax&period=eq.${period}`),
-      ]);
+      const { empMap, merged } = await fetchAndCompute();
+      setEmployees(empMap);
+      setRecords(applyFilters(merged));
+    } catch { message.error('加载薪资数据失败'); }
+    finally { setLoading(false); }
+  };
 
-      const empList: any[] = empRes.data;
-      const empMap: Record<string, any> = {};
-      empList.forEach((e: any) => { empMap[e.unique_hash] = e; });
+  // 刷新同步数据：重新拉取各模块数据源 → 重新计算 → 落库 salary_records
+  const handleRefreshSync = async () => {
+    setLoading(true);
+    try {
+      const { empMap, merged } = await fetchAndCompute();
       setEmployees(empMap);
 
-      const attMap: Record<string, any> = {};
-      attRes.data.forEach((r: any) => { attMap[r.unique_hash] = r; });
-      const addMap: Record<string, any> = {};
-      addRes.data.forEach((r: any) => { addMap[r.unique_hash] = r; });
-      const welfareMap: Record<string, any> = {};
-      welfareRes.data.forEach((r: any) => { welfareMap[r.unique_hash] = r; });
-      const taxMap: Record<string, any> = {};
-      taxRes.data.forEach((r: any) => { taxMap[r.unique_hash] = r; });
-
-      let merged = empList
-        .filter((e: any) => e.status === '在职')
-        .map((e: any) => {
-          const add = addMap[e.unique_hash] || {};
-          const welfare = welfareMap[e.unique_hash] || {};
-          // 附加薪酬合计 = 12项之和
-          const additionalTotal = Number((
-            (add.allowance_supp || 0) + (add.other_adjust || 0) + (add.insurance_amount || 0) +
-            (add.kpi_provision || 0) + (add.office_comm || 0) + (add.performance_pay || 0) +
-            (add.apartment_comm || 0) + (add.talent_kpi || 0) + (add.heat_allowance || 0) +
-            (add.other_allowance || 0) + (add.security_bonus || 0) + (add.cleaning_bonus || 0)
-          ).toFixed(2));
-
-          const basicSalary = Number(e.basic_salary || 0);
-          // 考勤工资（数据来源-导入）：凡涉及基本工资的计算均改用它
-          const attendanceWage = Number(attMap[e.unique_hash]?.attendance_wage || 0);
-          const attendanceAdjust = Number(attMap[e.unique_hash]?.attendance_adjust_total || 0);
-          const personalWelfare = Number(welfare.personal_total || 0);
-          const companyWelfare = Number(welfare.company_total || 0);
-          const monthlyTax = Number(taxMap[e.unique_hash]?.monthly_tax || 0);
-          const insuranceAmount = Number(add.insurance_amount || 0);
-          // 商保调整 = 商保金额的负数
-          const insuranceAdjust = -insuranceAmount;
-
-          // 薪资小计 = 考勤工资 + 考勤调整合计 + 附加薪酬合计
-          const wageSubtotal = Number((attendanceWage + attendanceAdjust + additionalTotal).toFixed(2));
-          // 实收工资 = 薪资小计 - 个人福利合计 - 当月个人所得税 - 商保金额
-          const netPay = Number((wageSubtotal - personalWelfare - monthlyTax - insuranceAmount).toFixed(2));
-          // 企业人力成本总计 = 薪资小计 + 公司福利合计
-          const totalCost = Number((wageSubtotal + companyWelfare).toFixed(2));
-
-          return {
-            key: `emp-${e.unique_hash}`,
-            unique_hash: e.unique_hash,
-            employee_name: e.name,
-            pay_company: e.pay_company || '',
-            cost_center: e.cost_center || '',
-            department: e.department || '',
-            report_to: e.report_to || '',
-            position: e.position || '',
-            entry_date: e.entry_date || '',
-            attendance_type: e.attendance_type || '',
-            tax_method: e.tax_method || 'normal',
-            basic_salary: basicSalary,
-            attendance_wage: attendanceWage,
-            attendance_adjust_total: attendanceAdjust,
-            additional_total: additionalTotal,
-            personal_welfare_total: personalWelfare,
-            company_welfare_total: companyWelfare,
-            monthly_tax: monthlyTax,
-            insurance_amount: insuranceAmount,
-            insurance_adjust: insuranceAdjust,
-            wage_subtotal: wageSubtotal,
-            net_pay: netPay,
-            total_cost: totalCost,
-            data_status: attMap[e.unique_hash]?.data_status || '未录入',
-            // 明细（抽屉用）
-            allowance_supp: add.allowance_supp || 0,
-            other_adjust: add.other_adjust || 0,
-            kpi_provision: add.kpi_provision || 0,
-            office_comm: add.office_comm || 0,
-            performance_pay: add.performance_pay || 0,
-            apartment_comm: add.apartment_comm || 0,
-            talent_kpi: add.talent_kpi || 0,
-            heat_allowance: add.heat_allowance || 0,
-            other_allowance: add.other_allowance || 0,
-            security_bonus: add.security_bonus || 0,
-            cleaning_bonus: add.cleaning_bonus || 0,
-            pension_p: welfare.pension_p_amt || 0,
-            medical_p: welfare.medical_p_amt || 0,
-            unemployment_p: welfare.unemployment_p_amt || 0,
-            housing_fund_p: welfare.normal_housing_p_amt || 0,
-            supp_housing_p: welfare.supp_housing_p_amt || 0,
-            pension_c: welfare.pension_c_amt || 0,
-            medical_c: welfare.medical_c_amt || 0,
-            unemployment_c: welfare.unemployment_c_amt || 0,
-            injury_c: welfare.injury_c_amt || 0,
-            maternity_c: welfare.maternity_c_amt || 0,
-            housing_fund_c: welfare.normal_housing_c_amt || 0,
-            supp_housing_c: welfare.supp_housing_c_amt || 0,
+      let success = 0;
+      for (const r of merged) {
+        try {
+          const payload = {
+            unique_hash: r.unique_hash,
+            period,
+            month_number: parseInt(period.split('-')[1]) || 1,
+            base_salary: r.basic_salary,
+            attendance_wage: r.attendance_wage,
+            attendance_adjust_total: r.attendance_adjust_total,
+            additional_total: r.additional_total,
+            personal_welfare_total: r.personal_welfare_total,
+            company_welfare_total: r.company_welfare_total,
+            monthly_tax: r.monthly_tax,
+            insurance_amount: r.insurance_amount,
+            wage_subtotal: r.wage_subtotal,
+            net_pay: r.net_pay,
+            total_cost: r.total_cost,
+            data_status: '已计算',
           };
-        });
+          const existing = await api.get(`/salary_records?unique_hash=eq.${r.unique_hash}&period=eq.${period}`);
+          if (existing.data.length > 0) {
+            await api.patch(`/salary_records?id=eq.${existing.data[0].id}`, payload);
+          } else {
+            await api.post('/salary_records', payload);
+          }
+          success++;
+        } catch { /* skip */ }
+      }
 
-      // 筛选
-      if (fPayCompany) merged = merged.filter((r: any) => r.pay_company === fPayCompany);
-      if (fCostCenter) merged = merged.filter((r: any) => (r.cost_center || '').includes(fCostCenter));
-      if (fDepartment) merged = merged.filter((r: any) => (r.department || '').includes(fDepartment));
-      if (keyword) merged = merged.filter((r: any) => (r.employee_name || '').includes(keyword));
-
-      setRecords(merged);
-    } catch { message.error('加载薪资数据失败'); }
+      setRecords(applyFilters(merged));
+      message.success(`刷新同步完成：已保存 ${success} / ${merged.length} 条计算结果`);
+    } catch { message.error('刷新同步数据失败'); }
     finally { setLoading(false); }
   };
 
@@ -357,6 +424,7 @@ const PayrollPage: React.FC = () => {
         <Space wrap>
           <span>月份：</span>
           <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 180 }} />
+          <Button type="primary" icon={<SyncOutlined />} onClick={handleRefreshSync} loading={loading}>刷新同步数据</Button>
           <Button icon={<DownloadOutlined />} onClick={handleExport}>导出工资报表</Button>
           <Button icon={<DownloadOutlined />} onClick={handleExportPayslip}>导出工资条</Button>
           <Button type="primary" onClick={handleSaveResult}>保存计算结果</Button>
