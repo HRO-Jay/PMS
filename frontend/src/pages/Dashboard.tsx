@@ -208,8 +208,8 @@ const Dashboard: React.FC = () => {
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={8}><Card><Statistic title="在职员工" value={stats?.employee_count || 0} prefix={<TeamOutlined />} /></Card></Col>
-        <Col span={8}><Card><Statistic title="当月实发总额" value={stats?.total_net_pay || 0} precision={2} prefix="¥" /></Card></Col>
-        <Col span={8}><Card><Statistic title="当月人力成本" value={stats?.total_cost || 0} precision={2} prefix="¥" /></Card></Col>
+        <Col span={8}><Card><Statistic title="当月实发总额" value={stats?.total_net_pay || undefined} precision={2} prefix="¥" /></Card></Col>
+        <Col span={8}><Card><Statistic title="当月人力成本" value={stats?.total_cost || undefined} precision={2} prefix="¥" /></Card></Col>
       </Row>
 
       {/* 花名册变动分析 */}

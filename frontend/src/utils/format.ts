@@ -1,6 +1,6 @@
-/** 格式化金额：￥12,345.67 */
+/** 格式化金额：￥12,345.67；0 显示横杠 */
 export function formatMoney(val?: number | null): string {
-  if (val == null) return '—';
+  if (val == null || Number(val) === 0) return '—';
   return `¥${Number(val).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 

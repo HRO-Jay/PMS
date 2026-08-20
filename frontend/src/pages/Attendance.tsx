@@ -348,7 +348,7 @@ const AttendancePage: React.FC = () => {
     }
   };
 
-  // 特殊调整导入表头
+  // 特殊调整导入/导出表头
   const ADJ_EXPORT_DEF: ExportDef = {
     module: '特殊调整',
     columns: [
@@ -365,21 +365,51 @@ const AttendancePage: React.FC = () => {
     ],
   };
 
-  // 特殊调整导出
-  const handleAdjExport = (mode: 'template' | 'full') => {
+  // 特殊调整详情导出表头（完整字段，含计算金额）
+  const ADJ_DETAIL_EXPORT_DEF: ExportDef = {
+    module: '特殊调整详情',
+    columns: [
+      { key: 'name', label: '姓名' },
+      { key: 'pay_company', label: '发薪公司' },
+      { key: 'period', label: '月份' },
+      { key: 'adjust_type', label: '调整类型' },
+      { key: 'adjust_base', label: '调整基数' },
+      { key: 'adjust_qty', label: '调整数量' },
+      { key: 'adjust_ratio', label: '绩效/计发比例' },
+      { key: 'fixed_amount', label: '固定调整金额' },
+      { key: 'direction', label: '调整方向' },
+      { key: 'amount', label: '调整金额' },
+      { key: 'currency', label: '币种' },
+      { key: 'reason', label: '调整原因' },
+      { key: 'attachment_note', label: '备注' },
+      { key: 'created_at', label: '录入时间' },
+    ],
+  };
+
+  // 特殊调整导出（三档：空白模板 / 报表 / 详情）
+  const handleAdjExport = (mode: 'template' | 'full' | 'detail') => {
     if (mode === 'template') {
       exportXlsx(ADJ_EXPORT_DEF, [], period);
-    } else {
-      // 全量：导出当前特殊调整记录（带姓名公司）
-      const adjWithEmp = adjustments.map((a: any) => {
-        const emp = Object.values(employees).find((e: any) => e.unique_hash === a.unique_hash);
-        return {
-          ...a,
-          name: emp?.name || '',
-          pay_company: emp?.pay_company || '',
-        };
-      });
+      return;
+    }
+    // 带姓名公司 + 计算调整金额
+    const adjWithEmp = adjustments.map((a: any) => {
+      const emp = Object.values(employees).find((e: any) => e.unique_hash === a.unique_hash);
+      const baseAmount = a.fixed_amount !== undefined && a.fixed_amount !== null
+        ? Number(a.fixed_amount)
+        : Number(a.adjust_base || 0) * Number(a.adjust_qty || 0) * Number(a.adjust_ratio || 1);
+      const amount = a.direction === '扣减' ? -Math.abs(baseAmount) : Math.abs(baseAmount);
+      return {
+        ...a,
+        name: emp?.name || '',
+        pay_company: emp?.pay_company || '',
+        amount: Number(amount.toFixed(2)),
+      };
+    });
+    if (mode === 'full') {
       exportXlsx(ADJ_EXPORT_DEF, adjWithEmp, period);
+    } else {
+      exportXlsx(ADJ_DETAIL_EXPORT_DEF, adjWithEmp, period);
     }
   };
 
@@ -638,16 +668,18 @@ const AttendancePage: React.FC = () => {
           <Dropdown menu={{
             items: [
               { key: 'import', label: '导入' },
-              { type: 'divider' },
-              { key: 'template', label: '导出空白模板' },
-              { key: 'full', label: '导出报表' },
+              { key: 'export', label: '导出', children: [
+                { key: 'template', label: '导出空白模板' },
+                { key: 'full', label: '导出报表' },
+                { key: 'detail', label: '导出详情' },
+              ]},
             ],
             onClick: ({ key }) => {
               if (key === 'import') {
                 // 触发导入
                 document.getElementById('adj-import-upload')?.click();
               } else {
-                handleAdjExport(key as 'template' | 'full');
+                handleAdjExport(key as 'template' | 'full' | 'detail');
               }
             },
           }}>

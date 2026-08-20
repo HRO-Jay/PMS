@@ -45,7 +45,7 @@ const TaxBracketsPage: React.FC = () => {
     { title: withSource('预扣率', '系统计算'), dataIndex: 'rate', key: 'rate', width: 100,
       render: (v: number) => `${(v * 100).toFixed(0)}%` },
     { title: withSource('速算扣除数', '系统计算'), dataIndex: 'quick_deduction', key: 'qd', width: 120,
-      render: (v: number) => Number(v).toLocaleString('zh-CN') },
+      render: (v: number) => v === 0 || v === undefined || v === null ? '—' : Number(v).toLocaleString('zh-CN') },
   ];
 
   return (
