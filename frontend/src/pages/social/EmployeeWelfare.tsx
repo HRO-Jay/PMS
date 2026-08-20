@@ -50,6 +50,48 @@ const EXPORT_DEF: ExportDef = {
   ],
 };
 
+// 详情导出表头（抽屉里的所有明细数据）
+const DETAIL_EXPORT_DEF: ExportDef = {
+  module: '社保详情',
+  columns: [
+    { key: 'unique_hash', label: '唯一值', hidden: false },
+    { key: 'employee_name', label: '姓名' },
+    { key: 'pay_company', label: '发薪公司' },
+    { key: 'social_welfare_code', label: '社保福利套' },
+    { key: 'housing_fund_code', label: '公积金福利套' },
+    { key: 'social_status', label: '社保状态' },
+    { key: 'housing_status', label: '公积金状态' },
+    { key: 'social_base', label: '社保基数' },
+    { key: 'housing_base', label: '公积金基数' },
+    { key: 'pension_p_amt', label: '个人养老' },
+    { key: 'medical_p_amt', label: '个人医疗' },
+    { key: 'unemployment_p_amt', label: '个人失业' },
+    { key: 'pension_c_amt', label: '公司养老' },
+    { key: 'medical_c_amt', label: '公司医疗' },
+    { key: 'unemployment_c_amt', label: '公司失业' },
+    { key: 'injury_c_amt', label: '公司工伤' },
+    { key: 'maternity_c_amt', label: '公司生育' },
+    { key: 'normal_housing_p_amt', label: '正常公积金个人' },
+    { key: 'normal_housing_c_amt', label: '正常公积金公司' },
+    { key: 'supp_housing_p_amt', label: '补充公积金个人' },
+    { key: 'supp_housing_c_amt', label: '补充公积金公司' },
+    { key: 'personal_total', label: '个人合计' },
+    { key: 'company_total', label: '公司合计' },
+    { key: 'personal_social_adj', label: '个人社保调整' },
+    { key: 'company_social_adj', label: '公司社保调整' },
+    { key: 'personal_housing_adj', label: '个人公积金调整' },
+    { key: 'company_housing_adj', label: '公司公积金调整' },
+    { key: 'social_adj_total', label: '社保调整金额' },
+    { key: 'housing_adj_total', label: '公积金调整金额' },
+    { key: 'adj_start_month', label: '调整开始月份' },
+    { key: 'adj_end_month', label: '调整结束月份' },
+    { key: 'adj_reason', label: '调整原因' },
+    { key: 'personal_total_with_adj', label: '个人合计(含调整)' },
+    { key: 'company_total_with_adj', label: '公司合计(含调整)' },
+    { key: 'data_status', label: '数据状态' },
+  ],
+};
+
 const EmployeeWelfare: React.FC = () => {
   const { ref: scrollRef, onWheel } = useHorizontalScroll<HTMLDivElement>();
   const [records, setRecords] = useState<any[]>([]);
@@ -389,11 +431,14 @@ const EmployeeWelfare: React.FC = () => {
   };
 
   // ====== 导出 ======
-  const handleExport = (mode: 'template' | 'full') => {
+  const handleExport = (mode: 'template' | 'full' | 'detail') => {
     if (mode === 'template') {
       exportXlsx(EXPORT_DEF, [], period);
-    } else {
+    } else if (mode === 'full') {
       exportXlsx(EXPORT_DEF, records, period);
+    } else {
+      // 详情导出：抽屉里的所有数据
+      exportXlsx(DETAIL_EXPORT_DEF, records, period);
     }
   };
 
@@ -499,9 +544,10 @@ const EmployeeWelfare: React.FC = () => {
           <Dropdown menu={{
             items: [
               { key: 'template', label: '导出空白模板' },
-              { key: 'full', label: '导出全量数据' },
+              { key: 'full', label: '导出报表' },
+              { key: 'detail', label: '导出详情' },
             ],
-            onClick: ({ key }) => handleExport(key as 'template' | 'full'),
+            onClick: ({ key }) => handleExport(key as 'template' | 'full' | 'detail'),
           }}>
             <Button icon={<DownloadOutlined />}>导出</Button>
           </Dropdown>
