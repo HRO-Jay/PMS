@@ -146,7 +146,7 @@ const EmployeeWelfare: React.FC = () => {
           const phWithAdj = Number(((r?.personal_housing_total || 0) + phAdj).toFixed(2));
           const chWithAdj = Number(((r?.company_housing_total || 0) + chAdj).toFixed(2));
           return {
-            ...(r || { id: undefined, data_status: '未录入', supp_enabled: false }),
+            ...(r || { id: undefined, data_status: '未录入', supp_enabled: undefined }),
             key: r?.id ?? `emp-${e.unique_hash}`,
             unique_hash: e.unique_hash,
             employee_name: e.name,
@@ -178,7 +178,7 @@ const EmployeeWelfare: React.FC = () => {
   const openCreate = () => {
     setEditing(null);
     form.resetFields();
-    form.setFieldsValue({ period, supp_enabled: false });
+    form.setFieldsValue({ period });
     setFormValues({});
     setEditOpen(true);
   };
