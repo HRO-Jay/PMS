@@ -130,13 +130,7 @@ const TaxMonthlyCalcPage: React.FC = () => {
             position: e.position || '',
             entry_date: e.entry_date || '',
             attendance_type: e.attendance_type || '',
-            // 本期
-            current_taxable_income: currentTaxableIncome,
-            current_five_insurance: currentFiveInsurance,
-            current_special_deduct: currentSpecialDeduct,
-            current_other_deduct: currentOtherDeduct,
-            current_tax_relief: currentTaxRelief,
-            // 已有计算结果
+            // 已有计算结果（累计数、monthly_tax 等存库值）
             ...calc,
             // 期初（6月用）
             opening: opening,
@@ -145,6 +139,12 @@ const TaxMonthlyCalcPage: React.FC = () => {
             // 本月专项附加完整字段（供计算用）
             special: special,
             employed_months: opening.employed_months || 5,
+            // 本期数必须放在 ...calc 之后，用实时计算值覆盖存库旧值（与薪资板块口径一致）
+            current_taxable_income: currentTaxableIncome,
+            current_five_insurance: currentFiveInsurance,
+            current_special_deduct: currentSpecialDeduct,
+            current_other_deduct: currentOtherDeduct,
+            current_tax_relief: currentTaxRelief,
           };
         });
 
