@@ -6,7 +6,7 @@ import { SaveOutlined, DownloadOutlined, UploadOutlined, CalculatorOutlined, Plu
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
-import { calcAttendance } from '../utils/attendanceCalc';
+import { calcAttendance, parseAttendanceRules, type AttendanceRules, DEFAULT_ATTENDANCE_RULES } from '../utils/attendanceCalc';
 import { withSource } from '../components/SourceTag';
 import { useHorizontalScroll } from '../utils/useHorizontalScroll';
 import dayjs from 'dayjs';
@@ -64,6 +64,7 @@ const AttendancePage: React.FC = () => {
   const { ref: scrollRef, onWheel } = useHorizontalScroll<HTMLDivElement>();
   const [records, setRecords] = useState<any[]>([]);
   const [employees, setEmployees] = useState<Record<string, any>>({});
+  const [attRules, setAttRules] = useState<AttendanceRules>(DEFAULT_ATTENDANCE_RULES);
   const [period, setPeriod] = useState(defaultPeriod);
   const [loading, setLoading] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -95,12 +96,16 @@ const AttendancePage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [empRes, recRes, adjRes] = await Promise.all([
+      const [empRes, recRes, adjRes, rulesRes] = await Promise.all([
         api.get('/employees?select=unique_hash,name,status,cost_center,pay_company,tax_method,department,report_to,position,job_level,attendance_type,entry_date,leave_date,basic_salary'),
         api.get(`/attendance_records?select=*&period=eq.${period}&order=unique_hash`),
         api.get(`/attendance_adjustments?select=*&period=eq.${period}`),
+        api.get('/attendance_rules?select=*'),
       ]);
       setAdjustments(adjRes.data);
+      // 考勤计算规则：优先读数据库 attendance_rules，缺省回退内置默认
+      const rules = parseAttendanceRules(rulesRes.data);
+      setAttRules(rules);
       // 员工列表（含基本工资）
       const empList: any[] = empRes.data;
       const empMap: Record<string, any> = {};
@@ -164,8 +169,8 @@ const AttendancePage: React.FC = () => {
 
       // 前端筛选（同时计算工龄、日薪、病假系数、异常状态供可选列展示）
       let filtered = merged.map((r: any) => {
-        const calc = calcRecord(r);
-        const validPayDays = [21.75, 26, 30];
+        const calc = calcRecord(r, rules);
+        const validPayDays = rules.pay_days_options.length ? rules.pay_days_options : [21.75, 26, 30];
         const pd = Number(r.pay_days);
         let abnormal = '正常';
         if (pd && !validPayDays.includes(pd)) abnormal = '异常';
@@ -195,13 +200,14 @@ const AttendancePage: React.FC = () => {
     finally { setLoading(false); }
   };
 
-  // 自动计算某条记录
-  const calcRecord = (r: any) => {
+  // 自动计算某条记录（rules 由调用方传入，避免异步 state 时序问题）
+  const calcRecord = (r: any, rules: AttendanceRules = attRules) => {
     const result = calcAttendance({
       entry_date: r.entry_date,
       period,
       attendance_wage: r.attendance_wage,
       pay_days: r.pay_days,
+      rules,
       sick_days: r.sick_days,
       is_continuous_sick: r.is_continuous_sick,
       continuous_sick_start: r.continuous_sick_start,
@@ -222,8 +228,8 @@ const AttendancePage: React.FC = () => {
 
   // 全部自动计算
   const handleAutoCalc = async () => {
-    // 计薪天数校验
-    const validPayDays = [21.75, 26, 30];
+    // 计薪天数校验（按规则表里的选项）
+    const validPayDays = attRules.pay_days_options.length ? attRules.pay_days_options : [21.75, 26, 30];
     let invalidCount = 0;
     for (const r of records) {
       if (r.pay_days !== undefined && r.pay_days !== null && !validPayDays.includes(Number(r.pay_days))) {
@@ -231,7 +237,7 @@ const AttendancePage: React.FC = () => {
       }
     }
     if (invalidCount > 0) {
-      message.warning(`有 ${invalidCount} 条记录计薪天数不是 21.75/26/30，请先修正`);
+      message.warning(`有 ${invalidCount} 条记录计薪天数不在规则选项内，请先修正`);
       return;
     }
 
@@ -506,7 +512,7 @@ const AttendancePage: React.FC = () => {
       if (import_errors.length > 0) message.warning(`有 ${import_errors.length} 行数据存在问题`);
       if (data.length === 0) { message.info('未找到有效数据'); return; }
 
-      const validPayDays = [21.75, 26, 30];
+      const validPayDays = attRules.pay_days_options.length ? attRules.pay_days_options : [21.75, 26, 30];
       let success = 0;
       const failures: string[] = [];
 
@@ -520,7 +526,7 @@ const AttendancePage: React.FC = () => {
           // 计薪天数
           const pd = Number(row.pay_days);
           if (!pd) { failures.push(`${row.unique_hash}：计薪天数为空`); continue; }
-          if (!validPayDays.includes(pd)) { failures.push(`${row.unique_hash}：计薪天数 ${pd} 不是 21.75/26/30`); continue; }
+          if (!validPayDays.includes(pd)) { failures.push(`${row.unique_hash}：计薪天数 ${pd} 不在规则选项内（${validPayDays.join('/')}）`); continue; }
           // 病假连续信息
           if ((Number(row.sick_days) || 0) > 0) {
             const isCont = String(row.is_continuous_sick).toLowerCase();
@@ -727,7 +733,7 @@ const AttendancePage: React.FC = () => {
           <Select placeholder="考勤制" allowClear value={fAttType} onChange={setFAttType} style={{ width: 140 }}
             options={['全日制', '非全日制', '代收代付残疾人', '不定时工作制'].map(s => ({ value: s, label: s }))} />
           <Select placeholder="计薪天数" allowClear value={fPayDays} onChange={setFPayDays} style={{ width: 110 }}
-            options={[{ value: '21.75', label: '21.75天' }, { value: '26', label: '26天' }, { value: '30', label: '30天' }]} />
+            options={(attRules.pay_days_options.length ? attRules.pay_days_options : [21.75, 26, 30]).map((d: number) => ({ value: String(d), label: `${d}天` }))} />
           <Select placeholder="数据状态" allowClear value={fStatus} onChange={setFStatus} style={{ width: 140 }}
             options={['草稿', '已计算', '已提交老板查看', '退回修改', '已导出', '已锁定', '未录入'].map(s => ({ value: s, label: s }))} />
           <Select placeholder="异常状态" allowClear value={fAbnormal} onChange={setFAbnormal} style={{ width: 110 }}
@@ -912,7 +918,7 @@ const AttendancePage: React.FC = () => {
             </Form.Item>
             <Form.Item label="计薪天数" required>
               <Select style={{ width: 160 }} value={addForm.pay_days} onChange={(v) => setAddForm({ ...addForm, pay_days: v })}
-                options={[{ value: 21.75, label: '21.75' }, { value: 26, label: '26' }, { value: 30, label: '30' }]} />
+                options={(attRules.pay_days_options.length ? attRules.pay_days_options : [21.75, 26, 30]).map((d: number) => ({ value: d, label: String(d) }))} />
             </Form.Item>
           </Space>
           <Space style={{ width: '100%' }} size="large">

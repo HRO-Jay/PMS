@@ -3,9 +3,121 @@
  *
  * 根据考勤数据 + 花名册字段，自动计算各假期金额、加班金额、入离职调整、特殊调整和合计。
  * 所有金额四舍五入保留两位小数。
+ *
+ * 计算规则优先读取 attendance_rules 表（通过 parseAttendanceRules 解析后传入），
+ * 数据库未配置时回退到 DEFAULT_ATTENDANCE_RULES 内置默认值。
  */
 
 const round2 = (v: number): number => Number(v.toFixed(2));
+
+/** 病假支付系数分档（按本企业连续工龄） */
+export interface SickPayTier {
+  min_years: number;           // 工龄下限（含）
+  max_years: number | null;    // 工龄上限（不含，null 表示无上限）
+  pay_rate: number;            // 支付系数 0-1
+}
+
+/** 加班倍率 */
+export interface OvertimeRate {
+  type: string;                // 平时加班/周末加班/法定节假日加班
+  rate: number;                // 倍率
+}
+
+/** 考勤计算规则（对应 attendance_rules 表） */
+export interface AttendanceRules {
+  sick_lt_6m: SickPayTier[];       // 连续病假 ≤ 6 个月（疾病休假工资）
+  sick_gte_6m: SickPayTier[];      // 连续病假 > 6 个月（疾病救济费）
+  pay_days_options: number[];      // 计薪天数选项
+  overtime_rates: OvertimeRate[];  // 加班倍率
+}
+
+/** 内置默认规则（与 attendance_rules 表种子数据一致） */
+export const DEFAULT_ATTENDANCE_RULES: AttendanceRules = {
+  sick_lt_6m: [
+    { min_years: 0, max_years: 2, pay_rate: 0.60 },
+    { min_years: 2, max_years: 4, pay_rate: 0.70 },
+    { min_years: 4, max_years: 6, pay_rate: 0.80 },
+    { min_years: 6, max_years: 8, pay_rate: 0.90 },
+    { min_years: 8, max_years: null, pay_rate: 1.00 },
+  ],
+  sick_gte_6m: [
+    { min_years: 0, max_years: 1, pay_rate: 0.40 },
+    { min_years: 1, max_years: 3, pay_rate: 0.50 },
+    { min_years: 3, max_years: null, pay_rate: 0.60 },
+  ],
+  pay_days_options: [21.75, 26, 30],
+  overtime_rates: [
+    { type: '平时加班', rate: 1 },
+    { type: '周末加班', rate: 2 },
+    { type: '法定节假日加班', rate: 3 },
+  ],
+};
+
+/** 安全解析 JSONB 值（PostgREST 可能已解析成对象，也可能是 JSON 字符串） */
+function asValue(v: any): any {
+  if (v == null) return null;
+  if (typeof v === 'string') {
+    try { return JSON.parse(v); } catch { return null; }
+  }
+  return v;
+}
+
+function normalizeTier(t: any): SickPayTier {
+  return {
+    min_years: Number(t?.min_years ?? 0),
+    max_years: t?.max_years == null ? null : Number(t.max_years),
+    pay_rate: Number(t?.pay_rate ?? 0),
+  };
+}
+
+/** 从 attendance_rules 表原始行解析成计算用的规则对象（缺项回退默认值） */
+export function parseAttendanceRules(raw: any[]): AttendanceRules {
+  const out: AttendanceRules = {
+    sick_lt_6m: DEFAULT_ATTENDANCE_RULES.sick_lt_6m.map(t => ({ ...t })),
+    sick_gte_6m: DEFAULT_ATTENDANCE_RULES.sick_gte_6m.map(t => ({ ...t })),
+    pay_days_options: [...DEFAULT_ATTENDANCE_RULES.pay_days_options],
+    overtime_rates: DEFAULT_ATTENDANCE_RULES.overtime_rates.map(o => ({ ...o })),
+  };
+  if (!Array.isArray(raw)) return out;
+
+  const byKey: Record<string, any> = {};
+  raw.forEach(r => { if (r?.rule_key) byKey[r.rule_key] = r; });
+
+  const lt = asValue(byKey['sick_lt_6m']?.rule_value);
+  if (Array.isArray(lt) && lt.length) out.sick_lt_6m = lt.map(normalizeTier);
+
+  const gte = asValue(byKey['sick_gte_6m']?.rule_value);
+  if (Array.isArray(gte) && gte.length) out.sick_gte_6m = gte.map(normalizeTier);
+
+  const pd = asValue(byKey['pay_days_options']?.rule_value);
+  if (pd?.options && Array.isArray(pd.options)) out.pay_days_options = pd.options.map((n: any) => Number(n));
+
+  const or = asValue(byKey['overtime_rates']?.rule_value);
+  if (Array.isArray(or) && or.length) {
+    out.overtime_rates = or.map((o: any) => ({ type: String(o?.type ?? ''), rate: Number(o?.rate ?? 1) }));
+  }
+
+  return out;
+}
+
+/** 按分档取支付系数（匹配 min_years ≤ years < max_years） */
+function pickPayRate(tiers: SickPayTier[], years: number): number {
+  for (const t of tiers) {
+    if (years >= t.min_years && (t.max_years == null || years < t.max_years)) {
+      return t.pay_rate;
+    }
+  }
+  return tiers.length ? tiers[tiers.length - 1].pay_rate : 1;
+}
+
+/** 按加班类型取倍率（找不到回退 1 倍） */
+function overtimeRate(type: string, rules?: AttendanceRules): number {
+  const list = (rules?.overtime_rates && rules.overtime_rates.length)
+    ? rules.overtime_rates
+    : DEFAULT_ATTENDANCE_RULES.overtime_rates;
+  const found = list.find(o => o.type === type);
+  return found ? Number(found.rate) : 1;
+}
 
 /** 计算本企业连续工龄（年），按月粗略计算 */
 export function calcSeniorityYears(entryDate: string, period: string): number {
@@ -27,38 +139,32 @@ export function calcContinuousSickDays(start: string, end: string): number {
 }
 
 /**
- * 病假支付系数（按本企业连续工龄分档）
+ * 病假支付系数（按本企业连续工龄分档，规则可配置）
  *
  * 两档规则：
- * 1. 连续病假 ≤ 6 个月 → 疾病休假工资：
- *    不满2年60% / 满2年不满4年70% / 满4年不满6年80% / 满6年不满8年90% / 满8年及以上100%
- * 2. 连续病假 > 6 个月 → 疾病救济费：
- *    不满1年40% / 满1年不满3年50% / 满3年及以上60%
+ * 1. 连续病假 ≤ 6 个月 → 疾病休假工资（sick_lt_6m）
+ * 2. 连续病假 > 6 个月 → 疾病救济费（sick_gte_6m）
  */
-export function calcSickPayRate(entryDate: string, period: string, isContinuous: boolean, continuousDays: number): number {
+export function calcSickPayRate(
+  entryDate: string,
+  period: string,
+  isContinuous: boolean,
+  continuousDays: number,
+  rules?: AttendanceRules,
+): number {
+  const r = rules || DEFAULT_ATTENDANCE_RULES;
   const years = calcSeniorityYears(entryDate, period);
   const overSixMonths = continuousDays > 180; // 约6个月
-
-  // 连续病假超过 6 个月 → 疾病救济费（待遇下降一档）
-  if (isContinuous && overSixMonths) {
-    if (years < 1) return 0.40;
-    if (years < 3) return 0.50;
-    return 0.60;
-  }
-
-  // 其余情况（含非连续病假）→ 疾病休假工资，统一按工龄分档
-  if (years < 2) return 0.60;
-  if (years < 4) return 0.70;
-  if (years < 6) return 0.80;
-  if (years < 8) return 0.90;
-  return 1.00;
+  const tiers = isContinuous && overSixMonths ? r.sick_gte_6m : r.sick_lt_6m;
+  return pickPayRate(tiers, years);
 }
 
 export interface AttendanceInput {
   entry_date?: string;
   period: string;
   attendance_wage?: number;     // 考勤工资（导入，作为计薪基数）
-  pay_days?: number;            // 21.75 / 26 / 30
+  pay_days?: number;            // 计薪天数（由规则 pay_days_options 校验）
+  rules?: AttendanceRules;      // 考勤规则（来自 attendance_rules 表）
   // 病假
   sick_days?: number;
   is_continuous_sick?: boolean;
@@ -103,6 +209,8 @@ function isCleaner(position?: string): boolean {
 
 /** 主计算函数 */
 export function calcAttendance(input: AttendanceInput): AttendanceResult {
+  const rules = input.rules || DEFAULT_ATTENDANCE_RULES;
+
   // 考勤工资作为计薪基数
   const wage = Number(input.attendance_wage || 0);
   const payDays = Number(input.pay_days || 21.75);
@@ -115,7 +223,7 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
     ? calcContinuousSickDays(input.continuous_sick_start || '', input.continuous_sick_end || '')
     : 0;
   const sickPayRate = calcSickPayRate(
-    input.entry_date || '', input.period, !!input.is_continuous_sick, continuousDays
+    input.entry_date || '', input.period, !!input.is_continuous_sick, continuousDays, rules
   );
   const sickDeductRate = round2(1 - sickPayRate);
   const sickAmount = round2(dailyWage * sickDays * sickDeductRate);
@@ -128,15 +236,14 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
   const absenteeismDays = Number(input.absenteeism_days || 0);
   const absenteeismAmount = round2(dailyWage * absenteeismDays * 1.0);
 
-  // 加班
+  // 加班（倍率来自规则：平时/周末/法定节假日）
   const overtimeType = input.overtime_type || '';
   const overtimeUnit = input.overtime_unit || '天';
   const overtimeQty = Number(input.overtime_qty || 0);
   let overtimeAmount = 0;
 
   if (overtimeQty > 0) {
-    // 加班倍率：平时1倍、周末2倍、法定节假日3倍（按天、按小时统一适用）
-    const rate = overtimeType === '周末加班' ? 2 : overtimeType === '法定节假日加班' ? 3 : 1;
+    const rate = overtimeRate(overtimeType, rules);
     if (overtimeUnit === '小时') {
       // 按小时：小时数 × 时薪 × 倍率
       const hourlyRate = Number(input.hourly_rate || 0);
@@ -144,7 +251,7 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
     } else {
       // 按天
       if (overtimeType === '法定节假日加班' && isCleaner(input.position)) {
-        // 保洁法定节假日：天数 × 固定金额（不乘3倍）
+        // 保洁法定节假日：天数 × 固定金额（不乘倍率）
         const fixed = Number(input.holiday_fixed_amount || 0);
         overtimeAmount = round2(overtimeQty * fixed);
       } else {
