@@ -174,13 +174,14 @@ export interface AttendanceInput {
   personal_days?: number;
   // 旷工
   absenteeism_days?: number;
-  // 加班
-  overtime_type?: string;       // 平时加班/周末加班/法定节假日加班
-  overtime_unit?: string;       // 天/小时
-  overtime_qty?: number;
-  hourly_rate?: number;
-  holiday_fixed_amount?: number;
-  position?: string;            // 用于判断保洁
+  // 加班（三类按天 + 延时按小时）
+  regular_overtime_days?: number;   // 平时加班（天）—— 1倍
+  weekend_overtime_days?: number;   // 周末加班（天）—— 2倍
+  holiday_overtime_days?: number;   // 节假日加班（天）—— 3倍
+  overtime_hours?: number;          // 延时加班（小时）—— × 时薪
+  hourly_rate?: number;             // 时薪（与延时加班匹配）
+  holiday_fixed_amount?: number;    // 保洁节假日加班固定金额
+  position?: string;                // 用于判断保洁
   // 入离职
   actual_attendance_days?: number;
   leave_date?: string;
@@ -197,6 +198,10 @@ export interface AttendanceResult {
   personal_amount: number;
   absenteeism_amount: number;
   overtime_amount: number;
+  regular_overtime_amount: number;
+  weekend_overtime_amount: number;
+  holiday_overtime_amount: number;
+  delayed_overtime_amount: number;
   on_off_adjust: number;
   special_adjust_amount: number;
   attendance_adjust_total: number;
@@ -236,29 +241,36 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
   const absenteeismDays = Number(input.absenteeism_days || 0);
   const absenteeismAmount = round2(dailyWage * absenteeismDays * 1.0);
 
-  // 加班（倍率来自规则：平时/周末/法定节假日）
-  const overtimeType = input.overtime_type || '';
-  const overtimeUnit = input.overtime_unit || '天';
-  const overtimeQty = Number(input.overtime_qty || 0);
-  let overtimeAmount = 0;
+  // 加班（三类按天：平时1倍 / 周末2倍 / 节假日3倍；延时按小时 × 时薪）
+  const regularDays = Number(input.regular_overtime_days || 0);
+  const weekendDays = Number(input.weekend_overtime_days || 0);
+  const holidayDays = Number(input.holiday_overtime_days || 0);
+  const overtimeHours = Number(input.overtime_hours || 0);
+  const hourlyRate = Number(input.hourly_rate || 0);
 
-  if (overtimeQty > 0) {
-    const rate = overtimeRate(overtimeType, rules);
-    if (overtimeUnit === '小时') {
-      // 按小时：小时数 × 时薪 × 倍率
-      const hourlyRate = Number(input.hourly_rate || 0);
-      overtimeAmount = round2(overtimeQty * hourlyRate * rate);
+  const regularRate = overtimeRate('平时加班', rules);
+  const weekendRate = overtimeRate('周末加班', rules);
+  const holidayRate = overtimeRate('法定节假日加班', rules);
+
+  // 平时加班金额
+  let regularAmount = round2(regularDays * dailyWage * regularRate);
+  // 周末加班金额
+  let weekendAmount = round2(weekendDays * dailyWage * weekendRate);
+  // 节假日加班金额（保洁按固定金额）
+  let holidayAmount = 0;
+  if (holidayDays > 0) {
+    if (isCleaner(input.position)) {
+      const fixed = Number(input.holiday_fixed_amount || 0);
+      holidayAmount = round2(holidayDays * fixed);
     } else {
-      // 按天
-      if (overtimeType === '法定节假日加班' && isCleaner(input.position)) {
-        // 保洁法定节假日：天数 × 固定金额（不乘倍率）
-        const fixed = Number(input.holiday_fixed_amount || 0);
-        overtimeAmount = round2(overtimeQty * fixed);
-      } else {
-        overtimeAmount = round2(overtimeQty * dailyWage * rate);
-      }
+      holidayAmount = round2(holidayDays * dailyWage * holidayRate);
     }
   }
+  // 延时加班金额 = 延时加班小时 × 时薪
+  const delayedAmount = round2(overtimeHours * hourlyRate);
+
+  // 加班金额合计
+  const overtimeAmount = round2(regularAmount + weekendAmount + holidayAmount + delayedAmount);
 
   // 入离职调整（月中入职/离职：折算工资 - 整月工资，通常为负）
   let onOffAdjust = 0;
@@ -289,6 +301,10 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
     personal_amount: personalAmountSigned,
     absenteeism_amount: absenteeismAmountSigned,
     overtime_amount: overtimeAmount,
+    regular_overtime_amount: regularAmount,
+    weekend_overtime_amount: weekendAmount,
+    holiday_overtime_amount: holidayAmount,
+    delayed_overtime_amount: delayedAmount,
     on_off_adjust: onOffAdjust,
     special_adjust_amount: specialAdjust,
     attendance_adjust_total: attendanceAdjustTotal,
