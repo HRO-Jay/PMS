@@ -1,17 +1,23 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Card, Col, Row, Statistic, Space, Input, message, Table, Tabs, Tag, Badge, Button, Segmented } from 'antd';
-import { TeamOutlined } from '@ant-design/icons';
+import {
+  TeamOutlined, DollarOutlined, SafetyCertificateOutlined, CalculatorOutlined,
+  BankOutlined, AccountBookOutlined, UserOutlined, DownloadOutlined, ReloadOutlined,
+} from '@ant-design/icons';
 import * as echarts from 'echarts';
 import api from '../api/client';
+import { exportXlsx, type ExportDef } from '../utils/importExport';
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
-const BRAND = '#1677ff';      // 品牌主色
-const ORANGE = '#fa8c16';     // 高亮橙（绩效）
-const NEUTRAL = '#8c8c8c';    // 中性灰（津贴）
-const WARNING = '#e74c3c';    // 警示红（加班）
-const LIGHT_GRAY = '#d9d9d9';
+const BRAND = '#1677ff';
+const BRAND_LIGHT = 'rgba(22,119,255,0.35)';
+const ORANGE = '#fa8c16';
+const NEUTRAL = '#8c8c8c';
+const WARNING = '#e74c3c';
 const PLACEHOLDER = '#f0f0f0';
+const GREEN = '#27ae60';
+const RED = '#e74c3c';
 
 const fmtMoney = (v: any) => {
   if (v === undefined || v === null || v === '' || Number(v) === 0) return '—';
@@ -42,24 +48,20 @@ function niceStep(raw: number): number {
   return nice * mag;
 }
 
-/** 动态等宽分箱（5-7 个区间） */
-function buildBins(values: number[]): { label: string; count: number; pct: number }[] {
+/** 动态等宽分箱（4-6 个区间），返回区间边界与统计 */
+function buildBins(values: number[]): { lo: number; hi: number; label: string; count: number; pct: number }[] {
   const v = values.filter(x => Number(x) > 0);
   if (!v.length) return [];
   const min = Math.min(...v);
   const max = Math.max(...v);
   if (min === max) {
-    return [{ label: `¥${Math.round(min).toLocaleString('zh-CN')}`, count: v.length, pct: 100 }];
+    return [{ lo: min, hi: max, label: `¥${Math.round(min).toLocaleString('zh-CN')}`, count: v.length, pct: 100 }];
   }
-  const target = 6;
-  const step = niceStep((max - min) / target);
+  const step = niceStep((max - min) / 5);
   const start = Math.floor(min / step) * step;
   const bins: { lo: number; hi: number; count: number }[] = [];
   let lo = start;
-  while (lo < max) {
-    bins.push({ lo, hi: lo + step, count: 0 });
-    lo += step;
-  }
+  while (lo < max) { bins.push({ lo, hi: lo + step, count: 0 }); lo += step; }
   v.forEach(x => {
     const idx = Math.min(Math.floor((x - start) / step), bins.length - 1);
     if (idx >= 0) bins[idx].count++;
@@ -71,41 +73,48 @@ function buildBins(values: number[]): { label: string; count: number; pct: numbe
     let label: string;
     if (i === 0) label = `${loFmt}以下`;
     else if (i === bins.length - 1) label = `${loFmt}以上`;
-    else label = `${loFmt} - ${hiFmt}`;
-    return { label, count: b.count, pct: Math.round((b.count / total) * 100) };
+    else label = `${loFmt}-${hiFmt}`;
+    return { lo: b.lo, hi: b.hi, label, count: b.count, pct: Math.round((b.count / total) * 100) };
   });
 }
 
-/** 拼音/字母升序排序（人数相同用） */
 const zhCompare = (a: string, b: string) => a.localeCompare(b, 'zh-Hans-CN');
+
+/** 环比百分比 */
+function chgPct(cur: number, prev: number): number | null {
+  if (!prev) return null;
+  return Number((((cur - prev) / prev) * 100).toFixed(1));
+}
 
 const Dashboard: React.FC = () => {
   const [period, setPeriod] = useState(defaultPeriod);
   const [loading, setLoading] = useState(false);
   const [summaryTab, setSummaryTab] = useState<'dept' | 'company'>('company');
   const [stats, setStats] = useState<any>(null);
+  const [prevStats, setPrevStats] = useState<any>(null);
+  const [ready, setReady] = useState(false);
   const [summaryRows, setSummaryRows] = useState<any[]>([]);
   const [rosterChanges, setRosterChanges] = useState<{ additions: any[]; removals: any[]; prevActiveCount?: number }>({ additions: [], removals: [] });
   const [expandAdd, setExpandAdd] = useState(false);
   const [expandRemove, setExpandRemove] = useState(false);
 
-  // 图表1：人数分布
-  const [headcountView, setHeadcountView] = useState<'dept' | 'cost'>('dept');
-  const [headcountData, setHeadcountData] = useState<{ dept: any[]; cost: any[] }>({ dept: [], cost: [] });
-  // 图表2：平均实发
+  // 图表1：各部门薪资分布（分组柱）
+  const [groupView, setGroupView] = useState<'dept' | 'cost'>('dept');
+  const [groupData, setGroupData] = useState<{ dept: any[]; cost: any[] }>({ dept: [], cost: [] });
+  // 图表2：薪资区间人数分布（纵向柱）
+  const [salaryDist, setSalaryDist] = useState<any[]>([]);
+  const [salaryMedian, setSalaryMedian] = useState(0);
+  // 图表3：各部门平均实发工资（横向条）
   const [avgPayList, setAvgPayList] = useState<any[]>([]);
   const [companyAvgNet, setCompanyAvgNet] = useState(0);
-  // 图表3：薪资区间
-  const [salaryDist, setSalaryDist] = useState<{ label: string; count: number; pct: number }[]>([]);
-  const [salaryMedian, setSalaryMedian] = useState(0);
-  // 图表4：工资构成
+  // 图表4：工资构成占比（环形图）
   const [composition, setComposition] = useState<any[]>([]);
   const [selectedDonut, setSelectedDonut] = useState(-1);
   const [donutHover, setDonutHover] = useState<number | null>(null);
 
-  const headcountRef = React.useRef<HTMLDivElement>(null);
-  const avgRef = React.useRef<HTMLDivElement>(null);
+  const groupRef = React.useRef<HTMLDivElement>(null);
   const histRef = React.useRef<HTMLDivElement>(null);
+  const avgRef = React.useRef<HTMLDivElement>(null);
   const donutRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => { loadData(); }, [period, summaryTab]);
@@ -120,14 +129,12 @@ const Dashboard: React.FC = () => {
     setLoading(true);
     try {
       const prev = prevPeriod(period);
-      // 员工
       const empRes = await api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,entry_date,leave_date,basic_salary');
       const empList: any[] = empRes.data;
       const activeEmps = empList.filter((e: any) => e.status === '在职');
       const empMap: Record<string, any> = {};
       empList.forEach((e: any) => { empMap[e.unique_hash] = e; });
 
-      // 薪资（本月 + 上月）
       const [salRes, salPrevRes] = await Promise.all([
         api.get(`/salary_records?select=*&period=eq.${period}`),
         api.get(`/salary_records?select=*&period=eq.${prev}`),
@@ -136,10 +143,7 @@ const Dashboard: React.FC = () => {
       const salPrevList: any[] = salPrevRes.data;
       const salMap: Record<string, any> = {};
       salList.forEach((r: any) => { salMap[r.unique_hash] = r; });
-      const salPrevMap: Record<string, any> = {};
-      salPrevList.forEach((r: any) => { salPrevMap[r.unique_hash] = r; });
 
-      // 附加薪酬（本月 + 上月）
       const [addRes, addPrevRes] = await Promise.all([
         api.get(`/additional_salary_records?select=*&period=eq.${period}`),
         api.get(`/additional_salary_records?select=*&period=eq.${prev}`),
@@ -149,12 +153,10 @@ const Dashboard: React.FC = () => {
       const addPrevMap: Record<string, any> = {};
       addPrevRes.data.forEach((r: any) => { addPrevMap[r.unique_hash] = r; });
 
-      // 社保
       const welfareRes = await api.get(`/employee_welfare_records?select=unique_hash,personal_total,company_total&period=eq.${period}`);
       const welfareMap: Record<string, any> = {};
       welfareRes.data.forEach((r: any) => { welfareMap[r.unique_hash] = r; });
 
-      // 考勤（本月 + 上月，取加班金额）
       const [attRes, attPrevRes] = await Promise.all([
         api.get(`/attendance_records?select=unique_hash,attendance_adjust_total,overtime_amount&period=eq.${period}`),
         api.get(`/attendance_records?select=unique_hash,overtime_amount&period=eq.${prev}`),
@@ -164,40 +166,92 @@ const Dashboard: React.FC = () => {
       const attPrevMap: Record<string, any> = {};
       attPrevRes.data.forEach((r: any) => { attPrevMap[r.unique_hash] = r; });
 
-      // ===== 汇总统计 =====
-      const totalNetPay = salList.reduce((s: number, r: any) => s + (r.net_pay || 0), 0);
-      const totalCost = salList.reduce((s: number, r: any) => s + (r.total_cost || 0), 0);
-      setStats({ employee_count: activeEmps.length, total_net_pay: totalNetPay, total_cost: totalCost });
+      // ===== 核心指标（口径严格） =====
+      const sum = (arr: any[], key: string) => arr.reduce((s, r) => s + (Number(r[key]) || 0), 0);
+      const totalWageSubtotal = Number(sum(salList, 'wage_subtotal').toFixed(2));   // 应发工资总计
+      const totalPersonalWelfare = Number(sum(salList, 'personal_welfare_total').toFixed(2)); // 社保公积金扣除
+      const totalTax = Number(sum(salList, 'monthly_tax').toFixed(2));               // 个税总计
+      const totalNetPay = Number(sum(salList, 'net_pay').toFixed(2));                // 实发工资总计
+      const totalCompanyWelfare = Number(sum(salList, 'company_welfare_total').toFixed(2));
+      const totalCost = Number((totalWageSubtotal + totalCompanyWelfare).toFixed(2)); // 当月人力成本
+      const salEmpCount = salList.filter((r: any) => empMap[r.unique_hash]).length || 1;
+      const avgNet = Number((totalNetPay / salEmpCount).toFixed(2));                 // 人均实发
 
-      // ===== 图表1：人数分布（部门 + 成本中心） =====
-      const buildHeadcount = (groupKey: 'department' | 'cost_center') => {
-        const byGroup: Record<string, number> = {};
-        activeEmps.forEach((e: any) => {
-          const g = e[groupKey] || '未分配';
-          byGroup[g] = (byGroup[g] || 0) + 1;
+      setStats({
+        employee_count: activeEmps.length,
+        total_wage_subtotal: totalWageSubtotal,
+        total_personal_welfare: totalPersonalWelfare,
+        total_tax: totalTax,
+        total_net_pay: totalNetPay,
+        total_cost: totalCost,
+        avg_net: avgNet,
+      });
+
+      // 上月核心指标（环比用）
+      const prevWageSubtotal = Number(sum(salPrevList, 'wage_subtotal').toFixed(2));
+      const prevPersonalWelfare = Number(sum(salPrevList, 'personal_welfare_total').toFixed(2));
+      const prevTax = Number(sum(salPrevList, 'monthly_tax').toFixed(2));
+      const prevNetPay = Number(sum(salPrevList, 'net_pay').toFixed(2));
+      const prevCost = Number((prevWageSubtotal + Number(sum(salPrevList, 'company_welfare_total').toFixed(2))).toFixed(2));
+      const prevSalCount = salPrevList.filter((r: any) => empMap[r.unique_hash]).length || 1;
+      const prevAvgNet = Number((prevNetPay / prevSalCount).toFixed(2));
+      setPrevStats({
+        employee_count: activeEmps.length,
+        total_wage_subtotal: prevWageSubtotal,
+        total_personal_welfare: prevPersonalWelfare,
+        total_tax: prevTax,
+        total_net_pay: prevNetPay,
+        total_cost: prevCost,
+        avg_net: prevAvgNet,
+      });
+
+      // 数据状态：有薪资记录且含已计算/已锁定状态视为就绪
+      setReady(salList.length > 0 && salList.some((r: any) => r.data_status === '已计算' || r.data_status === '已锁定' || r.data_status === '已提交老板查看'));
+
+      // ===== 图表1：各部门薪资分布（分组柱） =====
+      const buildGroup = (groupKey: 'department' | 'cost_center') => {
+        const byGroup: Record<string, { gross: number; net: number; count: number; deduct: number; netList: number[] }> = {};
+        salList.forEach((r: any) => {
+          const emp = empMap[r.unique_hash];
+          if (!emp) return;
+          const g = emp[groupKey] || '未分配';
+          if (!byGroup[g]) byGroup[g] = { gross: 0, net: 0, count: 0, deduct: 0, netList: [] };
+          byGroup[g].gross += Number(r.wage_subtotal || 0);
+          byGroup[g].net += Number(r.net_pay || 0);
+          byGroup[g].count++;
+          byGroup[g].netList.push(Number(r.net_pay || 0));
         });
-        const total = activeEmps.length || 1;
         return Object.entries(byGroup)
-          .map(([name, count]) => ({ name, count, pct: Math.round((count / total) * 100) }))
-          .sort((a, b) => b.count - a.count || zhCompare(a.name, b.name));
+          .map(([name, d]) => ({
+            name,
+            gross: Number(d.gross.toFixed(2)),
+            net: Number(d.net.toFixed(2)),
+            deduct: Number((d.gross - d.net).toFixed(2)),
+            count: d.count,
+            avgNet: d.count ? Number((d.net / d.count).toFixed(2)) : 0,
+          }))
+          .sort((a, b) => b.gross - a.gross || zhCompare(a.name, b.name));
       };
-      setHeadcountData({ dept: buildHeadcount('department'), cost: buildHeadcount('cost_center') });
+      setGroupData({ dept: buildGroup('department'), cost: buildGroup('cost_center') });
 
-      // ===== 图表2：各部门平均实发工资 =====
+      // ===== 图表2：薪资区间人数分布（按实发） =====
+      const netVals: number[] = salList.map((r: any) => Number(r.net_pay || 0)).filter(x => x > 0);
+      setSalaryMedian(Number(median(netVals).toFixed(2)));
+      setSalaryDist(buildBins(netVals));
+
+      // ===== 图表3：各部门平均实发工资 =====
+      const companyAvg = Number((totalNetPay / salEmpCount).toFixed(2));
+      setCompanyAvgNet(companyAvg);
       const netByDept: Record<string, { sum: number; count: number; list: number[] }> = {};
       salList.forEach((r: any) => {
         const emp = empMap[r.unique_hash];
         if (!emp) return;
         const dept = emp.department || '未分配';
         if (!netByDept[dept]) netByDept[dept] = { sum: 0, count: 0, list: [] };
-        netByDept[dept].sum += r.net_pay || 0;
+        netByDept[dept].sum += Number(r.net_pay || 0);
         netByDept[dept].count++;
         netByDept[dept].list.push(Number(r.net_pay || 0));
       });
-      // 公司加权平均 = 全公司实发总额 / 有薪资记录人数
-      const salEmpCount = salList.filter((r: any) => empMap[r.unique_hash]).length || 1;
-      const companyAvg = Number((totalNetPay / salEmpCount).toFixed(2));
-      setCompanyAvgNet(companyAvg);
       const avgList = Object.entries(netByDept)
         .map(([name, d]) => ({
           name,
@@ -209,12 +263,7 @@ const Dashboard: React.FC = () => {
         .sort((a, b) => b.avg - a.avg || zhCompare(a.name, b.name));
       setAvgPayList(avgList);
 
-      // ===== 图表3：薪资区间分布（按实发） =====
-      const netVals: number[] = salList.map((r: any) => Number(r.net_pay || 0)).filter(x => x > 0);
-      setSalaryMedian(Number(median(netVals).toFixed(2)));
-      setSalaryDist(buildBins(netVals));
-
-      // ===== 图表4：工资构成占比（应发构成） =====
+      // ===== 图表4：工资构成占比（应发口径） =====
       const perfComm = (add: any) => (add.performance_pay || 0) + (add.kpi_provision || 0) + (add.office_comm || 0) + (add.apartment_comm || 0) + (add.talent_kpi || 0);
       const allowSum = (add: any) => (add.allowance_supp || 0) + (add.other_adjust || 0) + (add.heat_allowance || 0) + (add.other_allowance || 0) + (add.security_bonus || 0) + (add.cleaning_bonus || 0);
       const calcComp = (salArr: any[], addMapX: Record<string, any>, attMapX: Record<string, any>) => {
@@ -234,23 +283,17 @@ const Dashboard: React.FC = () => {
       const colorMap: Record<string, string> = { '基本工资': BRAND, '绩效&佣金': ORANGE, '津贴补贴': NEUTRAL, '加班费': WARNING, '其他': '#bfbfbf' };
       const order = ['基本工资', '绩效&佣金', '津贴补贴', '加班费', '其他'];
       const totalComp = order.reduce((s, k) => s + compCur[k], 0) || 1;
-      const compArr = order.map((k, i) => {
+      const compArr = order.map((k) => {
         const val = Number(compCur[k].toFixed(2));
         const prevVal = Number(compPrev[k].toFixed(2));
-        const chg = prevVal ? Number((((val - prevVal) / prevVal) * 100).toFixed(1)) : 0;
-        return {
-          name: k, value: val,
-          pct: Number(((val / totalComp) * 100).toFixed(1)),
-          color: colorMap[k], prevVal, chg,
-          isOther: k === '其他',
-        };
+        const chg = chgPct(val, prevVal);
+        return { name: k, value: val, pct: Number(((val / totalComp) * 100).toFixed(1)), color: colorMap[k], prevVal, chg, isOther: k === '其他' };
       }).sort((a, b) => b.value - a.value);
-      // 「其他」固定在底部
       const others = compArr.filter(c => c.isOther);
       const main = compArr.filter(c => !c.isOther);
       setComposition([...main, ...others]);
 
-      // ===== Summary 汇总表（保留） =====
+      // ===== Summary 汇总表 =====
       const buildSummary = (groupKey: 'cost_center' | 'pay_company') => {
         const byGroup: Record<string, any> = {};
         activeEmps.forEach((e: any) => {
@@ -264,14 +307,14 @@ const Dashboard: React.FC = () => {
           const g = emp[groupKey] || '未知';
           if (!byGroup[g]) byGroup[g] = { group: g, count: 0, net: 0, company_welfare: 0, personal_welfare: 0, perf_comm: 0, attendance_adjust: 0, insurance: 0, provision: 0, total_cost: 0 };
           const add = addMap[r.unique_hash] || {};
-          byGroup[g].net += r.net_pay || 0;
-          byGroup[g].company_welfare += welfareMap[r.unique_hash]?.company_total || 0;
-          byGroup[g].personal_welfare += welfareMap[r.unique_hash]?.personal_total || 0;
+          byGroup[g].net += Number(r.net_pay || 0);
+          byGroup[g].company_welfare += Number(welfareMap[r.unique_hash]?.company_total || 0);
+          byGroup[g].personal_welfare += Number(welfareMap[r.unique_hash]?.personal_total || 0);
           byGroup[g].perf_comm += perfComm(add);
-          byGroup[g].attendance_adjust += attMap[r.unique_hash]?.attendance_adjust_total || 0;
-          byGroup[g].insurance += add.insurance_amount || 0;
-          byGroup[g].provision += r.provision_welfare || 0;
-          byGroup[g].total_cost += r.total_cost || 0;
+          byGroup[g].attendance_adjust += Number(attMap[r.unique_hash]?.attendance_adjust_total || 0);
+          byGroup[g].insurance += Number(add.insurance_amount || 0);
+          byGroup[g].provision += Number(r.provision_welfare || 0);
+          byGroup[g].total_cost += Number(r.total_cost || 0);
         });
         return Object.values(byGroup).map((g: any) => ({ ...g, key: g.group }));
       };
@@ -286,49 +329,106 @@ const Dashboard: React.FC = () => {
     finally { setLoading(false); }
   };
 
-  // ===== 图表1：人数分布 =====
+  // ===== 图表1：各部门薪资分布（分组柱） =====
   useEffect(() => {
-    const el = headcountRef.current;
+    const el = groupRef.current;
     if (!el) return;
     const chart = echarts.getInstanceByDom(el) || echarts.init(el);
-    const data = headcountView === 'dept' ? headcountData.dept : headcountData.cost;
+    const data = groupView === 'dept' ? groupData.dept : groupData.cost;
     const empty = data.length === 0;
-    const showData = empty ? Array.from({ length: 8 }, () => ({ name: '', count: 1, pct: 0 })) : data;
-    const maxVal = Math.max(...showData.map(d => d.count), 1);
+    const showData = empty ? Array.from({ length: 6 }, () => ({ name: '', gross: 1, net: 1, deduct: 0, count: 0, avgNet: 0 })) : data;
+    const maxVal = Math.max(...showData.map(d => Math.max(d.gross, d.net)), 1);
+    const showLabel = data.length <= 8;
     chart.setOption({
-      grid: { left: 8, right: 90, top: 8, bottom: 8, containLabel: true },
-      tooltip: { trigger: 'item', formatter: (p: any) => empty ? '' : `${p.name}：${p.data.value}人（${p.data.pct}%）` },
-      xAxis: { type: 'value', show: false, max: maxVal * 1.25 },
-      yAxis: {
+      grid: { left: 8, right: 70, top: 30, bottom: 8, containLabel: true },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        formatter: (params: any) => {
+          if (empty) return '';
+          const name = params[0]?.name;
+          const d = data.find(x => x.name === name);
+          if (!d) return '';
+          return `${d.name}<br/>应发工资：¥${d.gross.toLocaleString('zh-CN')}<br/>实发工资：¥${d.net.toLocaleString('zh-CN')}<br/>扣减合计：¥${d.deduct.toLocaleString('zh-CN')}<br/>部门人数：${d.count}人<br/>人均实发：¥${d.avgNet.toLocaleString('zh-CN')}`;
+        },
+      },
+      legend: { data: ['应发工资', '实发工资'], top: 0, right: 0, itemWidth: 12, itemHeight: 8 },
+      xAxis: {
         type: 'category',
         data: showData.map(d => d.name),
-        axisLine: { show: false }, axisTick: { show: false },
-        axisLabel: { color: '#666', width: 90, overflow: 'truncate' },
+        axisLine: { lineStyle: { color: '#ddd' } },
+        axisTick: { show: false },
+        axisLabel: { color: '#666', width: 80, overflow: 'truncate', interval: 0 },
       },
+      yAxis: {
+        type: 'value',
+        min: 0,
+        splitLine: { lineStyle: { type: 'dashed', color: '#eee' } },
+        axisLabel: { color: '#999', formatter: (v: number) => v >= 10000 ? `${(v / 10000).toFixed(0)}万` : `${v}` },
+      },
+      series: [
+        {
+          name: '应发工资', type: 'bar', barWidth: 14,
+          data: showData.map(d => ({ value: d.gross, itemStyle: empty ? { color: PLACEHOLDER } : { color: BRAND, borderRadius: [3, 3, 0, 0] } })),
+          label: showLabel ? { show: true, position: 'top', color: '#333', formatter: (p: any) => empty ? '' : fmtMoneyInt(p.value) } : { show: false },
+        },
+        {
+          name: '实发工资', type: 'bar', barWidth: 14,
+          data: showData.map(d => ({ value: d.net, itemStyle: empty ? { color: PLACEHOLDER } : { color: BRAND_LIGHT, borderRadius: [3, 3, 0, 0] } })),
+          label: showLabel ? { show: true, position: 'top', color: '#888', formatter: (p: any) => empty ? '' : fmtMoneyInt(p.value) } : { show: false },
+        },
+      ],
+      graphic: empty ? [{ type: 'text', left: 'center', top: 'middle', style: { text: '暂无数据', fill: '#999', fontSize: 14 } }] : [],
+    });
+    return () => { chart.dispose(); };
+  }, [groupData, groupView]);
+
+  // ===== 图表2：薪资区间人数分布（纵向柱） =====
+  useEffect(() => {
+    const el = histRef.current;
+    if (!el) return;
+    const chart = echarts.getInstanceByDom(el) || echarts.init(el);
+    const empty = salaryDist.length === 0;
+    const showData = empty ? Array.from({ length: 5 }, () => ({ label: '', count: 1, pct: 0 })) : salaryDist;
+    const maxVal = Math.max(...showData.map(d => d.count), 1);
+    // 中位数所在区间索引
+    let medianIdx = -1;
+    if (!empty) {
+      medianIdx = salaryDist.findIndex(b => salaryMedian >= b.lo && salaryMedian < b.hi);
+      if (medianIdx === -1 && salaryDist.length) medianIdx = salaryDist.length - 1;
+    }
+    const medianLine = (!empty && medianIdx >= 0) ? {
+      silent: true, symbol: 'none',
+      lineStyle: { color: RED, type: 'dashed', width: 1 },
+      label: { formatter: `中位数 ${fmtMoneyInt(salaryMedian)}`, color: RED, fontSize: 11, position: 'insideEndTop' },
+      data: [{ xAxis: showData[medianIdx].label }],
+    } : undefined;
+    chart.setOption({
+      grid: { left: 8, right: 40, top: 30, bottom: 8, containLabel: true },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: (params: any) => empty ? '' : `${params[0]?.name}：${params[0]?.data?.count}人（${params[0]?.data?.pct}%）` },
+      xAxis: {
+        type: 'category', data: showData.map(d => d.label),
+        axisLine: { lineStyle: { color: '#ddd' } }, axisTick: { show: false },
+        axisLabel: { color: '#666', fontSize: 11, interval: 0 },
+      },
+      yAxis: { type: 'value', min: 0, splitLine: { lineStyle: { type: 'dashed', color: '#eee' } }, axisLabel: { color: '#999' } },
       series: [{
         type: 'bar',
-        data: showData.map((d, i) => ({
-          value: d.count,
-          pct: d.pct,
-          itemStyle: empty ? { color: PLACEHOLDER } : { color: BRAND, borderRadius: [0, 4, 4, 0] },
-        })),
-        barWidth: 14,
+        barWidth: 26,
+        data: showData.map(d => ({ value: d.count, count: d.count, pct: d.pct, itemStyle: empty ? { color: PLACEHOLDER } : { color: BRAND, borderRadius: [4, 4, 0, 0] } })),
         label: {
-          show: true, position: 'right', color: '#333',
+          show: true, position: 'top', color: '#333',
           formatter: (p: any) => empty ? '' : `${p.data.value}人（${p.data.pct}%）`,
         },
-        emphasis: {
-          focus: 'series',
-          itemStyle: { color: '#0958d9' },
-        },
-        blur: { itemStyle: { opacity: 0.3 } },
+        emphasis: { itemStyle: { color: '#0958d9' } },
+        markLine: medianLine,
       }],
       graphic: empty ? [{ type: 'text', left: 'center', top: 'middle', style: { text: '暂无数据', fill: '#999', fontSize: 14 } }] : [],
     });
     return () => { chart.dispose(); };
-  }, [headcountData, headcountView]);
+  }, [salaryDist, salaryMedian]);
 
-  // ===== 图表2：各部门平均实发工资 =====
+  // ===== 图表3：各部门平均实发工资（横向条） =====
   useEffect(() => {
     const el = avgRef.current;
     if (!el) return;
@@ -373,43 +473,7 @@ const Dashboard: React.FC = () => {
     return () => { chart.dispose(); };
   }, [avgPayList, companyAvgNet]);
 
-  // ===== 图表3：薪资区间分布 =====
-  useEffect(() => {
-    const el = histRef.current;
-    if (!el) return;
-    const chart = echarts.getInstanceByDom(el) || echarts.init(el);
-    const empty = salaryDist.length === 0;
-    const showData = empty ? Array.from({ length: 6 }, (_, i) => ({ label: '', count: 1, pct: 0 })) : salaryDist;
-    const maxVal = Math.max(...showData.map(d => d.count), 1);
-    chart.setOption({
-      grid: { left: 8, right: 60, top: 8, bottom: 8, containLabel: true },
-      tooltip: { trigger: 'item', formatter: (p: any) => empty ? '' : `${p.name}：${p.data.value}人（${p.data.pct}%）` },
-      xAxis: { type: 'value', show: false, max: maxVal * 1.25 },
-      yAxis: {
-        type: 'category', data: showData.map(d => d.label),
-        axisLine: { show: false }, axisTick: { show: false },
-        axisLabel: { color: '#666', fontSize: 11 },
-      },
-      series: [{
-        type: 'bar',
-        data: showData.map((d, i) => ({
-          value: d.count, pct: d.pct,
-          itemStyle: empty
-            ? { color: PLACEHOLDER }
-            : { color: `rgba(22,119,255,${0.25 + (i / Math.max(showData.length - 1, 1)) * 0.7})`, borderRadius: [0, 4, 4, 0] },
-        })),
-        barWidth: 16,
-        label: {
-          show: true, position: 'right', color: '#333',
-          formatter: (p: any) => empty ? '' : `${p.data.value}人（${p.data.pct}%）`,
-        },
-      }],
-      graphic: empty ? [{ type: 'text', left: 'center', top: 'middle', style: { text: '暂无数据', fill: '#999', fontSize: 14 } }] : [],
-    });
-    return () => { chart.dispose(); };
-  }, [salaryDist, salaryMedian]);
-
-  // ===== 图表4：工资构成占比 =====
+  // ===== 图表4：工资构成占比（环形图） =====
   useEffect(() => {
     const el = donutRef.current;
     if (!el) return;
@@ -439,10 +503,29 @@ const Dashboard: React.FC = () => {
   }, [composition, selectedDonut]);
 
   const maxComposition = useMemo(() => Math.max(...composition.map(c => c.value), 1), [composition]);
+  const toggleDonut = (idx: number) => setSelectedDonut(prev => prev === idx ? -1 : idx);
 
-  const toggleDonut = (idx: number) => {
-    setSelectedDonut(prev => prev === idx ? -1 : idx);
+  // 环比标签
+  const ChgTag = ({ cur, prev }: { cur: number; prev: number }) => {
+    const pct = chgPct(cur, prev);
+    if (pct === null) return <span style={{ fontSize: 11, color: '#bbb' }}>较上月 —</span>;
+    const up = pct >= 0;
+    return <span style={{ fontSize: 11, color: up ? GREEN : RED }}>较上月 {up ? '+' : ''}{pct}%</span>;
   };
+
+  // 指标卡组件
+  const MetricCard = ({ title, value, unit, icon, color, prev, warn }: { title: string; value: any; unit?: string; icon: React.ReactNode; color: string; prev?: number; warn?: boolean }) => (
+    <div style={{ background: '#fff', borderRadius: 12, padding: '16px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: 14 }}>
+      <div style={{ width: 44, height: 44, borderRadius: 10, background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{icon}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, color: '#999' }}>{title}</div>
+        <div style={{ fontSize: 22, fontWeight: 700, color: warn ? RED : '#222', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {value}{unit && <span style={{ fontSize: 12, color: '#999', fontWeight: 400, marginLeft: 4 }}>{unit}</span>}
+        </div>
+        {prev !== undefined && <ChgTag cur={Number(value)} prev={prev} />}
+      </div>
+    </div>
+  );
 
   const summaryColumns = [
     { title: summaryTab === 'company' ? '发薪公司' : '成本中心', dataIndex: 'group', key: 'group', fixed: 'left' as const, width: 150, ellipsis: true },
@@ -464,56 +547,94 @@ const Dashboard: React.FC = () => {
     { title: dateLabel, dataIndex: 'date', width: 100 },
   ];
 
-  const headCountTotal = (headcountView === 'dept' ? headcountData.dept : headcountData.cost).length;
-  const headCountSum = (headcountView === 'dept' ? headcountData.dept : headcountData.cost).reduce((s, d) => s + d.count, 0);
+  // 导出定义（Summary 数据）
+  const SUMMARY_EXPORT_DEF: ExportDef = {
+    module: '数据统计',
+    columns: [
+      { key: 'group', label: summaryTab === 'company' ? '发薪公司' : '成本中心' },
+      { key: 'count', label: '人数' },
+      { key: 'net', label: '实收工资' },
+      { key: 'company_welfare', label: '公司福利' },
+      { key: 'personal_welfare', label: '个人福利' },
+      { key: 'perf_comm', label: '绩效&佣金' },
+      { key: 'attendance_adjust', label: '考勤调整' },
+      { key: 'insurance', label: '商保金额' },
+      { key: 'provision', label: '预提福利费' },
+      { key: 'total_cost', label: '人力成本总计' },
+    ],
+  };
 
   return (
     <div>
-      <Space style={{ marginBottom: 16 }}>
-        <span>月份：</span>
-        <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 200 }} />
-      </Space>
+      {/* 页面标题区 */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: '#222' }}>数据总览</div>
+          <div style={{ fontSize: 14, color: '#999' }}>
+            {ready ? '公司整体薪酬数据一览，实时反映工资计算结果' : '本月薪资计算中，部分数据可能存在延迟'}
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#666' }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: ready ? GREEN : RED, display: 'inline-block' }} />
+            {ready ? '数据已就绪' : '本月薪资计算中'}
+          </span>
+          <Space>
+            <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 160 }} />
+            <Button icon={<ReloadOutlined />} onClick={loadData}>刷新</Button>
+            <Button icon={<DownloadOutlined />} onClick={() => exportXlsx(SUMMARY_EXPORT_DEF, summaryRows, period)}>导出</Button>
+          </Space>
+        </div>
+      </div>
 
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={8}><Card><Statistic title="在职员工" value={stats?.employee_count || 0} prefix={<TeamOutlined />} /></Card></Col>
-        <Col span={8}><Card><Statistic title="当月实发总额" value={stats?.total_net_pay || undefined} precision={2} prefix="¥" /></Card></Col>
-        <Col span={8}><Card><Statistic title="当月人力成本" value={stats?.total_cost || undefined} precision={2} prefix="¥" /></Card></Col>
+      {/* 核心指标卡 第一排（5张） */}
+      <Row gutter={12} style={{ marginBottom: 12 }}>
+        <Col flex="1"><MetricCard title="员工总数" value={stats?.employee_count || 0} unit="人" icon={<TeamOutlined />} color="#722ed1" /></Col>
+        <Col flex="1"><MetricCard title="应发工资总计" value={stats?.total_wage_subtotal} unit="元" icon={<DollarOutlined />} color={GREEN} prev={prevStats?.total_wage_subtotal} /></Col>
+        <Col flex="1"><MetricCard title="社保公积金扣除" value={stats?.total_personal_welfare} unit="元" icon={<SafetyCertificateOutlined />} color={ORANGE} prev={prevStats?.total_personal_welfare} /></Col>
+        <Col flex="1"><MetricCard title="个税总计" value={stats?.total_tax} unit="元" icon={<CalculatorOutlined />} color={WARNING} prev={prevStats?.total_tax} /></Col>
+        <Col flex="1"><MetricCard title="实发工资总计" value={stats?.total_net_pay} unit="元" icon={<BankOutlined />} color="#13c2c2" prev={prevStats?.total_net_pay} /></Col>
       </Row>
 
-      {/* 统计分析：2×2 图表网格 */}
+      {/* 核心指标卡 第二排（2张，宽度对齐第一排前两张） */}
+      <Row gutter={12} style={{ marginBottom: 16 }}>
+        <Col flex="2"><MetricCard title="当月人力成本" value={stats?.total_cost} unit="元" icon={<AccountBookOutlined />} color="#2f54eb" prev={prevStats?.total_cost} warn={stats && stats.total_cost < stats.total_wage_subtotal} /></Col>
+        <Col flex="2"><MetricCard title="人均实发工资" value={stats?.avg_net} unit="元" icon={<UserOutlined />} color="#eb2f96" prev={prevStats?.avg_net} /></Col>
+        <Col flex="1" />
+      </Row>
+
+      {/* 统计分析图表区 */}
       <Card size="small" title="统计分析" style={{ marginBottom: 16 }}>
         <Row gutter={[16, 16]}>
-          {/* 左上：各部门人数分布 */}
+          {/* 第一行左：各部门薪资分布（分组柱） */}
           <Col xs={24} xl={12}>
-            <Card size="small" title="各部门人数分布"
-              extra={<Segmented size="small" value={headcountView} onChange={(v) => setHeadcountView(v as 'dept' | 'cost')} options={[{ label: '按部门', value: 'dept' }, { label: '按成本中心', value: 'cost' }]} />}>
-              <div style={{ marginBottom: 8, color: '#888', fontSize: 12 }}>
-                共 {headCountTotal} 个{headcountView === 'dept' ? '部门' : '成本中心'}，{headCountSum} 名员工
-              </div>
-              <div ref={headcountRef} style={{ width: '100%', height: 300 }} />
+            <Card size="small" title="各部门薪资分布"
+              extra={<Segmented size="small" value={groupView} onChange={(v) => setGroupView(v as 'dept' | 'cost')} options={[{ label: '按部门', value: 'dept' }, { label: '按成本中心', value: 'cost' }]} />}>
+              <div ref={groupRef} style={{ width: '100%', height: 300 }} />
             </Card>
           </Col>
 
-          {/* 右上：各部门平均实发工资 */}
+          {/* 第一行右：薪资区间人数分布（纵向柱） */}
+          <Col xs={24} xl={12}>
+            <Card size="small" title="薪资区间人数分布">
+              <div ref={histRef} style={{ width: '100%', height: 300 }} />
+              {salaryDist.length > 0 && (
+                <div style={{ marginTop: 8, color: '#999', fontSize: 12 }}>
+                  中位数 {fmtMoneyInt(salaryMedian)}；区间按当月实发工资动态划分（含下限不含上限），共 {salaryDist.length} 档。
+                  {salaryDist.some(b => b.pct >= 50) && <span style={{ color: WARNING, marginLeft: 6 }}>⚠️ 某区间人数占比超 50%，薪酬带宽可能过于集中</span>}
+                </div>
+              )}
+            </Card>
+          </Col>
+
+          {/* 第二行左：各部门平均实发工资 */}
           <Col xs={24} xl={12}>
             <Card size="small" title="各部门平均实发工资">
               <div ref={avgRef} style={{ width: '100%', height: 300 }} />
             </Card>
           </Col>
 
-          {/* 左下：薪资区间分布 */}
-          <Col xs={24} xl={12}>
-            <Card size="small" title="薪资区间分布">
-              <div ref={histRef} style={{ width: '100%', height: 300 }} />
-              {salaryDist.length > 0 && (
-                <div style={{ marginTop: 8, color: '#999', fontSize: 12 }}>
-                  中位数 {fmtMoneyInt(salaryMedian)}；区间按当月实发工资动态划分，共 {salaryDist.length} 档。
-                </div>
-              )}
-            </Card>
-          </Col>
-
-          {/* 右下：工资构成占比 */}
+          {/* 第二行右：工资构成占比 */}
           <Col xs={24} xl={12}>
             <Card size="small" title="工资构成占比（应发口径）">
               <Row align="middle">
@@ -524,13 +645,11 @@ const Dashboard: React.FC = () => {
                   {composition.map((c, idx) => {
                     const pctOfMax = maxComposition > 0 ? Math.round((c.value / maxComposition) * 100) : 0;
                     return (
-                      <div
-                        key={c.name}
+                      <div key={c.name}
                         style={{ marginBottom: 12, cursor: 'pointer', opacity: selectedDonut === -1 || selectedDonut === idx ? 1 : 0.4 }}
                         onClick={() => toggleDonut(idx)}
                         onMouseEnter={() => setDonutHover(idx)}
-                        onMouseLeave={() => setDonutHover(null)}
-                      >
+                        onMouseLeave={() => setDonutHover(null)}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
                           <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: c.color }} />
@@ -543,7 +662,7 @@ const Dashboard: React.FC = () => {
                         </div>
                         {donutHover === idx && (
                           <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
-                            较上月 {c.chg >= 0 ? '+' : ''}{c.chg}%
+                            较上月 {c.chg == null ? '—' : `${c.chg >= 0 ? '+' : ''}${c.chg}%`}
                           </div>
                         )}
                       </div>
@@ -593,14 +712,39 @@ const Dashboard: React.FC = () => {
       </Card>
 
       {/* 数据统计 Summary */}
-      <Card size="small" style={{ marginBottom: 16 }} title="数据统计 Summary">
+      <Card size="small" title="数据统计 Summary">
         <Tabs activeKey={summaryTab} onChange={(k) => { setSummaryTab(k as 'dept' | 'company'); }}
           items={[
             { key: 'company', label: '按公司' },
             { key: 'dept', label: '按部门' },
           ]} />
         <div style={{ overflowX: 'auto' }}>
-          <Table columns={summaryColumns} dataSource={summaryRows} loading={loading} size="small" pagination={false} scroll={{ x: 1300 }} />
+          <Table
+            columns={summaryColumns}
+            dataSource={summaryRows}
+            loading={loading}
+            size="small"
+            pagination={false}
+            scroll={{ x: 1300 }}
+            summary={(pageData) => {
+              const rows = pageData as any[];
+              const total = (key: string) => rows.reduce((s, r) => s + (Number(r[key]) || 0), 0);
+              return (
+                <Table.Summary.Row>
+                  <Table.Summary.Cell index={0}><strong>合计</strong></Table.Summary.Cell>
+                  <Table.Summary.Cell index={1}><strong>{total('count')}</strong></Table.Summary.Cell>
+                  <Table.Summary.Cell index={2}><strong>{fmtMoney(total('net'))}</strong></Table.Summary.Cell>
+                  <Table.Summary.Cell index={3}><strong>{fmtMoney(total('company_welfare'))}</strong></Table.Summary.Cell>
+                  <Table.Summary.Cell index={4}><strong>{fmtMoney(total('personal_welfare'))}</strong></Table.Summary.Cell>
+                  <Table.Summary.Cell index={5}><strong>{fmtMoney(total('perf_comm'))}</strong></Table.Summary.Cell>
+                  <Table.Summary.Cell index={6}><strong>{fmtMoney(total('attendance_adjust'))}</strong></Table.Summary.Cell>
+                  <Table.Summary.Cell index={7}><strong>{fmtMoney(total('insurance'))}</strong></Table.Summary.Cell>
+                  <Table.Summary.Cell index={8}><strong>{fmtMoney(total('provision'))}</strong></Table.Summary.Cell>
+                  <Table.Summary.Cell index={9}><strong>{fmtMoney(total('total_cost'))}</strong></Table.Summary.Cell>
+                </Table.Summary.Row>
+              );
+            }}
+          />
         </div>
       </Card>
     </div>
