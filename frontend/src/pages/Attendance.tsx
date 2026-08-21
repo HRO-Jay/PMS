@@ -605,9 +605,9 @@ const AttendancePage: React.FC = () => {
 
   // 可选展示列（默认隐藏）
   const optionalColumns: { key: string; title: string; source: any; dataIndex: string; render?: (v: any, r: any) => any }[] = [
-    { key: 'seniority', title: '本企业连续工龄', source: '系统计算', dataIndex: 'seniority', render: (v: any) => v !== undefined ? `${v} 年` : '—' },
+    { key: 'seniority', title: '本企业连续工龄', source: '系统计算', dataIndex: 'seniority', render: (v: any) => v ? `${v} 年` : '—' },
     { key: 'daily_wage', title: '日薪', source: '系统计算', dataIndex: 'daily_wage', render: (v: any) => fmtMoney(v) },
-    { key: 'sick_pay_rate', title: '病假支付系数', source: '系统计算', dataIndex: 'sick_pay_rate', render: (v: any) => v !== undefined ? `${(v * 100).toFixed(0)}%` : '—' },
+    { key: 'sick_pay_rate', title: '病假支付系数', source: '系统计算', dataIndex: 'sick_pay_rate', render: (v: any) => v ? `${(v * 100).toFixed(0)}%` : '—' },
     { key: 'is_continuous_sick', title: '是否连续病假', source: '导入', dataIndex: 'is_continuous_sick', render: (v: any) => v === true ? '是' : v === false ? '否' : '—' },
     { key: 'continuous_sick_start', title: '连续病假开始', source: '导入', dataIndex: 'continuous_sick_start', render: (v: any) => v || '—' },
     { key: 'continuous_sick_end', title: '连续病假结束', source: '导入', dataIndex: 'continuous_sick_end', render: (v: any) => v || '—' },
@@ -645,16 +645,16 @@ const AttendancePage: React.FC = () => {
       render: (v: number) => fmtMoney(v) },
     { title: withSource('考勤工资', '导入'), dataIndex: 'attendance_wage', key: 'aw', width: 110, render: (v: any) => fmtMoney(v) },
     { title: withSource('计薪天数', '导入'), dataIndex: 'pay_days', key: 'pd', width: 90, render: (v: any) => v || '—' },
-    { title: withSource('病假(天)', '导入'), dataIndex: 'sick_days', key: 'sd', width: 80, render: (v: any) => v ?? '—' },
+    { title: withSource('病假(天)', '导入'), dataIndex: 'sick_days', key: 'sd', width: 80, render: (v: any) => v ? v : '—' },
     { title: withSource('病假金额', '系统计算'), dataIndex: 'sick_amount', key: 'sa', width: 90, render: (v: number) => <span style={{ color: v < 0 ? '#e74c3c' : undefined }}>{fmtMoney(v)}</span> },
-    { title: withSource('事假(天)', '导入'), dataIndex: 'personal_days', key: 'pd2', width: 80, render: (v: any) => v ?? '—' },
+    { title: withSource('事假(天)', '导入'), dataIndex: 'personal_days', key: 'pd2', width: 80, render: (v: any) => v ? v : '—' },
     { title: withSource('事假金额', '系统计算'), dataIndex: 'personal_amount', key: 'pa', width: 90, render: (v: number) => <span style={{ color: v < 0 ? '#e74c3c' : undefined }}>{fmtMoney(v)}</span> },
-    { title: withSource('旷工(天)', '导入'), dataIndex: 'absenteeism_days', key: 'ad', width: 80, render: (v: any) => v ?? '—' },
-    { title: withSource('平时加班(天)', '导入'), dataIndex: 'regular_overtime_days', key: 'rod', width: 110, render: (v: any) => v ?? '—' },
-    { title: withSource('周末加班(天)', '导入'), dataIndex: 'weekend_overtime_days', key: 'wod', width: 110, render: (v: any) => v ?? '—' },
-    { title: withSource('节假日加班(天)', '导入'), dataIndex: 'holiday_overtime_days', key: 'hod', width: 110, render: (v: any) => v ?? '—' },
-    { title: withSource('保安法定加班(天)', '导入'), dataIndex: 'guard_overtime_days', key: 'god', width: 120, render: (v: any) => v ?? '—' },
-    { title: withSource('延时加班(小时)', '导入'), dataIndex: 'overtime_hours', key: 'oh', width: 110, render: (v: any) => v ?? '—' },
+    { title: withSource('旷工(天)', '导入'), dataIndex: 'absenteeism_days', key: 'ad', width: 80, render: (v: any) => v ? v : '—' },
+    { title: withSource('平时加班(天)', '导入'), dataIndex: 'regular_overtime_days', key: 'rod', width: 110, render: (v: any) => v ? v : '—' },
+    { title: withSource('周末加班(天)', '导入'), dataIndex: 'weekend_overtime_days', key: 'wod', width: 110, render: (v: any) => v ? v : '—' },
+    { title: withSource('节假日加班(天)', '导入'), dataIndex: 'holiday_overtime_days', key: 'hod', width: 110, render: (v: any) => v ? v : '—' },
+    { title: withSource('保安法定加班(天)', '导入'), dataIndex: 'guard_overtime_days', key: 'god', width: 120, render: (v: any) => v ? v : '—' },
+    { title: withSource('延时加班(小时)', '导入'), dataIndex: 'overtime_hours', key: 'oh', width: 110, render: (v: any) => v ? v : '—' },
     { title: withSource('时薪', '导入'), dataIndex: 'hourly_rate', key: 'hr', width: 90, render: (v: any) => fmtMoney(v) },
     { title: withSource('加班金额', '系统计算'), dataIndex: 'overtime_amount', key: 'oa', width: 90, render: (v: number) => fmtMoney(v) },
     { title: withSource('入离职调整', '系统计算'), dataIndex: 'on_off_adjust', key: 'oof', width: 100, render: (v: number) => fmtMoney(v) },
@@ -736,12 +736,12 @@ const AttendancePage: React.FC = () => {
       {/* 汇总卡片 */}
       <Card size="small" style={{ marginBottom: 12 }}>
         <Space size="large" wrap>
-          <span>员工人数：<strong>{summary.count}</strong></span>
-          <span>病假天数：<strong>{summary.sickDays}</strong></span>
-          <span>事假天数：<strong>{summary.personalDays}</strong></span>
-          <span>旷工天数：<strong>{summary.absenteeism}</strong></span>
-          <span>加班(天)：<strong>{summary.overtime}</strong></span>
-          <span>延时加班(小时)：<strong>{summary.overtimeHours}</strong></span>
+          <span>员工人数：<strong>{summary.count ? summary.count : '—'}</strong></span>
+          <span>病假天数：<strong>{summary.sickDays ? summary.sickDays : '—'}</strong></span>
+          <span>事假天数：<strong>{summary.personalDays ? summary.personalDays : '—'}</strong></span>
+          <span>旷工天数：<strong>{summary.absenteeism ? summary.absenteeism : '—'}</strong></span>
+          <span>加班(天)：<strong>{summary.overtime ? summary.overtime : '—'}</strong></span>
+          <span>延时加班(小时)：<strong>{summary.overtimeHours ? summary.overtimeHours : '—'}</strong></span>
           <span>扣款合计：<strong style={{ color: '#e74c3c' }}>{fmtMoney(summary.deductAmount)}</strong></span>
           <span>增发合计：<strong style={{ color: '#27ae60' }}>{fmtMoney(summary.addAmount)}</strong></span>
           <span>考勤调整净额：<strong style={{ color: summary.netTotal < 0 ? '#e74c3c' : '#27ae60' }}>{fmtMoney(summary.netTotal)}</strong></span>
@@ -764,26 +764,26 @@ const AttendancePage: React.FC = () => {
             <Descriptions.Item label="入职日期">{detailRecord.entry_date}</Descriptions.Item>
             <Descriptions.Item label="基本工资">{fmtMoney(detailRecord.basic_salary)}</Descriptions.Item>
             <Descriptions.Item label="考勤工资">{fmtMoney(detailRecord.attendance_wage)}</Descriptions.Item>
-            <Descriptions.Item label="计薪天数">{detailRecord.pay_days}</Descriptions.Item>
+            <Descriptions.Item label="计薪天数">{detailRecord.pay_days ? detailRecord.pay_days : '—'}</Descriptions.Item>
 
             {/* 计算依据 */}
-            <Descriptions.Item label="本企业连续工龄">{calcResult.seniority_years} 年</Descriptions.Item>
+            <Descriptions.Item label="本企业连续工龄">{calcResult.seniority_years ? `${calcResult.seniority_years} 年` : '—'}</Descriptions.Item>
             <Descriptions.Item label="日薪">{fmtMoney(calcResult.daily_wage)}</Descriptions.Item>
             <Descriptions.Item label="病假支付系数">{(calcResult.sick_pay_rate * 100).toFixed(0)}%</Descriptions.Item>
             <Descriptions.Item label="病假扣款系数">{(calcResult.sick_deduct_rate * 100).toFixed(0)}%</Descriptions.Item>
 
             {/* 考勤数据 */}
-            <Descriptions.Item label="病假天数">{detailRecord.sick_days}</Descriptions.Item>
+            <Descriptions.Item label="病假天数">{detailRecord.sick_days ? detailRecord.sick_days : '—'}</Descriptions.Item>
             <Descriptions.Item label="病假金额">{fmtMoney(detailRecord.sick_amount)}</Descriptions.Item>
-            <Descriptions.Item label="事假天数">{detailRecord.personal_days}</Descriptions.Item>
+            <Descriptions.Item label="事假天数">{detailRecord.personal_days ? detailRecord.personal_days : '—'}</Descriptions.Item>
             <Descriptions.Item label="事假金额">{fmtMoney(detailRecord.personal_amount)}</Descriptions.Item>
-            <Descriptions.Item label="旷工天数">{detailRecord.absenteeism_days}</Descriptions.Item>
+            <Descriptions.Item label="旷工天数">{detailRecord.absenteeism_days ? detailRecord.absenteeism_days : '—'}</Descriptions.Item>
             <Descriptions.Item label="旷工金额">{fmtMoney(detailRecord.absenteeism_amount)}</Descriptions.Item>
-            <Descriptions.Item label="平时加班(天)">{detailRecord.regular_overtime_days ?? '—'}</Descriptions.Item>
-            <Descriptions.Item label="周末加班(天)">{detailRecord.weekend_overtime_days ?? '—'}</Descriptions.Item>
-            <Descriptions.Item label="节假日加班(天)">{detailRecord.holiday_overtime_days ?? '—'}</Descriptions.Item>
-            <Descriptions.Item label="保安法定加班(天)">{detailRecord.guard_overtime_days ?? '—'}</Descriptions.Item>
-            <Descriptions.Item label="延时加班(小时)">{detailRecord.overtime_hours ?? '—'}</Descriptions.Item>
+            <Descriptions.Item label="平时加班(天)">{detailRecord.regular_overtime_days ? detailRecord.regular_overtime_days : '—'}</Descriptions.Item>
+            <Descriptions.Item label="周末加班(天)">{detailRecord.weekend_overtime_days ? detailRecord.weekend_overtime_days : '—'}</Descriptions.Item>
+            <Descriptions.Item label="节假日加班(天)">{detailRecord.holiday_overtime_days ? detailRecord.holiday_overtime_days : '—'}</Descriptions.Item>
+            <Descriptions.Item label="保安法定加班(天)">{detailRecord.guard_overtime_days ? detailRecord.guard_overtime_days : '—'}</Descriptions.Item>
+            <Descriptions.Item label="延时加班(小时)">{detailRecord.overtime_hours ? detailRecord.overtime_hours : '—'}</Descriptions.Item>
             <Descriptions.Item label="时薪">{fmtMoney(detailRecord.hourly_rate)}</Descriptions.Item>
             <Descriptions.Item label="加班金额">{fmtMoney(detailRecord.overtime_amount)}</Descriptions.Item>
             <Descriptions.Item label="实际出勤天数">{detailRecord.actual_attendance_days || '—'}</Descriptions.Item>
