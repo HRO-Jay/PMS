@@ -80,6 +80,19 @@ function niceStep(raw: number): number {
   return nice * mag;
 }
 
+/** 金额简写：5000→"5千"，10000→"1万"，15000→"1.5万" */
+function fmtShort(v: number): string {
+  if (v >= 10000) {
+    const w = v / 10000;
+    return `${Number.isInteger(w) ? w : w.toFixed(1)}万`;
+  }
+  if (v >= 1000) {
+    const k = v / 1000;
+    return `${Number.isInteger(k) ? k : k.toFixed(1)}千`;
+  }
+  return `${v}`;
+}
+
 /** 动态等宽分箱（4-6 个区间），返回区间边界与统计 */
 function buildBins(values: number[]): { lo: number; hi: number; label: string; count: number; pct: number }[] {
   const v = values.filter(x => Number(x) > 0);
@@ -87,7 +100,7 @@ function buildBins(values: number[]): { lo: number; hi: number; label: string; c
   const min = Math.min(...v);
   const max = Math.max(...v);
   if (min === max) {
-    return [{ lo: min, hi: max, label: `¥${Math.round(min).toLocaleString('zh-CN')}`, count: v.length, pct: 100 }];
+    return [{ lo: min, hi: max, label: `¥${fmtShort(min)}`, count: v.length, pct: 100 }];
   }
   const step = niceStep((max - min) / 5);
   const start = Math.floor(min / step) * step;
@@ -100,12 +113,15 @@ function buildBins(values: number[]): { lo: number; hi: number; label: string; c
   });
   const total = v.length;
   return bins.map((b, i) => {
-    const loFmt = `¥${Math.round(b.lo).toLocaleString('zh-CN')}`;
-    const hiFmt = `¥${Math.round(b.hi).toLocaleString('zh-CN')}`;
     let label: string;
-    if (i === 0) label = `${loFmt}以下`;
-    else if (i === bins.length - 1) label = `${loFmt}以上`;
-    else label = `${loFmt}-${hiFmt}`;
+    if (i === 0) {
+      // 第一档：从 0 到 hi
+      label = `¥${fmtShort(b.hi)}以下`;
+    } else if (i === bins.length - 1) {
+      label = `¥${fmtShort(b.lo)}以上`;
+    } else {
+      label = `¥${fmtShort(b.lo)}-${fmtShort(b.hi)}`;
+    }
     return { lo: b.lo, hi: b.hi, label, count: b.count, pct: Math.round((b.count / total) * 100) };
   });
 }
@@ -435,7 +451,7 @@ const Dashboard: React.FC = () => {
     const medianLine = (!empty && medianIdx >= 0) ? {
       silent: true, symbol: 'none',
       lineStyle: { color: GOLD, type: 'dashed', width: 1.5 },
-      label: { formatter: `中位数 ${fmtMoneyInt(salaryMedian)}`, color: '#8a6d1f', fontSize: 11, position: 'insideEndTop' },
+      label: { show: false },
       data: [{ xAxis: showData[medianIdx].label }],
     } : undefined;
     chart.setOption({
@@ -515,7 +531,7 @@ const Dashboard: React.FC = () => {
         markLine: empty ? undefined : {
           silent: true, symbol: 'none',
           lineStyle: { color: GOLD, type: 'dashed', width: 1.5 },
-          label: { formatter: `公司平均 ${fmtMoneyInt(companyAvgNet)}`, position: 'insideEndTop', color: '#8a6d1f', fontSize: 11 },
+          label: { show: false },
           data: [{ xAxis: companyAvgNet }],
         },
       }],
@@ -643,20 +659,15 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* 核心指标卡 第一排（5张） */}
-      <Row gutter={12} style={{ marginBottom: 12 }}>
+      {/* 核心指标卡（7张一行，等宽） */}
+      <Row gutter={12} style={{ marginBottom: 16 }}>
         <Col flex="1"><MetricCard title="员工总数" value={stats?.employee_count || 0} unit="人" icon={<TeamOutlined />} color={paletteColor(0)} /></Col>
         <Col flex="1"><MetricCard title="应发工资总计" value={stats?.total_wage_subtotal} unit="元" icon={<DollarOutlined />} color={paletteColor(1)} prev={prevStats?.total_wage_subtotal} /></Col>
         <Col flex="1"><MetricCard title="社保公积金扣除" value={stats?.total_personal_welfare} unit="元" icon={<SafetyCertificateOutlined />} color={paletteColor(2)} prev={prevStats?.total_personal_welfare} /></Col>
         <Col flex="1"><MetricCard title="个税总计" value={stats?.total_tax} unit="元" icon={<CalculatorOutlined />} color={paletteColor(5)} prev={prevStats?.total_tax} /></Col>
         <Col flex="1"><MetricCard title="实发工资总计" value={stats?.total_net_pay} unit="元" icon={<BankOutlined />} color={paletteColor(6)} prev={prevStats?.total_net_pay} /></Col>
-      </Row>
-
-      {/* 核心指标卡 第二排（2张，宽度对齐第一排前两张） */}
-      <Row gutter={12} style={{ marginBottom: 16 }}>
-        <Col flex="2"><MetricCard title="当月人力成本" value={stats?.total_cost} unit="元" icon={<AccountBookOutlined />} color={paletteColor(7)} prev={prevStats?.total_cost} warn={stats && stats.total_cost < stats.total_wage_subtotal} /></Col>
-        <Col flex="2"><MetricCard title="人均实发工资" value={stats?.avg_net} unit="元" icon={<UserOutlined />} color={paletteColor(8)} prev={prevStats?.avg_net} /></Col>
-        <Col flex="1" />
+        <Col flex="1"><MetricCard title="当月人力成本" value={stats?.total_cost} unit="元" icon={<AccountBookOutlined />} color={paletteColor(7)} prev={prevStats?.total_cost} warn={stats && stats.total_cost < stats.total_wage_subtotal} /></Col>
+        <Col flex="1"><MetricCard title="人均实发工资" value={stats?.avg_net} unit="元" icon={<UserOutlined />} color={paletteColor(8)} prev={prevStats?.avg_net} /></Col>
       </Row>
 
       {/* 统计分析图表区 */}
