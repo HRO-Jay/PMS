@@ -365,52 +365,17 @@ const AttendancePage: React.FC = () => {
     ],
   };
 
-  // 特殊调整详情导出表头（完整字段，含计算金额）
-  const ADJ_DETAIL_EXPORT_DEF: ExportDef = {
-    module: '特殊调整详情',
-    columns: [
-      { key: 'name', label: '姓名' },
-      { key: 'pay_company', label: '发薪公司' },
-      { key: 'period', label: '月份' },
-      { key: 'adjust_type', label: '调整类型' },
-      { key: 'adjust_base', label: '调整基数' },
-      { key: 'adjust_qty', label: '调整数量' },
-      { key: 'adjust_ratio', label: '绩效/计发比例' },
-      { key: 'fixed_amount', label: '固定调整金额' },
-      { key: 'direction', label: '调整方向' },
-      { key: 'amount', label: '调整金额' },
-      { key: 'currency', label: '币种' },
-      { key: 'reason', label: '调整原因' },
-      { key: 'attachment_note', label: '备注' },
-      { key: 'created_at', label: '录入时间' },
-    ],
-  };
-
-  // 特殊调整导出（三档：空白模板 / 报表 / 详情）
-  const handleAdjExport = (mode: 'template' | 'full' | 'detail') => {
-    if (mode === 'template') {
-      exportXlsx(ADJ_EXPORT_DEF, [], period);
-      return;
-    }
-    // 带姓名公司 + 计算调整金额
+  // 特殊调整导出（直接导出当前特殊调整记录，带姓名公司）
+  const handleAdjExport = () => {
     const adjWithEmp = adjustments.map((a: any) => {
       const emp = Object.values(employees).find((e: any) => e.unique_hash === a.unique_hash);
-      const baseAmount = a.fixed_amount !== undefined && a.fixed_amount !== null
-        ? Number(a.fixed_amount)
-        : Number(a.adjust_base || 0) * Number(a.adjust_qty || 0) * Number(a.adjust_ratio || 1);
-      const amount = a.direction === '扣减' ? -Math.abs(baseAmount) : Math.abs(baseAmount);
       return {
         ...a,
         name: emp?.name || '',
         pay_company: emp?.pay_company || '',
-        amount: Number(amount.toFixed(2)),
       };
     });
-    if (mode === 'full') {
-      exportXlsx(ADJ_EXPORT_DEF, adjWithEmp, period);
-    } else {
-      exportXlsx(ADJ_DETAIL_EXPORT_DEF, adjWithEmp, period);
-    }
+    exportXlsx(ADJ_EXPORT_DEF, adjWithEmp, period);
   };
 
   // 特殊调整批量导入
@@ -490,8 +455,49 @@ const AttendancePage: React.FC = () => {
     }
   };
 
-  // 导出
+  // 考勤详情导出表头（含系统计算字段）
+  const ATT_DETAIL_EXPORT_DEF: ExportDef = {
+    module: '考勤详情',
+    columns: [
+      { key: 'unique_hash', label: '唯一值', hidden: false },
+      { key: 'employee_name', label: '姓名' },
+      { key: 'pay_company', label: '发薪公司' },
+      { key: 'cost_center', label: '成本中心' },
+      { key: 'department', label: '部门' },
+      { key: 'report_to', label: '汇报人' },
+      { key: 'position', label: '职位' },
+      { key: 'attendance_type', label: '考勤制' },
+      { key: 'entry_date', label: '入职日期' },
+      { key: 'basic_salary', label: '基本工资' },
+      { key: 'attendance_wage', label: '考勤工资' },
+      { key: 'pay_days', label: '计薪天数' },
+      { key: 'seniority', label: '本企业连续工龄(年)' },
+      { key: 'daily_wage', label: '日薪' },
+      { key: 'sick_pay_rate', label: '病假支付系数' },
+      { key: 'sick_days', label: '病假(天)' },
+      { key: 'sick_amount', label: '病假金额' },
+      { key: 'personal_days', label: '事假(天)' },
+      { key: 'personal_amount', label: '事假金额' },
+      { key: 'absenteeism_days', label: '旷工(天)' },
+      { key: 'absenteeism_amount', label: '旷工金额' },
+      { key: 'overtime_type', label: '加班类型' },
+      { key: 'overtime_qty', label: '加班数量' },
+      { key: 'overtime_unit', label: '加班单位' },
+      { key: 'overtime_amount', label: '加班金额' },
+      { key: 'actual_attendance_days', label: '实际出勤天数' },
+      { key: 'on_off_adjust', label: '入离职调整' },
+      { key: 'special_adjust_amount', label: '特殊调整金额' },
+      { key: 'attendance_adjust_total', label: '考勤调整合计' },
+      { key: 'data_source', label: '数据来源' },
+      { key: 'data_status', label: '数据状态' },
+    ],
+  };
+
+  // 导出（报表）
   const handleExport = () => exportXlsx(EXPORT_DEF, records, period);
+
+  // 导出（详情）
+  const handleExportDetail = () => exportXlsx(ATT_DETAIL_EXPORT_DEF, records, period);
 
   // 导入
   const handleImport = async (file: File) => {
@@ -668,24 +674,31 @@ const AttendancePage: React.FC = () => {
           <Dropdown menu={{
             items: [
               { key: 'import', label: '导入' },
-              { key: 'export', label: '导出', children: [
-                { key: 'template', label: '导出空白模板' },
-                { key: 'full', label: '导出报表' },
-                { key: 'detail', label: '导出详情' },
-              ]},
+              { key: 'export', label: '导出' },
             ],
             onClick: ({ key }) => {
               if (key === 'import') {
                 // 触发导入
                 document.getElementById('adj-import-upload')?.click();
               } else {
-                handleAdjExport(key as 'template' | 'full' | 'detail');
+                handleAdjExport();
               }
             },
           }}>
             <Button icon={<PlusOutlined />}>特殊调整</Button>
           </Dropdown>
-          <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
+          <Dropdown menu={{
+            items: [
+              { key: 'full', label: '导出报表' },
+              { key: 'detail', label: '导出详情' },
+            ],
+            onClick: ({ key }) => {
+              if (key === 'detail') handleExportDetail();
+              else handleExport();
+            },
+          }}>
+            <Button icon={<DownloadOutlined />}>导出</Button>
+          </Dropdown>
           <Button icon={<SettingOutlined />} onClick={() => setColSettingOpen(true)}>列设置</Button>
           <Button icon={<SettingOutlined />} onClick={() => navigate('/attendance/rules')}>规则配置</Button>
           <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
