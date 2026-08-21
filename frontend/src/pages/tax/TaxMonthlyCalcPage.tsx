@@ -29,7 +29,7 @@ const TaxMonthlyCalcPage: React.FC = () => {
     try {
       // 并行加载：员工、期初累计数、专项附加、上月专项附加、上月计算、当月计算、社保个人福利、薪酬本期收入
       const [empRes, openingRes, specialRes, prevSpecialRes, prevCalcRes, calcRes, welfareRes, salaryRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,attendance_type'),
+        api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,attendance_type&tax_method=eq.normal'),
         api.get('/tax_opening_balances?select=*'),
         api.get(`/tax_special_deductions?select=*&period=eq.${period}`),
         api.get(`/tax_special_deductions?select=*&period=eq.${prevPeriod(period)}`),
@@ -245,7 +245,7 @@ const TaxMonthlyCalcPage: React.FC = () => {
   ];
 
   return (
-    <Card size="small" title="个税月度计算（累计预扣法）">
+    <Card size="small" title="个税月度计算（累计预扣法，正常计税人员）">
       <Space style={{ marginBottom: 12 }}>
         <span>所得期间：</span>
         <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 180 }} />

@@ -48,6 +48,8 @@ const EXPORT_DEF: ExportDef = {
     { key: 'parental_leave', label: '育儿假' },
     { key: 'marriage_leave', label: '婚假' },
     { key: 'maternity_leave', label: '产假' },
+    { key: 'adjust_type', label: '调整类型' },
+    { key: 'adjust_amount', label: '调整金额' },
     { key: 'regular_overtime_days', label: '平时加班(天)' },
     { key: 'weekend_overtime_days', label: '周末加班(天)' },
     { key: 'holiday_overtime_days', label: '节假日加班(天)' },
@@ -73,10 +75,6 @@ const AttendancePage: React.FC = () => {
   const [detailRecord, setDetailRecord] = useState<any>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [addForm, setAddForm] = useState<any>({});
-  // 特殊调整
-  const [adjOpen, setAdjOpen] = useState(false);
-  const [adjForm, setAdjForm] = useState<any>({});
-  const [adjustments, setAdjustments] = useState<any[]>([]);
 
   // 筛选器状态
   const [fPayCompany, setFPayCompany] = useState<string>();
@@ -98,13 +96,11 @@ const AttendancePage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [empRes, recRes, adjRes, rulesRes] = await Promise.all([
+      const [empRes, recRes, rulesRes] = await Promise.all([
         api.get('/employees?select=unique_hash,name,status,cost_center,pay_company,tax_method,department,report_to,position,job_level,attendance_type,entry_date,leave_date,basic_salary'),
         api.get(`/attendance_records?select=*&period=eq.${period}&order=unique_hash`),
-        api.get(`/attendance_adjustments?select=*&period=eq.${period}`),
         api.get('/attendance_rules?select=*'),
       ]);
-      setAdjustments(adjRes.data);
       // 考勤计算规则：优先读数据库 attendance_rules，缺省回退内置默认
       const rules = parseAttendanceRules(rulesRes.data);
       setAttRules(rules);
@@ -118,19 +114,9 @@ const AttendancePage: React.FC = () => {
       const recMap: Record<string, any> = {};
       recRes.data.forEach((r: any) => { recMap[r.unique_hash] = r; });
 
-      // 特殊调整按员工汇总金额
-      const adjSumMap: Record<string, number> = {};
-      adjustments.forEach((a: any) => {
-        const amount = a.fixed_amount !== undefined && a.fixed_amount !== null
-          ? Number(a.fixed_amount)
-          : Number(a.adjust_base || 0) * Number(a.adjust_qty || 0) * Number(a.adjust_ratio || 1);
-        const signed = a.direction === '扣减' ? -Math.abs(amount) : Math.abs(amount);
-        adjSumMap[a.unique_hash] = Number(((adjSumMap[a.unique_hash] || 0) + signed).toFixed(2));
-      });
-
       // 左连接：以花名册员工为准，自动列出所有人（在职全显 + 离职但当月有记录也显示）
       const merged = empList
-        .filter((e: any) => e.status === '在职' || recMap[e.unique_hash] || adjSumMap[e.unique_hash])
+        .filter((e: any) => e.status === '在职' || recMap[e.unique_hash])
         .map((e: any) => {
           const rec = recMap[e.unique_hash];
           return {
@@ -165,8 +151,8 @@ const AttendancePage: React.FC = () => {
             // 以下必须在考勤记录展开之后再赋值，避免被记录里的空值覆盖成横杠
             // 考勤工资来自考勤记录导入
             attendance_wage: rec?.attendance_wage ?? undefined,
-            // 特殊调整金额
-            special_adjust_amount: adjSumMap[e.unique_hash] || 0,
+            // 调整类型（文本，来自考勤记录，展示到详情抽屉）
+            adjust_type: rec?.adjust_type ?? undefined,
           };
         });
 
@@ -226,7 +212,8 @@ const AttendancePage: React.FC = () => {
       holiday_fixed_amount: r.holiday_fixed_amount,
       position: r.position,
       actual_attendance_days: r.actual_attendance_days,
-      special_adjust_amount: r.special_adjust_amount,
+      adjust_type: r.adjust_type,
+      adjust_amount: r.adjust_amount,
     });
     return result;
   };
@@ -291,6 +278,8 @@ const AttendancePage: React.FC = () => {
         absenteeism_days: record.absenteeism_days, funeral_leave: record.funeral_leave,
         parental_leave: record.parental_leave, marriage_leave: record.marriage_leave,
         maternity_leave: record.maternity_leave,
+        adjust_type: record.adjust_type,
+        adjust_amount: record.adjust_amount,
         regular_overtime_days: record.regular_overtime_days, weekend_overtime_days: record.weekend_overtime_days,
         holiday_overtime_days: record.holiday_overtime_days, guard_overtime_days: record.guard_overtime_days,
         overtime_hours: record.overtime_hours,
@@ -339,101 +328,6 @@ const AttendancePage: React.FC = () => {
     setAddOpen(true);
   };
 
-  // 打开特殊调整抽屉
-  const openAdjust = () => {
-    setAdjForm({ direction: '增发', currency: '人民币' });
-    setAdjOpen(true);
-  };
-
-  // 保存特殊调整
-  const handleAdjSave = async () => {
-    if (!adjForm.unique_hash) { message.warning('请选择员工'); return; }
-    if (!adjForm.adjust_type) { message.warning('请选择调整类型'); return; }
-    if (!adjForm.reason) { message.warning('请填写调整原因'); return; }
-    try {
-      await api.post('/attendance_adjustments', { ...adjForm, period });
-      message.success('特殊调整已保存');
-      setAdjOpen(false);
-      setAdjForm({});
-      loadData();
-    } catch (e: any) {
-      message.error(e.response?.data?.message || '保存失败');
-    }
-  };
-
-  // 特殊调整导入/导出表头
-  const ADJ_EXPORT_DEF: ExportDef = {
-    module: '特殊调整',
-    columns: [
-      { key: 'name', label: '姓名', required: true },
-      { key: 'pay_company', label: '发薪公司', required: true },
-      { key: 'adjust_type', label: '调整类型', required: true },
-      { key: 'adjust_base', label: '调整基数' },
-      { key: 'adjust_qty', label: '调整数量' },
-      { key: 'adjust_ratio', label: '绩效/计发比例' },
-      { key: 'fixed_amount', label: '固定调整金额' },
-      { key: 'direction', label: '调整方向', required: true },
-      { key: 'reason', label: '调整原因', required: true },
-      { key: 'attachment_note', label: '备注' },
-    ],
-  };
-
-  // 特殊调整导出（直接导出当前特殊调整记录，带姓名公司）
-  const handleAdjExport = () => {
-    const adjWithEmp = adjustments.map((a: any) => {
-      const emp = Object.values(employees).find((e: any) => e.unique_hash === a.unique_hash);
-      return {
-        ...a,
-        name: emp?.name || '',
-        pay_company: emp?.pay_company || '',
-      };
-    });
-    exportXlsx(ADJ_EXPORT_DEF, adjWithEmp, period);
-  };
-
-  // 特殊调整批量导入
-  const handleAdjImport = async (file: File) => {
-    try {
-      const { data, import_errors } = await importXlsx(ADJ_EXPORT_DEF, file);
-      if (import_errors.length > 0) message.warning(`有 ${import_errors.length} 行数据存在问题`);
-      if (data.length === 0) { message.info('未找到有效数据'); return; }
-
-      // 建立 姓名+发薪公司 -> unique_hash 映射
-      const empList = Object.values(employees);
-      let success = 0;
-      const failures: string[] = [];
-
-      for (const row of data) {
-        try {
-          const emp = empList.find((e: any) => e.name === row.name && e.pay_company === row.pay_company);
-          if (!emp) {
-            failures.push(`${row.name}（${row.pay_company}）无法匹配花名册`);
-            continue;
-          }
-          if (!row.adjust_type) { failures.push(`${row.name}：缺调整类型`); continue; }
-          if (!row.reason) { failures.push(`${row.name}：缺调整原因`); continue; }
-          await api.post('/attendance_adjustments', {
-            ...row,
-            unique_hash: emp.unique_hash,
-            period,
-            currency: '人民币',
-          });
-          success++;
-        } catch {
-          failures.push(`${row.name}：导入失败`);
-        }
-      }
-      if (failures.length > 0) {
-        message.warning(`导入完成：成功 ${success} 条，失败 ${failures.length} 条。${failures.slice(0, 8).join('；')}`);
-      } else {
-        message.success(`导入完成：${success} / ${data.length} 条`);
-      }
-      loadData();
-    } catch (e: any) {
-      message.error(e.message || '导入失败');
-    }
-  };
-
   // 添加记录保存
   const handleAddSave = async () => {
     if (!addForm.unique_hash) {
@@ -458,6 +352,8 @@ const AttendancePage: React.FC = () => {
         absenteeism_days: addForm.absenteeism_days, funeral_leave: addForm.funeral_leave,
         parental_leave: addForm.parental_leave, marriage_leave: addForm.marriage_leave,
         maternity_leave: addForm.maternity_leave,
+        adjust_type: addForm.adjust_type,
+        adjust_amount: addForm.adjust_amount,
         regular_overtime_days: addForm.regular_overtime_days, weekend_overtime_days: addForm.weekend_overtime_days,
         holiday_overtime_days: addForm.holiday_overtime_days, guard_overtime_days: addForm.guard_overtime_days,
         overtime_hours: addForm.overtime_hours, hourly_rate: addForm.hourly_rate,
@@ -530,7 +426,8 @@ const AttendancePage: React.FC = () => {
       { key: 'overtime_amount', label: '加班金额' },
       { key: 'actual_attendance_days', label: '实际出勤天数' },
       { key: 'on_off_adjust', label: '入离职调整' },
-      { key: 'special_adjust_amount', label: '特殊调整金额' },
+      { key: 'adjust_type', label: '调整类型' },
+      { key: 'adjust_amount', label: '调整金额' },
       { key: 'attendance_adjust_total', label: '考勤调整合计' },
       { key: 'data_source', label: '数据来源' },
       { key: 'data_status', label: '数据状态' },
@@ -601,7 +498,7 @@ const AttendancePage: React.FC = () => {
           for (const f of dayFields) {
             normalized[f] = row[f] === undefined || row[f] === null || row[f] === '' ? 0 : Number(row[f]);
           }
-          const moneyFields = ['basic_salary', 'attendance_wage', 'hourly_rate', 'holiday_fixed_amount'];
+          const moneyFields = ['basic_salary', 'attendance_wage', 'hourly_rate', 'holiday_fixed_amount', 'adjust_amount'];
           for (const f of moneyFields) {
             normalized[f] = row[f] === undefined || row[f] === null || row[f] === '' ? null : Number(row[f]);
           }
@@ -613,6 +510,8 @@ const AttendancePage: React.FC = () => {
           normalized.continuous_sick_end = row.continuous_sick_end || null;
           normalized.transfer_date = row.transfer_date || null;
           normalized.remark = row.remark || null;
+          // 调整类型（文本）
+          normalized.adjust_type = row.adjust_type || null;
 
           // 用归一化后的数据重算金额
           const calc = calcAttendance({
@@ -634,6 +533,8 @@ const AttendancePage: React.FC = () => {
             hourly_rate: normalized.hourly_rate,
             holiday_fixed_amount: normalized.holiday_fixed_amount,
             actual_attendance_days: normalized.actual_attendance_days,
+            adjust_type: normalized.adjust_type,
+            adjust_amount: normalized.adjust_amount,
           });
 
           const payload = {
@@ -654,6 +555,8 @@ const AttendancePage: React.FC = () => {
             parental_leave: normalized.parental_leave,
             marriage_leave: normalized.marriage_leave,
             maternity_leave: normalized.maternity_leave,
+            adjust_type: normalized.adjust_type,
+            adjust_amount: normalized.adjust_amount,
             regular_overtime_days: normalized.regular_overtime_days,
             weekend_overtime_days: normalized.weekend_overtime_days,
             holiday_overtime_days: normalized.holiday_overtime_days,
@@ -708,7 +611,8 @@ const AttendancePage: React.FC = () => {
     { key: 'is_continuous_sick', title: '是否连续病假', source: '导入', dataIndex: 'is_continuous_sick', render: (v: any) => v === true ? '是' : v === false ? '否' : '—' },
     { key: 'continuous_sick_start', title: '连续病假开始', source: '导入', dataIndex: 'continuous_sick_start', render: (v: any) => v || '—' },
     { key: 'continuous_sick_end', title: '连续病假结束', source: '导入', dataIndex: 'continuous_sick_end', render: (v: any) => v || '—' },
-    { key: 'special_adjust_amount', title: '特殊调整金额', source: '导入', dataIndex: 'special_adjust_amount', render: (v: any) => fmtMoney(v) },
+    { key: 'adjust_type', title: '调整类型', source: '导入', dataIndex: 'adjust_type', render: (v: any) => v || '—' },
+    { key: 'adjust_amount', title: '调整金额', source: '导入', dataIndex: 'adjust_amount', render: (v: any) => fmtMoney(v) },
     { key: 'data_source', title: '数据来源', source: '系统计算', dataIndex: 'data_source', render: (v: any) => v || '—' },
     { key: 'abnormal', title: '异常状态', source: '系统计算', dataIndex: 'abnormal', render: (v: any) => v === '异常' ? <Tag color="orange">异常</Tag> : <Tag color="green">正常</Tag> },
   ];
@@ -724,7 +628,7 @@ const AttendancePage: React.FC = () => {
     overtime: records.reduce((s, r) => s + (r.regular_overtime_days || 0) + (r.weekend_overtime_days || 0) + (r.holiday_overtime_days || 0) + (r.guard_overtime_days || 0), 0),
     overtimeHours: records.reduce((s, r) => s + (r.overtime_hours || 0), 0),
     deductAmount: records.reduce((s, r) => s + (r.sick_amount || 0) + (r.personal_amount || 0) + (r.absenteeism_amount || 0), 0),
-    addAmount: records.reduce((s, r) => s + (r.overtime_amount || 0) + (r.special_adjust_amount || 0), 0),
+    addAmount: records.reduce((s, r) => s + (r.overtime_amount || 0) + (r.adjust_amount || 0), 0),
     netTotal: records.reduce((s, r) => s + (r.attendance_adjust_total || 0), 0),
   };
 
@@ -791,22 +695,6 @@ const AttendancePage: React.FC = () => {
           <Button icon={<PlusOutlined />} onClick={openAdd}>添加记录</Button>
           <Dropdown menu={{
             items: [
-              { key: 'import', label: '导入' },
-              { key: 'export', label: '导出' },
-            ],
-            onClick: ({ key }) => {
-              if (key === 'import') {
-                // 触发导入
-                document.getElementById('adj-import-upload')?.click();
-              } else {
-                handleAdjExport();
-              }
-            },
-          }}>
-            <Button icon={<PlusOutlined />}>特殊调整</Button>
-          </Dropdown>
-          <Dropdown menu={{
-            items: [
               { key: 'full', label: '导出报表' },
               { key: 'detail', label: '导出详情' },
             ],
@@ -821,15 +709,6 @@ const AttendancePage: React.FC = () => {
           <Button icon={<SettingOutlined />} onClick={() => navigate('/attendance/rules')}>规则配置</Button>
           <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
             <Button icon={<UploadOutlined />}>导入考勤</Button>
-          </Upload>
-          <Upload
-            id="adj-import-upload"
-            accept=".xlsx,.xls"
-            showUploadList={false}
-            style={{ display: 'none' }}
-            beforeUpload={(file) => { handleAdjImport(file); return false; }}
-          >
-            <Button icon={<UploadOutlined />}>导入特殊调整</Button>
           </Upload>
         </Space>
       </Card>
@@ -909,6 +788,8 @@ const AttendancePage: React.FC = () => {
             <Descriptions.Item label="加班金额">{fmtMoney(detailRecord.overtime_amount)}</Descriptions.Item>
             <Descriptions.Item label="实际出勤天数">{detailRecord.actual_attendance_days || '—'}</Descriptions.Item>
             <Descriptions.Item label="入离职调整">{fmtMoney(detailRecord.on_off_adjust)}</Descriptions.Item>
+            <Descriptions.Item label="调整类型">{detailRecord.adjust_type || '—'}</Descriptions.Item>
+            <Descriptions.Item label="调整金额">{fmtMoney(detailRecord.adjust_amount)}</Descriptions.Item>
             <Descriptions.Item label="考勤调整合计" span={2}>
               <strong>{fmtMoney(detailRecord.attendance_adjust_total)}</strong>
             </Descriptions.Item>
@@ -942,59 +823,6 @@ const AttendancePage: React.FC = () => {
             </Space>
           </div>
         ))}
-      </Drawer>
-
-      {/* 特殊调整抽屉 */}
-      <Drawer
-        title="特殊考勤调整"
-        open={adjOpen}
-        onClose={() => setAdjOpen(false)}
-        width={560}
-        extra={
-          <Space>
-            <Button onClick={() => setAdjOpen(false)}>取消</Button>
-            <Button type="primary" onClick={handleAdjSave}>保存</Button>
-          </Space>
-        }
-      >
-        <Form layout="vertical">
-          <Form.Item label="员工" required>
-            <Select showSearch optionFilterProp="label" placeholder="从花名册选择员工"
-              value={adjForm.unique_hash}
-              onChange={(v) => setAdjForm({ ...adjForm, unique_hash: v })}
-              options={Object.values(employees).map((e: any) => ({ value: e.unique_hash, label: `${e.name} — ${e.pay_company}` }))} />
-          </Form.Item>
-          <Space style={{ width: '100%' }} size="large">
-            <Form.Item label="调整类型" required>
-              <Select style={{ width: 160 }} value={adjForm.adjust_type} onChange={(v) => setAdjForm({ ...adjForm, adjust_type: v })}
-                options={['考勤调整', '津贴', '补贴', '实习津贴', '其他'].map(t => ({ value: t, label: t }))} />
-            </Form.Item>
-            <Form.Item label="调整方向" required>
-              <Select style={{ width: 120 }} value={adjForm.direction} onChange={(v) => setAdjForm({ ...adjForm, direction: v })}
-                options={[{ value: '增发', label: '增发' }, { value: '扣减', label: '扣减' }]} />
-            </Form.Item>
-          </Space>
-          <Space style={{ width: '100%' }} size="large">
-            <Form.Item label="调整基数">
-              <InputNumber style={{ width: 140 }} min={0} value={adjForm.adjust_base} onChange={(v) => setAdjForm({ ...adjForm, adjust_base: v })} />
-            </Form.Item>
-            <Form.Item label="调整数量">
-              <InputNumber style={{ width: 120 }} min={0} value={adjForm.adjust_qty} onChange={(v) => setAdjForm({ ...adjForm, adjust_qty: v })} />
-            </Form.Item>
-            <Form.Item label="计发比例">
-              <InputNumber style={{ width: 120 }} min={0} max={10} step={0.1} value={adjForm.adjust_ratio} onChange={(v) => setAdjForm({ ...adjForm, adjust_ratio: v })} placeholder="如1=100%" />
-            </Form.Item>
-          </Space>
-          <Form.Item label="固定调整金额（填此项则按固定金额计算）">
-            <InputNumber style={{ width: 180 }} value={adjForm.fixed_amount} onChange={(v) => setAdjForm({ ...adjForm, fixed_amount: v })} />
-          </Form.Item>
-          <Form.Item label="调整原因" required>
-            <Input value={adjForm.reason} onChange={(e) => setAdjForm({ ...adjForm, reason: e.target.value })} />
-          </Form.Item>
-          <Form.Item label="备注">
-            <Input.TextArea rows={2} value={adjForm.attachment_note} onChange={(e) => setAdjForm({ ...adjForm, attachment_note: e.target.value })} />
-          </Form.Item>
-        </Form>
       </Drawer>
 
       {/* 添加/编辑记录抽屉 */}
@@ -1113,6 +941,16 @@ const AttendancePage: React.FC = () => {
             </Form.Item>
             <Form.Item label="产假">
               <InputNumber style={{ width: 100 }} min={0} value={addForm.maternity_leave} onChange={(v) => setAddForm({ ...addForm, maternity_leave: v })} />
+            </Form.Item>
+          </Space>
+
+          {/* 调整 */}
+          <Space style={{ width: '100%' }} size="large">
+            <Form.Item label="调整类型">
+              <Input style={{ width: 200 }} value={addForm.adjust_type} onChange={(e) => setAddForm({ ...addForm, adjust_type: e.target.value })} placeholder="如：补发/扣款/其他" />
+            </Form.Item>
+            <Form.Item label="调整金额">
+              <InputNumber style={{ width: 140 }} value={addForm.adjust_amount} onChange={(v) => setAddForm({ ...addForm, adjust_amount: v })} />
             </Form.Item>
           </Space>
 

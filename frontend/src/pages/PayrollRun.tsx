@@ -32,7 +32,6 @@ const EXPORT_DEF: ExportDef = {
     { key: 'entry_date', label: '入职日期' },
     { key: 'attendance_type', label: '考勤制' },
     { key: 'basic_salary', label: '基本工资' },
-    { key: 'attendance_wage', label: '考勤工资' },
     { key: 'attendance_adjust_total', label: '考勤调整合计' },
     { key: 'additional_total', label: '附加薪酬合计' },
     { key: 'personal_welfare_total', label: '个人福利合计' },
@@ -264,7 +263,6 @@ const PayrollPage: React.FC = () => {
       { key: 'employee_name', label: '姓名' },
       { key: 'net_pay', label: '实收' },
       { key: 'basic_salary', label: '基本工资' },
-      { key: 'attendance_wage', label: '考勤工资' },
       { key: 'allowance_supp', label: '补贴/补充公积金' },
       { key: 'attendance_adjust_total', label: '考勤调整合计' },
       { key: 'other_adjust', label: '其他补贴/调整' },
@@ -398,7 +396,6 @@ const PayrollPage: React.FC = () => {
     { title: withSource('计税方式', '花名册同步'), dataIndex: 'tax_method', key: 'tm', width: 90,
       render: (v: string) => <Tag color={v === 'normal' ? 'blue' : v === 'service' ? 'orange' : 'green'}>{v === 'normal' ? '正常计税' : v === 'service' ? '劳务计税' : '不计税'}</Tag> },
     { title: withSource('基本工资', '花名册同步'), dataIndex: 'basic_salary', key: 'bs', width: 110, render: fmtMoney },
-    { title: withSource('考勤工资', '导入'), dataIndex: 'attendance_wage', key: 'aw', width: 110, render: fmtMoney },
     { title: withSource('考勤调整合计', '考勤同步'), dataIndex: 'attendance_adjust_total', key: 'aat', width: 120, render: fmtMoney },
     { title: withSource('附加薪酬合计', '附加薪酬同步'), dataIndex: 'additional_total', key: 'at', width: 120, render: fmtMoney },
     { title: withSource('个人福利合计', '社保同步'), dataIndex: 'personal_welfare_total', key: 'pwt', width: 120, render: fmtMoney },
@@ -480,7 +477,6 @@ const PayrollPage: React.FC = () => {
             <Descriptions.Item label="姓名">{detailRecord.employee_name}</Descriptions.Item>
             <Descriptions.Item label="实收"><strong style={{ color: '#27ae60' }}>{fmtMoney(detailRecord.net_pay)}</strong></Descriptions.Item>
             <Descriptions.Item label="基本工资">{fmtMoney(detailRecord.basic_salary)}</Descriptions.Item>
-            <Descriptions.Item label="考勤工资">{fmtMoney(detailRecord.attendance_wage)}</Descriptions.Item>
             <Descriptions.Item label="补贴/补充公积金">{fmtMoney(detailRecord.allowance_supp)}</Descriptions.Item>
             <Descriptions.Item label="考勤调整合计">{fmtMoney(detailRecord.attendance_adjust_total)}</Descriptions.Item>
             <Descriptions.Item label="其他补贴/调整">{fmtMoney(detailRecord.other_adjust)}</Descriptions.Item>

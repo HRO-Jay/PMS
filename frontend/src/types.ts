@@ -218,6 +218,8 @@ export interface AttendanceRecord {
   parental_leave: number;
   marriage_leave: number;
   maternity_leave: number;
+  adjust_type?: string;
+  adjust_amount?: number;
   regular_overtime_days?: number;
   weekend_overtime_days?: number;
   holiday_overtime_days?: number;

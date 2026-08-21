@@ -1,7 +1,7 @@
 /**
  * 考勤计算引擎
  *
- * 根据考勤数据 + 花名册字段，自动计算各假期金额、加班金额、入离职调整、特殊调整和合计。
+ * 根据考勤数据 + 花名册字段，自动计算各假期金额、加班金额、入离职调整、调整金额和合计。
  * 所有金额四舍五入保留两位小数。
  *
  * 计算规则优先读取 attendance_rules 表（通过 parseAttendanceRules 解析后传入），
@@ -186,8 +186,9 @@ export interface AttendanceInput {
   // 入离职
   actual_attendance_days?: number;
   leave_date?: string;
-  // 特殊调整
-  special_adjust_amount?: number;
+  // 调整（调整类型 + 调整金额，调整金额汇入考勤调整合计）
+  adjust_type?: string;
+  adjust_amount?: number;
 }
 
 export interface AttendanceResult {
@@ -205,7 +206,7 @@ export interface AttendanceResult {
   guard_overtime_amount: number;
   delayed_overtime_amount: number;
   on_off_adjust: number;
-  special_adjust_amount: number;
+  adjust_amount: number;
   attendance_adjust_total: number;
 }
 
@@ -286,15 +287,15 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
     onOffAdjust = round2(prorated - wage);
   }
 
-  // 特殊调整
-  const specialAdjust = Number(input.special_adjust_amount || 0);
+  // 调整金额
+  const adjustAmount = Number(input.adjust_amount || 0);
 
   // 扣款字段存负数，增发字段存正数，合计 = 直接相加
   const sickAmountSigned = -sickAmount;
   const personalAmountSigned = -personalAmount;
   const absenteeismAmountSigned = -absenteeismAmount;
   const attendanceAdjustTotal = round2(
-    sickAmountSigned + personalAmountSigned + absenteeismAmountSigned + overtimeAmount + onOffAdjust + specialAdjust
+    sickAmountSigned + personalAmountSigned + absenteeismAmountSigned + overtimeAmount + onOffAdjust + adjustAmount
   );
 
   return {
@@ -312,7 +313,7 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
     guard_overtime_amount: guardAmount,
     delayed_overtime_amount: delayedAmount,
     on_off_adjust: onOffAdjust,
-    special_adjust_amount: specialAdjust,
+    adjust_amount: adjustAmount,
     attendance_adjust_total: attendanceAdjustTotal,
   };
 }
