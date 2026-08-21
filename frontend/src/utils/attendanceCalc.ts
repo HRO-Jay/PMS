@@ -135,18 +135,19 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
   let overtimeAmount = 0;
 
   if (overtimeQty > 0) {
+    // 加班倍率：平时1倍、周末2倍、法定节假日3倍（按天、按小时统一适用）
+    const rate = overtimeType === '周末加班' ? 2 : overtimeType === '法定节假日加班' ? 3 : 1;
     if (overtimeUnit === '小时') {
-      // 按小时：小时数 × 时薪
+      // 按小时：小时数 × 时薪 × 倍率
       const hourlyRate = Number(input.hourly_rate || 0);
-      overtimeAmount = round2(overtimeQty * hourlyRate);
+      overtimeAmount = round2(overtimeQty * hourlyRate * rate);
     } else {
       // 按天
       if (overtimeType === '法定节假日加班' && isCleaner(input.position)) {
-        // 保洁法定节假日：天数 × 固定金额
+        // 保洁法定节假日：天数 × 固定金额（不乘3倍）
         const fixed = Number(input.holiday_fixed_amount || 0);
         overtimeAmount = round2(overtimeQty * fixed);
       } else {
-        const rate = overtimeType === '周末加班' ? 2 : overtimeType === '法定节假日加班' ? 3 : 1;
         overtimeAmount = round2(overtimeQty * dailyWage * rate);
       }
     }
