@@ -297,7 +297,7 @@ const Dashboard: React.FC = () => {
     const maxVal = Math.max(...showData.map(d => d.count), 1);
     chart.setOption({
       grid: { left: 8, right: 90, top: 8, bottom: 8, containLabel: true },
-      tooltip: { trigger: 'item', formatter: (p: any) => empty ? '' : `${p.name}：${p.data.count}人（${p.data.pct}%）` },
+      tooltip: { trigger: 'item', formatter: (p: any) => empty ? '' : `${p.name}：${p.data.value}人（${p.data.pct}%）` },
       xAxis: { type: 'value', show: false, max: maxVal * 1.25 },
       yAxis: {
         type: 'category',
@@ -340,7 +340,7 @@ const Dashboard: React.FC = () => {
       grid: { left: 8, right: 100, top: 8, bottom: 8, containLabel: true },
       tooltip: {
         trigger: 'item',
-        formatter: (p: any) => empty ? '' : `${p.name}<br/>平均实发：¥${p.data.avg.toLocaleString('zh-CN')}<br/>样本量：${p.data.count}人<br/>中位数：¥${p.data.median.toLocaleString('zh-CN')}`,
+        formatter: (p: any) => empty ? '' : `${p.name}<br/>平均实发：¥${Number(p.data.value).toLocaleString('zh-CN')}<br/>样本量：${p.data.count}人<br/>中位数：¥${Number(p.data.median).toLocaleString('zh-CN')}`,
       },
       xAxis: { type: 'value', show: false, max: maxVal * 1.25 },
       yAxis: {
@@ -383,7 +383,7 @@ const Dashboard: React.FC = () => {
     const maxVal = Math.max(...showData.map(d => d.count), 1);
     chart.setOption({
       grid: { left: 8, right: 60, top: 8, bottom: 8, containLabel: true },
-      tooltip: { trigger: 'item', formatter: (p: any) => empty ? '' : `${p.name}：${p.data.count}人（${p.data.pct}%）` },
+      tooltip: { trigger: 'item', formatter: (p: any) => empty ? '' : `${p.name}：${p.data.value}人（${p.data.pct}%）` },
       xAxis: { type: 'value', show: false, max: maxVal * 1.25 },
       yAxis: {
         type: 'category', data: showData.map(d => d.label),
@@ -403,12 +403,6 @@ const Dashboard: React.FC = () => {
           show: true, position: 'right', color: '#333',
           formatter: (p: any) => empty ? '' : `${p.data.value}人（${p.data.pct}%）`,
         },
-        markLine: (empty || !salaryMedian) ? undefined : {
-          silent: true, symbol: 'none',
-          lineStyle: { color: WARNING, type: 'dashed', width: 1 },
-          label: { formatter: '中位数', color: WARNING, fontSize: 11, position: 'insideEndTop' },
-          data: [{ xAxis: 0 }],
-        },
       }],
       graphic: empty ? [{ type: 'text', left: 'center', top: 'middle', style: { text: '暂无数据', fill: '#999', fontSize: 14 } }] : [],
     });
@@ -423,7 +417,7 @@ const Dashboard: React.FC = () => {
     const empty = composition.length === 0;
     const showData = empty ? Array.from({ length: 6 }, () => ({ name: '—', value: 1 })) : composition;
     chart.setOption({
-      tooltip: { trigger: 'item', formatter: (p: any) => empty ? '' : `${p.name}：¥${p.data.value?.toLocaleString ? p.data.value.toLocaleString('zh-CN') : p.data.value}（${p.percent}%）` },
+      tooltip: { trigger: 'item', formatter: (p: any) => empty ? '' : `${p.name}：¥${Number(p.value).toLocaleString('zh-CN')}（${p.percent}%）` },
       series: [{
         type: 'pie',
         radius: ['48%', '72%'],
