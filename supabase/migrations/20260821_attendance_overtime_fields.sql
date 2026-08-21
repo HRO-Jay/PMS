@@ -10,6 +10,7 @@ ALTER TABLE attendance_records
   ADD COLUMN IF NOT EXISTS regular_overtime_days DECIMAL(8,1) DEFAULT 0,   -- 平时加班(天)
   ADD COLUMN IF NOT EXISTS weekend_overtime_days DECIMAL(8,1) DEFAULT 0,   -- 周末加班(天)
   ADD COLUMN IF NOT EXISTS holiday_overtime_days DECIMAL(8,1) DEFAULT 0,   -- 节假日加班(天)
+  ADD COLUMN IF NOT EXISTS guard_overtime_days  DECIMAL(8,1) DEFAULT 0,    -- 保安法定加班(天)
   ADD COLUMN IF NOT EXISTS overtime_hours        DECIMAL(8,1) DEFAULT 0;   -- 延时加班(小时)
 
 -- 历史数据回填：把旧的 加班类型/数量/单位 映射到新字段

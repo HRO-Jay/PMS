@@ -51,6 +51,7 @@ const EXPORT_DEF: ExportDef = {
     { key: 'regular_overtime_days', label: '平时加班(天)' },
     { key: 'weekend_overtime_days', label: '周末加班(天)' },
     { key: 'holiday_overtime_days', label: '节假日加班(天)' },
+    { key: 'guard_overtime_days', label: '保安法定加班(天)' },
     { key: 'overtime_hours', label: '延时加班(小时)' },
     { key: 'hourly_rate', label: '时薪' },
     { key: 'holiday_fixed_amount', label: '法定节假日固定金额' },
@@ -154,7 +155,7 @@ const AttendancePage: React.FC = () => {
               sick_days: 0, personal_days: 0, annual_leave: 0, compensatory_leave: 0,
               absenteeism_days: 0, funeral_leave: 0, parental_leave: 0, marriage_leave: 0,
               maternity_leave: 0, regular_overtime_days: 0, weekend_overtime_days: 0,
-              holiday_overtime_days: 0, overtime_hours: 0,
+              holiday_overtime_days: 0, guard_overtime_days: 0, overtime_hours: 0,
               sick_amount: 0, personal_amount: 0, absenteeism_amount: 0, overtime_amount: 0,
               on_off_adjust: 0, attendance_adjust_total: 0, data_status: '未录入',
             }),
@@ -219,6 +220,7 @@ const AttendancePage: React.FC = () => {
       regular_overtime_days: r.regular_overtime_days,
       weekend_overtime_days: r.weekend_overtime_days,
       holiday_overtime_days: r.holiday_overtime_days,
+      guard_overtime_days: r.guard_overtime_days,
       overtime_hours: r.overtime_hours,
       hourly_rate: r.hourly_rate,
       holiday_fixed_amount: r.holiday_fixed_amount,
@@ -290,7 +292,8 @@ const AttendancePage: React.FC = () => {
         parental_leave: record.parental_leave, marriage_leave: record.marriage_leave,
         maternity_leave: record.maternity_leave,
         regular_overtime_days: record.regular_overtime_days, weekend_overtime_days: record.weekend_overtime_days,
-        holiday_overtime_days: record.holiday_overtime_days, overtime_hours: record.overtime_hours,
+        holiday_overtime_days: record.holiday_overtime_days, guard_overtime_days: record.guard_overtime_days,
+        overtime_hours: record.overtime_hours,
         hourly_rate: record.hourly_rate,
         holiday_fixed_amount: record.holiday_fixed_amount,
         actual_attendance_days: record.actual_attendance_days,
@@ -442,17 +445,45 @@ const AttendancePage: React.FC = () => {
       return;
     }
     try {
+      // 重新计算（含加班金额等），并只提交数据库字段，避免把姓名/公司等展示字段写进去导致报错
+      const result = calcRecord(addForm);
+      const dbRow = {
+        unique_hash: addForm.unique_hash,
+        period,
+        basic_salary: addForm.basic_salary,
+        attendance_wage: addForm.attendance_wage,
+        pay_days: addForm.pay_days,
+        sick_days: addForm.sick_days, personal_days: addForm.personal_days,
+        annual_leave: addForm.annual_leave, compensatory_leave: addForm.compensatory_leave,
+        absenteeism_days: addForm.absenteeism_days, funeral_leave: addForm.funeral_leave,
+        parental_leave: addForm.parental_leave, marriage_leave: addForm.marriage_leave,
+        maternity_leave: addForm.maternity_leave,
+        regular_overtime_days: addForm.regular_overtime_days, weekend_overtime_days: addForm.weekend_overtime_days,
+        holiday_overtime_days: addForm.holiday_overtime_days, guard_overtime_days: addForm.guard_overtime_days,
+        overtime_hours: addForm.overtime_hours, hourly_rate: addForm.hourly_rate,
+        holiday_fixed_amount: addForm.holiday_fixed_amount,
+        actual_attendance_days: addForm.actual_attendance_days,
+        transfer_date: addForm.transfer_date,
+        is_continuous_sick: addForm.is_continuous_sick,
+        continuous_sick_start: addForm.continuous_sick_start,
+        continuous_sick_end: addForm.continuous_sick_end,
+        remark: addForm.remark,
+        sick_pay_rate: result.sick_pay_rate,
+        sick_amount: result.sick_amount,
+        personal_amount: result.personal_amount,
+        absenteeism_amount: result.absenteeism_amount,
+        overtime_amount: result.overtime_amount,
+        on_off_adjust: result.on_off_adjust,
+        attendance_adjust_total: result.attendance_adjust_total,
+        data_status: '已计算',
+      };
       // 有 id 说明是编辑已有记录
       if (addForm.id) {
-        await api.patch(`/attendance_records?id=eq.${addForm.id}`, {
-          ...addForm,
-          period,
-        });
+        await api.patch(`/attendance_records?id=eq.${addForm.id}`, dbRow);
         message.success('更新成功');
       } else {
         await api.post('/attendance_records', {
-          ...addForm,
-          period,
+          ...dbRow,
           data_status: '草稿',
         });
         message.success('添加成功');
@@ -493,6 +524,7 @@ const AttendancePage: React.FC = () => {
       { key: 'regular_overtime_days', label: '平时加班(天)' },
       { key: 'weekend_overtime_days', label: '周末加班(天)' },
       { key: 'holiday_overtime_days', label: '节假日加班(天)' },
+      { key: 'guard_overtime_days', label: '保安法定加班(天)' },
       { key: 'overtime_hours', label: '延时加班(小时)' },
       { key: 'hourly_rate', label: '时薪' },
       { key: 'overtime_amount', label: '加班金额' },
@@ -519,6 +551,8 @@ const AttendancePage: React.FC = () => {
       if (data.length === 0) { message.info('未找到有效数据'); return; }
 
       const validPayDays = attRules.pay_days_options.length ? attRules.pay_days_options : [21.75, 26, 30];
+      // 天数字段：Excel 留空一律按 0 处理，确保能把旧值清掉
+      const dayFields = ['sick_days', 'personal_days', 'annual_leave', 'compensatory_leave', 'absenteeism_days', 'funeral_leave', 'parental_leave', 'marriage_leave', 'maternity_leave', 'regular_overtime_days', 'weekend_overtime_days', 'holiday_overtime_days', 'guard_overtime_days', 'overtime_hours', 'actual_attendance_days'];
       let success = 0;
       const failures: string[] = [];
 
@@ -555,7 +589,6 @@ const AttendancePage: React.FC = () => {
             continue;
           }
           // 天数不能为负
-          const dayFields = ['sick_days', 'personal_days', 'annual_leave', 'compensatory_leave', 'absenteeism_days', 'funeral_leave', 'parental_leave', 'marriage_leave', 'maternity_leave', 'regular_overtime_days', 'weekend_overtime_days', 'holiday_overtime_days', 'overtime_hours'];
           for (const f of dayFields) {
             if (Number(row[f]) < 0) {
               failures.push(`${row.unique_hash}：${f} 不能为负数`);
@@ -563,13 +596,86 @@ const AttendancePage: React.FC = () => {
             }
           }
 
+          // 把 Excel 里的值归一化：天数字段空 → 0，金额字段空 → null
+          const normalized: Record<string, any> = {};
+          for (const f of dayFields) {
+            normalized[f] = row[f] === undefined || row[f] === null || row[f] === '' ? 0 : Number(row[f]);
+          }
+          const moneyFields = ['basic_salary', 'attendance_wage', 'hourly_rate', 'holiday_fixed_amount'];
+          for (const f of moneyFields) {
+            normalized[f] = row[f] === undefined || row[f] === null || row[f] === '' ? null : Number(row[f]);
+          }
+          // 布尔：是否连续病假
+          const isCont = String(row.is_continuous_sick ?? '').toLowerCase();
+          normalized.is_continuous_sick = (isCont === 'true' || isCont === '是');
+          // 日期
+          normalized.continuous_sick_start = row.continuous_sick_start || null;
+          normalized.continuous_sick_end = row.continuous_sick_end || null;
+          normalized.transfer_date = row.transfer_date || null;
+          normalized.remark = row.remark || null;
+
+          // 用归一化后的数据重算金额
+          const calc = calcAttendance({
+            entry_date: undefined, period,
+            attendance_wage: normalized.attendance_wage,
+            pay_days: normalized.pay_days ?? pd,
+            rules: attRules,
+            sick_days: normalized.sick_days,
+            is_continuous_sick: normalized.is_continuous_sick,
+            continuous_sick_start: normalized.continuous_sick_start,
+            continuous_sick_end: normalized.continuous_sick_end,
+            personal_days: normalized.personal_days,
+            absenteeism_days: normalized.absenteeism_days,
+            regular_overtime_days: normalized.regular_overtime_days,
+            weekend_overtime_days: normalized.weekend_overtime_days,
+            holiday_overtime_days: normalized.holiday_overtime_days,
+            guard_overtime_days: normalized.guard_overtime_days,
+            overtime_hours: normalized.overtime_hours,
+            hourly_rate: normalized.hourly_rate,
+            holiday_fixed_amount: normalized.holiday_fixed_amount,
+            actual_attendance_days: normalized.actual_attendance_days,
+          });
+
+          const payload = {
+            unique_hash: row.unique_hash,
+            period,
+            pay_days: normalized.pay_days ?? pd,
+            basic_salary: normalized.basic_salary,
+            attendance_wage: normalized.attendance_wage,
+            sick_days: normalized.sick_days,
+            is_continuous_sick: normalized.is_continuous_sick,
+            continuous_sick_start: normalized.continuous_sick_start,
+            continuous_sick_end: normalized.continuous_sick_end,
+            personal_days: normalized.personal_days,
+            annual_leave: normalized.annual_leave,
+            compensatory_leave: normalized.compensatory_leave,
+            absenteeism_days: normalized.absenteeism_days,
+            funeral_leave: normalized.funeral_leave,
+            parental_leave: normalized.parental_leave,
+            marriage_leave: normalized.marriage_leave,
+            maternity_leave: normalized.maternity_leave,
+            regular_overtime_days: normalized.regular_overtime_days,
+            weekend_overtime_days: normalized.weekend_overtime_days,
+            holiday_overtime_days: normalized.holiday_overtime_days,
+            guard_overtime_days: normalized.guard_overtime_days,
+            overtime_hours: normalized.overtime_hours,
+            hourly_rate: normalized.hourly_rate,
+            holiday_fixed_amount: normalized.holiday_fixed_amount,
+            actual_attendance_days: normalized.actual_attendance_days,
+            transfer_date: normalized.transfer_date,
+            remark: normalized.remark,
+            sick_pay_rate: calc.sick_pay_rate,
+            sick_amount: calc.sick_amount,
+            personal_amount: calc.personal_amount,
+            absenteeism_amount: calc.absenteeism_amount,
+            overtime_amount: calc.overtime_amount,
+            on_off_adjust: calc.on_off_adjust,
+            attendance_adjust_total: calc.attendance_adjust_total,
+            data_status: '已计算',
+            data_source: '导入',
+          };
+
           const existing = await api.get(`/attendance_records?unique_hash=eq.${row.unique_hash}&period=eq.${period}`);
-          // 剔除花名册同步字段（不属于考勤表，仅供导出展示）
-          const {
-            employee_name, pay_company, cost_center, department, report_to, position, attendance_type, entry_date,
-            ...dbRow
-          } = row;
-          const payload = { ...dbRow, period };
           if (existing.data.length > 0) {
             await api.patch(`/attendance_records?id=eq.${existing.data[0].id}`, payload);
           } else {
@@ -615,7 +721,7 @@ const AttendancePage: React.FC = () => {
     annualLeave: records.reduce((s, r) => s + (r.annual_leave || 0), 0),
     compensatory: records.reduce((s, r) => s + (r.compensatory_leave || 0), 0),
     absenteeism: records.reduce((s, r) => s + (r.absenteeism_days || 0), 0),
-    overtime: records.reduce((s, r) => s + (r.regular_overtime_days || 0) + (r.weekend_overtime_days || 0) + (r.holiday_overtime_days || 0), 0),
+    overtime: records.reduce((s, r) => s + (r.regular_overtime_days || 0) + (r.weekend_overtime_days || 0) + (r.holiday_overtime_days || 0) + (r.guard_overtime_days || 0), 0),
     overtimeHours: records.reduce((s, r) => s + (r.overtime_hours || 0), 0),
     deductAmount: records.reduce((s, r) => s + (r.sick_amount || 0) + (r.personal_amount || 0) + (r.absenteeism_amount || 0), 0),
     addAmount: records.reduce((s, r) => s + (r.overtime_amount || 0) + (r.special_adjust_amount || 0), 0),
@@ -643,6 +749,7 @@ const AttendancePage: React.FC = () => {
     { title: withSource('平时加班(天)', '导入'), dataIndex: 'regular_overtime_days', key: 'rod', width: 110, render: (v: any) => v ?? '—' },
     { title: withSource('周末加班(天)', '导入'), dataIndex: 'weekend_overtime_days', key: 'wod', width: 110, render: (v: any) => v ?? '—' },
     { title: withSource('节假日加班(天)', '导入'), dataIndex: 'holiday_overtime_days', key: 'hod', width: 110, render: (v: any) => v ?? '—' },
+    { title: withSource('保安法定加班(天)', '导入'), dataIndex: 'guard_overtime_days', key: 'god', width: 120, render: (v: any) => v ?? '—' },
     { title: withSource('延时加班(小时)', '导入'), dataIndex: 'overtime_hours', key: 'oh', width: 110, render: (v: any) => v ?? '—' },
     { title: withSource('时薪', '导入'), dataIndex: 'hourly_rate', key: 'hr', width: 90, render: (v: any) => fmtMoney(v) },
     { title: withSource('加班金额', '系统计算'), dataIndex: 'overtime_amount', key: 'oa', width: 90, render: (v: number) => fmtMoney(v) },
@@ -796,6 +903,7 @@ const AttendancePage: React.FC = () => {
             <Descriptions.Item label="平时加班(天)">{detailRecord.regular_overtime_days ?? '—'}</Descriptions.Item>
             <Descriptions.Item label="周末加班(天)">{detailRecord.weekend_overtime_days ?? '—'}</Descriptions.Item>
             <Descriptions.Item label="节假日加班(天)">{detailRecord.holiday_overtime_days ?? '—'}</Descriptions.Item>
+            <Descriptions.Item label="保安法定加班(天)">{detailRecord.guard_overtime_days ?? '—'}</Descriptions.Item>
             <Descriptions.Item label="延时加班(小时)">{detailRecord.overtime_hours ?? '—'}</Descriptions.Item>
             <Descriptions.Item label="时薪">{fmtMoney(detailRecord.hourly_rate)}</Descriptions.Item>
             <Descriptions.Item label="加班金额">{fmtMoney(detailRecord.overtime_amount)}</Descriptions.Item>
@@ -957,6 +1065,9 @@ const AttendancePage: React.FC = () => {
             </Form.Item>
             <Form.Item label="节假日加班(天)">
               <InputNumber style={{ width: 120 }} min={0} value={addForm.holiday_overtime_days} onChange={(v) => setAddForm({ ...addForm, holiday_overtime_days: v })} />
+            </Form.Item>
+            <Form.Item label="保安法定加班(天)">
+              <InputNumber style={{ width: 120 }} min={0} value={addForm.guard_overtime_days} onChange={(v) => setAddForm({ ...addForm, guard_overtime_days: v })} />
             </Form.Item>
             <Form.Item label="延时加班(小时)">
               <InputNumber style={{ width: 120 }} min={0} value={addForm.overtime_hours} onChange={(v) => setAddForm({ ...addForm, overtime_hours: v })} />

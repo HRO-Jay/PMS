@@ -221,6 +221,7 @@ export interface AttendanceRecord {
   regular_overtime_days?: number;
   weekend_overtime_days?: number;
   holiday_overtime_days?: number;
+  guard_overtime_days?: number;
   overtime_hours?: number;
   hourly_rate?: number;
   on_off_adjust: number;

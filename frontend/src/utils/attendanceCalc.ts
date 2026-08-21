@@ -174,10 +174,11 @@ export interface AttendanceInput {
   personal_days?: number;
   // 旷工
   absenteeism_days?: number;
-  // 加班（三类按天 + 延时按小时）
+  // 加班（三类按天 + 保安法定按天 + 延时按小时）
   regular_overtime_days?: number;   // 平时加班（天）—— 1倍
   weekend_overtime_days?: number;   // 周末加班（天）—— 2倍
   holiday_overtime_days?: number;   // 节假日加班（天）—— 3倍
+  guard_overtime_days?: number;     // 保安法定加班（天）—— 2倍
   overtime_hours?: number;          // 延时加班（小时）—— × 时薪
   hourly_rate?: number;             // 时薪（与延时加班匹配）
   holiday_fixed_amount?: number;    // 保洁节假日加班固定金额
@@ -201,6 +202,7 @@ export interface AttendanceResult {
   regular_overtime_amount: number;
   weekend_overtime_amount: number;
   holiday_overtime_amount: number;
+  guard_overtime_amount: number;
   delayed_overtime_amount: number;
   on_off_adjust: number;
   special_adjust_amount: number;
@@ -241,10 +243,11 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
   const absenteeismDays = Number(input.absenteeism_days || 0);
   const absenteeismAmount = round2(dailyWage * absenteeismDays * 1.0);
 
-  // 加班（三类按天：平时1倍 / 周末2倍 / 节假日3倍；延时按小时 × 时薪）
+  // 加班（三类按天：平时1倍 / 周末2倍 / 节假日3倍；保安法定2倍；延时按小时 × 时薪）
   const regularDays = Number(input.regular_overtime_days || 0);
   const weekendDays = Number(input.weekend_overtime_days || 0);
   const holidayDays = Number(input.holiday_overtime_days || 0);
+  const guardDays = Number(input.guard_overtime_days || 0);
   const overtimeHours = Number(input.overtime_hours || 0);
   const hourlyRate = Number(input.hourly_rate || 0);
 
@@ -266,11 +269,13 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
       holidayAmount = round2(holidayDays * dailyWage * holidayRate);
     }
   }
+  // 保安法定加班金额 = 保安法定加班(天) × 2 × 日薪
+  const guardAmount = round2(guardDays * dailyWage * 2);
   // 延时加班金额 = 延时加班小时 × 时薪
   const delayedAmount = round2(overtimeHours * hourlyRate);
 
   // 加班金额合计
-  const overtimeAmount = round2(regularAmount + weekendAmount + holidayAmount + delayedAmount);
+  const overtimeAmount = round2(regularAmount + weekendAmount + holidayAmount + guardAmount + delayedAmount);
 
   // 入离职调整（月中入职/离职：折算工资 - 整月工资，通常为负）
   let onOffAdjust = 0;
@@ -304,6 +309,7 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
     regular_overtime_amount: regularAmount,
     weekend_overtime_amount: weekendAmount,
     holiday_overtime_amount: holidayAmount,
+    guard_overtime_amount: guardAmount,
     delayed_overtime_amount: delayedAmount,
     on_off_adjust: onOffAdjust,
     special_adjust_amount: specialAdjust,
