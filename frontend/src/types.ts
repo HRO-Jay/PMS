@@ -237,7 +237,6 @@ export interface SalaryRecord {
   month_number: number;
   // 收入项
   base_salary?: number;
-  attendance_wage?: number;
   allowance_supp?: number;
   attendance_adjust?: number;
   other_adjust?: number;

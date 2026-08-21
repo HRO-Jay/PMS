@@ -71,7 +71,7 @@ const PayrollPage: React.FC = () => {
   const fetchAndCompute = async (): Promise<{ empMap: Record<string, any>; merged: any[] }> => {
     const [empRes, attRes, addRes, welfareRes, taxRes] = await Promise.all([
       api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,attendance_type,tax_method,basic_salary'),
-      api.get(`/attendance_records?select=unique_hash,attendance_adjust_total,attendance_wage,data_status&period=eq.${period}`),
+      api.get(`/attendance_records?select=unique_hash,attendance_adjust_total,data_status&period=eq.${period}`),
       api.get(`/additional_salary_records?select=*&period=eq.${period}`),
       api.get(`/employee_welfare_records?select=unique_hash,personal_total,company_total,pension_p_amt,medical_p_amt,unemployment_p_amt,normal_housing_p_amt,supp_housing_p_amt,pension_c_amt,medical_c_amt,unemployment_c_amt,injury_c_amt,maternity_c_amt,normal_housing_c_amt,supp_housing_c_amt&period=eq.${period}`),
       api.get(`/tax_monthly_calcs?select=unique_hash,monthly_tax&period=eq.${period}`),
@@ -104,8 +104,6 @@ const PayrollPage: React.FC = () => {
         ).toFixed(2));
 
         const basicSalary = Number(e.basic_salary || 0);
-        // 考勤工资（数据来源-导入）：凡涉及基本工资的计算均改用它
-        const attendanceWage = Number(attMap[e.unique_hash]?.attendance_wage || 0);
         const attendanceAdjust = Number(attMap[e.unique_hash]?.attendance_adjust_total || 0);
         const personalWelfare = Number(welfare.personal_total || 0);
         const companyWelfare = Number(welfare.company_total || 0);
@@ -113,8 +111,8 @@ const PayrollPage: React.FC = () => {
         // 商保调整 = 商保金额的负数
         const insuranceAdjust = -insuranceAmount;
 
-        // 薪资小计 = 考勤工资 + 考勤调整合计 + 附加薪酬合计
-        const wageSubtotal = Number((attendanceWage + attendanceAdjust + additionalTotal).toFixed(2));
+        // 薪资小计 = 基本工资 + 考勤调整合计 + 附加薪酬合计（薪资板块以基本工资为基数）
+        const wageSubtotal = Number((basicSalary + attendanceAdjust + additionalTotal).toFixed(2));
 
         // 当月个税按计税方式分支：
         // - 劳务计税(service)：直接按（薪资小计 - 800）× 20% 计算（劳务个税板块后补，这里打通链接）
@@ -148,7 +146,6 @@ const PayrollPage: React.FC = () => {
           attendance_type: e.attendance_type || '',
           tax_method: taxMethod,
           basic_salary: basicSalary,
-          attendance_wage: attendanceWage,
           attendance_adjust_total: attendanceAdjust,
           additional_total: additionalTotal,
           personal_welfare_total: personalWelfare,
@@ -225,7 +222,6 @@ const PayrollPage: React.FC = () => {
             period,
             month_number: parseInt(period.split('-')[1]) || 1,
             base_salary: r.basic_salary,
-            attendance_wage: r.attendance_wage,
             attendance_adjust_total: r.attendance_adjust_total,
             additional_total: r.additional_total,
             personal_welfare_total: r.personal_welfare_total,
@@ -305,7 +301,6 @@ const PayrollPage: React.FC = () => {
           period,
           month_number: parseInt(period.split('-')[1]) || 1,
           base_salary: r.basic_salary,
-          attendance_wage: r.attendance_wage,
           attendance_adjust_total: r.attendance_adjust_total,
           additional_total: r.additional_total,
           personal_welfare_total: r.personal_welfare_total,
