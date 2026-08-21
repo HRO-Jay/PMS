@@ -59,16 +59,17 @@ const TaxMonthlyCalcPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      // 并行加载：员工、期初累计数、专项附加、上月专项附加、上月计算、当月计算、社保个人福利、薪酬本期收入
-      const [empRes, openingRes, specialRes, prevSpecialRes, prevCalcRes, calcRes, welfareRes, salaryRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,attendance_type&tax_method=eq.normal'),
+      // 并行加载：员工、期初累计数、专项附加、上月专项附加、上月计算、当月计算、社保个人福利、考勤调整、附加薪酬
+      const [empRes, openingRes, specialRes, prevSpecialRes, prevCalcRes, calcRes, welfareRes, attRes, addRes] = await Promise.all([
+        api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,attendance_type,basic_salary&tax_method=eq.normal'),
         api.get('/tax_opening_balances?select=*'),
         api.get(`/tax_special_deductions?select=*&period=eq.${period}`),
         api.get(`/tax_special_deductions?select=*&period=eq.${prevPeriod(period)}`),
         api.get(`/tax_monthly_calcs?select=*&period=eq.${prevPeriod(period)}`),
         api.get(`/tax_monthly_calcs?select=*&period=eq.${period}`),
         api.get(`/employee_welfare_records?select=unique_hash,personal_total&period=eq.${period}`),
-        api.get(`/salary_records?select=unique_hash,wage_subtotal&period=eq.${period}`),
+        api.get(`/attendance_records?select=unique_hash,attendance_adjust_total&period=eq.${period}`),
+        api.get(`/additional_salary_records?select=*&period=eq.${period}`),
       ]);
 
       const empList: any[] = empRes.data;
@@ -84,8 +85,10 @@ const TaxMonthlyCalcPage: React.FC = () => {
       calcRes.data.forEach((r: any) => { calcMap[r.unique_hash] = r; });
       const welfareMap: Record<string, any> = {};
       welfareRes.data.forEach((r: any) => { welfareMap[r.unique_hash] = r; });
-      const salaryMap: Record<string, any> = {};
-      salaryRes.data.forEach((r: any) => { salaryMap[r.unique_hash] = r; });
+      const attMap: Record<string, any> = {};
+      attRes.data.forEach((r: any) => { attMap[r.unique_hash] = r; });
+      const addMap: Record<string, any> = {};
+      addRes.data.forEach((r: any) => { addMap[r.unique_hash] = r; });
 
       const merged = empList
         .filter((e: any) => e.status === '在职' || calcMap[e.unique_hash])
@@ -95,8 +98,18 @@ const TaxMonthlyCalcPage: React.FC = () => {
           const prevSpecial = prevSpecialMap[e.unique_hash] || {};
           const prev = prevMap[e.unique_hash] || {};
           const calc = calcMap[e.unique_hash] || {};
-          // 本期数
-          const currentTaxableIncome = Number(salaryMap[e.unique_hash]?.wage_subtotal || 0);
+          const add = addMap[e.unique_hash] || {};
+          // 附加薪酬合计 = 12项之和（与薪资计算板块口径一致）
+          const additionalTotal = Number((
+            (add.allowance_supp || 0) + (add.other_adjust || 0) + (add.insurance_amount || 0) +
+            (add.kpi_provision || 0) + (add.office_comm || 0) + (add.performance_pay || 0) +
+            (add.apartment_comm || 0) + (add.talent_kpi || 0) + (add.heat_allowance || 0) +
+            (add.other_allowance || 0) + (add.security_bonus || 0) + (add.cleaning_bonus || 0)
+          ).toFixed(2));
+          // 本期应税收入 = 当月薪资小计 = 基本工资 + 考勤调整合计 + 附加薪酬合计（实时计算，与薪酬板块一致）
+          const currentTaxableIncome = Number(
+            (Number(e.basic_salary || 0) + Number(attMap[e.unique_hash]?.attendance_adjust_total || 0) + additionalTotal).toFixed(2)
+          );
           const currentFiveInsurance = Number(welfareMap[e.unique_hash]?.personal_total || 0);
           // 本期专项附加 = 本月累计 - 上月累计
           const specialTotal = (special.cumul_child_edu || 0) + (special.cumul_continuing_edu || 0) + (special.cumul_mortgage || 0) + (special.cumul_rent || 0) + (special.cumul_elder_care || 0) + (special.cumul_infant_care || 0);
