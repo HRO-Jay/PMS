@@ -10,14 +10,20 @@ import { exportXlsx, type ExportDef } from '../utils/importExport';
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
-const BRAND = '#1677ff';
-const BRAND_LIGHT = 'rgba(22,119,255,0.35)';
-const ORANGE = '#fa8c16';
-const NEUTRAL = '#8c8c8c';
-const WARNING = '#e74c3c';
-const PLACEHOLDER = '#f0f0f0';
-const GREEN = '#27ae60';
-const RED = '#e74c3c';
+// ===== 商务配色体系 =====
+const BRAND = '#1e3a5f';          // 主色：深海蓝
+const BRAND_2 = '#3b7dd8';        // 次主色：商务蓝
+const BRAND_LIGHT = 'rgba(59,125,216,0.35)';
+const GOLD = '#c9a227';           // 点缀金
+const ORANGE = '#d9822b';         // 琥珀橙
+const NEUTRAL = '#7d8590';        // 石墨灰
+const WARNING = '#c0392b';        // 砖红
+const PLACEHOLDER = '#eef1f4';    // 占位灰
+const GREEN = '#2e7d5b';          // 墨绿
+const RED = '#c0392b';
+const INK = '#1f2937';            // 主文字
+const INK_SUB = '#6b7280';        // 次文字
+const BORDER = '#e6e9ef';         // 边框
 
 const fmtMoney = (v: any) => {
   if (v === undefined || v === null || v === '' || Number(v) === 0) return '—';
@@ -27,6 +33,16 @@ const fmtMoneyInt = (v: any) => {
   if (v === undefined || v === null || v === '' || Number(v) === 0) return '¥0';
   return `¥${Math.round(Number(v)).toLocaleString('zh-CN')}`;
 };
+
+/** 卡片圆角+浅阴影通用样式 */
+const cardStyle: React.CSSProperties = {
+  borderRadius: 12,
+  boxShadow: '0 1px 2px rgba(16,24,40,0.04), 0 4px 12px rgba(16,24,40,0.04)',
+  border: `1px solid ${BORDER}`,
+};
+
+/** ECharts 通用浅灰虚线网格 */
+const gridLine = { lineStyle: { type: 'dashed' as const, color: '#eceff3' } };
 
 /** 中位数 */
 function median(arr: number[]): number {
@@ -280,7 +296,7 @@ const Dashboard: React.FC = () => {
       };
       const compCur = calcComp(salList, addMap, attMap);
       const compPrev = calcComp(salPrevList, addPrevMap, attPrevMap);
-      const colorMap: Record<string, string> = { '基本工资': BRAND, '绩效&佣金': ORANGE, '津贴补贴': NEUTRAL, '加班费': WARNING, '其他': '#bfbfbf' };
+      const colorMap: Record<string, string> = { '基本工资': BRAND, '绩效&佣金': '#c9a227', '津贴补贴': '#5b7fa6', '加班费': '#d9822b', '其他': '#b4bcc6' };
       const order = ['基本工资', '绩效&佣金', '津贴补贴', '加班费', '其他'];
       const totalComp = order.reduce((s, k) => s + compCur[k], 0) || 1;
       const compArr = order.map((k) => {
@@ -340,42 +356,45 @@ const Dashboard: React.FC = () => {
     const maxVal = Math.max(...showData.map(d => Math.max(d.gross, d.net)), 1);
     const showLabel = data.length <= 8;
     chart.setOption({
-      grid: { left: 8, right: 70, top: 30, bottom: 8, containLabel: true },
+      grid: { left: 8, right: 70, top: 36, bottom: 8, containLabel: true },
       tooltip: {
         trigger: 'axis',
-        axisPointer: { type: 'shadow' },
+        axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(30,58,95,0.04)' } },
+        backgroundColor: 'rgba(23,32,46,0.92)',
+        borderWidth: 0,
+        textStyle: { color: '#fff', fontSize: 12 },
         formatter: (params: any) => {
           if (empty) return '';
           const name = params[0]?.name;
           const d = data.find(x => x.name === name);
           if (!d) return '';
-          return `${d.name}<br/>应发工资：¥${d.gross.toLocaleString('zh-CN')}<br/>实发工资：¥${d.net.toLocaleString('zh-CN')}<br/>扣减合计：¥${d.deduct.toLocaleString('zh-CN')}<br/>部门人数：${d.count}人<br/>人均实发：¥${d.avgNet.toLocaleString('zh-CN')}`;
+          return `<div style="font-weight:600;margin-bottom:4px">${d.name}</div>应发工资　¥${d.gross.toLocaleString('zh-CN')}<br/>实发工资　¥${d.net.toLocaleString('zh-CN')}<br/>扣减合计　¥${d.deduct.toLocaleString('zh-CN')}<br/>部门人数　${d.count}人<br/>人均实发　¥${d.avgNet.toLocaleString('zh-CN')}`;
         },
       },
-      legend: { data: ['应发工资', '实发工资'], top: 0, right: 0, itemWidth: 12, itemHeight: 8 },
+      legend: { data: ['应发工资', '实发工资'], top: 0, right: 0, itemWidth: 14, itemHeight: 8, textStyle: { color: INK_SUB, fontSize: 12 }, icon: 'roundRect' },
       xAxis: {
         type: 'category',
         data: showData.map(d => d.name),
-        axisLine: { lineStyle: { color: '#ddd' } },
+        axisLine: { lineStyle: { color: BORDER } },
         axisTick: { show: false },
-        axisLabel: { color: '#666', width: 80, overflow: 'truncate', interval: 0 },
+        axisLabel: { color: INK_SUB, width: 80, overflow: 'truncate', interval: 0, fontSize: 12 },
       },
       yAxis: {
         type: 'value',
         min: 0,
-        splitLine: { lineStyle: { type: 'dashed', color: '#eee' } },
-        axisLabel: { color: '#999', formatter: (v: number) => v >= 10000 ? `${(v / 10000).toFixed(0)}万` : `${v}` },
+        splitLine: gridLine,
+        axisLabel: { color: INK_SUB, fontSize: 11, formatter: (v: number) => v >= 10000 ? `${(v / 10000).toFixed(0)}万` : `${v}` },
       },
       series: [
         {
-          name: '应发工资', type: 'bar', barWidth: 14,
-          data: showData.map(d => ({ value: d.gross, itemStyle: empty ? { color: PLACEHOLDER } : { color: BRAND, borderRadius: [3, 3, 0, 0] } })),
-          label: showLabel ? { show: true, position: 'top', color: '#333', formatter: (p: any) => empty ? '' : fmtMoneyInt(p.value) } : { show: false },
+          name: '应发工资', type: 'bar', barWidth: 16,
+          data: showData.map(d => ({ value: d.gross, itemStyle: empty ? { color: PLACEHOLDER } : { color: BRAND, borderRadius: [4, 4, 0, 0] } })),
+          label: showLabel ? { show: true, position: 'top', color: INK_SUB, fontSize: 11, formatter: (p: any) => empty ? '' : fmtMoneyInt(p.value) } : { show: false },
         },
         {
-          name: '实发工资', type: 'bar', barWidth: 14,
-          data: showData.map(d => ({ value: d.net, itemStyle: empty ? { color: PLACEHOLDER } : { color: BRAND_LIGHT, borderRadius: [3, 3, 0, 0] } })),
-          label: showLabel ? { show: true, position: 'top', color: '#888', formatter: (p: any) => empty ? '' : fmtMoneyInt(p.value) } : { show: false },
+          name: '实发工资', type: 'bar', barWidth: 16,
+          data: showData.map(d => ({ value: d.net, itemStyle: empty ? { color: PLACEHOLDER } : { color: BRAND_2, borderRadius: [4, 4, 0, 0], opacity: 0.85 } })),
+          label: showLabel ? { show: true, position: 'top', color: '#9aa4b2', fontSize: 11, formatter: (p: any) => empty ? '' : fmtMoneyInt(p.value) } : { show: false },
         },
       ],
       graphic: empty ? [{ type: 'text', left: 'center', top: 'middle', style: { text: '暂无数据', fill: '#999', fontSize: 14 } }] : [],
@@ -399,31 +418,43 @@ const Dashboard: React.FC = () => {
     }
     const medianLine = (!empty && medianIdx >= 0) ? {
       silent: true, symbol: 'none',
-      lineStyle: { color: RED, type: 'dashed', width: 1 },
-      label: { formatter: `中位数 ${fmtMoneyInt(salaryMedian)}`, color: RED, fontSize: 11, position: 'insideEndTop' },
+      lineStyle: { color: GOLD, type: 'dashed', width: 1.5 },
+      label: { formatter: `中位数 ${fmtMoneyInt(salaryMedian)}`, color: '#8a6d1f', fontSize: 11, position: 'insideEndTop' },
       data: [{ xAxis: showData[medianIdx].label }],
     } : undefined;
     chart.setOption({
-      grid: { left: 8, right: 40, top: 30, bottom: 8, containLabel: true },
-      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: (params: any) => empty ? '' : `${params[0]?.name}：${params[0]?.data?.count}人（${params[0]?.data?.pct}%）` },
+      grid: { left: 8, right: 40, top: 36, bottom: 8, containLabel: true },
+      tooltip: {
+        trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(30,58,95,0.04)' } },
+        backgroundColor: 'rgba(23,32,46,0.92)', borderWidth: 0, textStyle: { color: '#fff', fontSize: 12 },
+        formatter: (params: any) => empty ? '' : `${params[0]?.name}：${params[0]?.data?.count}人（${params[0]?.data?.pct}%）`,
+      },
       xAxis: {
         type: 'category', data: showData.map(d => d.label),
-        axisLine: { lineStyle: { color: '#ddd' } }, axisTick: { show: false },
-        axisLabel: { color: '#666', fontSize: 11, interval: 0 },
+        axisLine: { lineStyle: { color: BORDER } }, axisTick: { show: false },
+        axisLabel: { color: INK_SUB, fontSize: 11, interval: 0 },
       },
-      yAxis: { type: 'value', min: 0, splitLine: { lineStyle: { type: 'dashed', color: '#eee' } }, axisLabel: { color: '#999' } },
+      yAxis: { type: 'value', min: 0, splitLine: gridLine, axisLabel: { color: INK_SUB, fontSize: 11 } },
       series: [{
         type: 'bar',
-        barWidth: 26,
-        data: showData.map(d => ({ value: d.count, count: d.count, pct: d.pct, itemStyle: empty ? { color: PLACEHOLDER } : { color: BRAND, borderRadius: [4, 4, 0, 0] } })),
+        barWidth: 28,
+        data: showData.map(d => ({
+          value: d.count, count: d.count, pct: d.pct,
+          itemStyle: empty ? { color: PLACEHOLDER } : {
+            borderRadius: [5, 5, 0, 0],
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: BRAND_2 }, { offset: 1, color: 'rgba(59,125,216,0.55)' },
+            ]),
+          },
+        })),
         label: {
-          show: true, position: 'top', color: '#333',
+          show: true, position: 'top', color: INK, fontSize: 12, fontWeight: 600,
           formatter: (p: any) => empty ? '' : `${p.data.value}人（${p.data.pct}%）`,
         },
-        emphasis: { itemStyle: { color: '#0958d9' } },
+        emphasis: { itemStyle: { color: BRAND } },
         markLine: medianLine,
       }],
-      graphic: empty ? [{ type: 'text', left: 'center', top: 'middle', style: { text: '暂无数据', fill: '#999', fontSize: 14 } }] : [],
+      graphic: empty ? [{ type: 'text', left: 'center', top: 'middle', style: { text: '暂无数据', fill: '#9aa4b2', fontSize: 14 } }] : [],
     });
     return () => { chart.dispose(); };
   }, [salaryDist, salaryMedian]);
@@ -440,35 +471,39 @@ const Dashboard: React.FC = () => {
       grid: { left: 8, right: 100, top: 8, bottom: 8, containLabel: true },
       tooltip: {
         trigger: 'item',
-        formatter: (p: any) => empty ? '' : `${p.name}<br/>平均实发：¥${Number(p.data.value).toLocaleString('zh-CN')}<br/>样本量：${p.data.count}人<br/>中位数：¥${Number(p.data.median).toLocaleString('zh-CN')}`,
+        backgroundColor: 'rgba(23,32,46,0.92)', borderWidth: 0, textStyle: { color: '#fff', fontSize: 12 },
+        formatter: (p: any) => empty ? '' : `<div style="font-weight:600;margin-bottom:4px">${p.name}</div>平均实发　¥${Number(p.data.value).toLocaleString('zh-CN')}<br/>样本量　${p.data.count}人<br/>中位数　¥${Number(p.data.median).toLocaleString('zh-CN')}`,
       },
       xAxis: { type: 'value', show: false, max: maxVal * 1.25 },
       yAxis: {
         type: 'category', data: showData.map(d => d.name),
         axisLine: { show: false }, axisTick: { show: false },
-        axisLabel: { color: '#666', width: 90, overflow: 'truncate' },
+        axisLabel: { color: INK_SUB, width: 90, overflow: 'truncate', fontSize: 12 },
       },
       series: [{
         type: 'bar',
         data: showData.map((d) => ({
           value: d.avg, count: d.count, median: d.median,
-          itemStyle: empty ? { color: PLACEHOLDER } : { color: d.above ? BRAND : '#c9c9c9', borderRadius: [0, 4, 4, 0] },
+          itemStyle: empty ? { color: PLACEHOLDER } : {
+            borderRadius: [0, 4, 4, 0],
+            color: d.above ? new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: BRAND }, { offset: 1, color: BRAND_2 }]) : '#cfd6e0',
+          },
         })),
         barWidth: 14,
         label: {
-          show: true, position: 'right', color: '#333',
+          show: true, position: 'right', color: INK, fontSize: 12, fontWeight: 600,
           formatter: (p: any) => empty ? '' : `${fmtMoneyInt(p.data.value)}${p.data.count === 1 ? '（仅1人）' : ''}`,
         },
-        emphasis: { focus: 'series', itemStyle: { color: '#0958d9' } },
+        emphasis: { focus: 'series', itemStyle: { color: BRAND } },
         blur: { itemStyle: { opacity: 0.3 } },
         markLine: empty ? undefined : {
           silent: true, symbol: 'none',
-          lineStyle: { color: '#999', type: 'dashed', width: 1 },
-          label: { formatter: `公司平均 ${fmtMoneyInt(companyAvgNet)}`, position: 'insideEndTop', color: '#999', fontSize: 11 },
+          lineStyle: { color: GOLD, type: 'dashed', width: 1.5 },
+          label: { formatter: `公司平均 ${fmtMoneyInt(companyAvgNet)}`, position: 'insideEndTop', color: '#8a6d1f', fontSize: 11 },
           data: [{ xAxis: companyAvgNet }],
         },
       }],
-      graphic: empty ? [{ type: 'text', left: 'center', top: 'middle', style: { text: '暂无薪资数据', fill: '#999', fontSize: 14 } }] : [],
+      graphic: empty ? [{ type: 'text', left: 'center', top: 'middle', style: { text: '暂无薪资数据', fill: '#9aa4b2', fontSize: 14 } }] : [],
     });
     return () => { chart.dispose(); };
   }, [avgPayList, companyAvgNet]);
@@ -481,21 +516,26 @@ const Dashboard: React.FC = () => {
     const empty = composition.length === 0;
     const showData = empty ? Array.from({ length: 6 }, () => ({ name: '—', value: 1 })) : composition;
     chart.setOption({
-      tooltip: { trigger: 'item', formatter: (p: any) => empty ? '' : `${p.name}：¥${Number(p.value).toLocaleString('zh-CN')}（${p.percent}%）` },
+      tooltip: {
+        trigger: 'item',
+        backgroundColor: 'rgba(23,32,46,0.92)', borderWidth: 0, textStyle: { color: '#fff', fontSize: 12 },
+        formatter: (p: any) => empty ? '' : `${p.name}：¥${Number(p.value).toLocaleString('zh-CN')}（${p.percent}%）`,
+      },
       series: [{
         type: 'pie',
-        radius: ['48%', '72%'],
+        radius: ['50%', '74%'],
         center: ['50%', '50%'],
         avoidLabelOverlap: true,
         selectedMode: 'single',
         selectedOffset: 12,
         label: { show: false },
+        itemStyle: { borderColor: '#fff', borderWidth: 2, borderRadius: 4 },
         data: showData.map((c, i) => ({
           name: c.name,
           value: c.value,
           itemStyle: empty
             ? { color: '#e8e8e8' }
-            : { color: c.color, opacity: selectedDonut === -1 || selectedDonut === i ? 1 : 0.3 },
+            : { color: c.color, opacity: selectedDonut === -1 || selectedDonut === i ? 1 : 0.25 },
         })),
       }],
     });
@@ -513,14 +553,14 @@ const Dashboard: React.FC = () => {
     return <span style={{ fontSize: 11, color: up ? GREEN : RED }}>较上月 {up ? '+' : ''}{pct}%</span>;
   };
 
-  // 指标卡组件
+  // 指标卡组件（商务化：左侧色块图标 + 右侧指标名/数值/单位）
   const MetricCard = ({ title, value, unit, icon, color, prev, warn }: { title: string; value: any; unit?: string; icon: React.ReactNode; color: string; prev?: number; warn?: boolean }) => (
-    <div style={{ background: '#fff', borderRadius: 12, padding: '16px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: 14 }}>
-      <div style={{ width: 44, height: 44, borderRadius: 10, background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{icon}</div>
+    <div style={{ background: '#fff', borderRadius: 12, padding: '18px 20px', boxShadow: cardStyle.boxShadow, border: cardStyle.border, display: 'flex', alignItems: 'center', gap: 14, height: '100%' }}>
+      <div style={{ width: 46, height: 46, borderRadius: 10, background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 21, flexShrink: 0, boxShadow: `0 3px 8px ${color}33` }}>{icon}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, color: '#999' }}>{title}</div>
-        <div style={{ fontSize: 22, fontWeight: 700, color: warn ? RED : '#222', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {value}{unit && <span style={{ fontSize: 12, color: '#999', fontWeight: 400, marginLeft: 4 }}>{unit}</span>}
+        <div style={{ fontSize: 12.5, color: INK_SUB, marginBottom: 2 }}>{title}</div>
+        <div style={{ fontSize: 22, fontWeight: 700, color: warn ? RED : INK, lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: -0.3 }}>
+          {value}{unit && <span style={{ fontSize: 12, color: '#9aa4b2', fontWeight: 400, marginLeft: 4 }}>{unit}</span>}
         </div>
         {prev !== undefined && <ChgTag cur={Number(value)} prev={prev} />}
       </div>
@@ -565,22 +605,22 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div>
+    <div style={{ padding: '4px 2px' }}>
       {/* 页面标题区 */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 18 }}>
         <div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: '#222' }}>数据总览</div>
-          <div style={{ fontSize: 14, color: '#999' }}>
+          <div style={{ fontSize: 21, fontWeight: 700, color: INK, letterSpacing: -0.3 }}>数据总览</div>
+          <div style={{ fontSize: 13, color: INK_SUB, marginTop: 2 }}>
             {ready ? '公司整体薪酬数据一览，实时反映工资计算结果' : '本月薪资计算中，部分数据可能存在延迟'}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#666' }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: ready ? GREEN : RED, display: 'inline-block' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: INK_SUB, background: ready ? '#eef5f0' : '#fdf0ee', padding: '5px 12px', borderRadius: 999 }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: ready ? GREEN : RED, display: 'inline-block' }} />
             {ready ? '数据已就绪' : '本月薪资计算中'}
           </span>
           <Space>
-            <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 160 }} />
+            <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 150 }} />
             <Button icon={<ReloadOutlined />} onClick={loadData}>刷新</Button>
             <Button icon={<DownloadOutlined />} onClick={() => exportXlsx(SUMMARY_EXPORT_DEF, summaryRows, period)}>导出</Button>
           </Space>
@@ -589,26 +629,26 @@ const Dashboard: React.FC = () => {
 
       {/* 核心指标卡 第一排（5张） */}
       <Row gutter={12} style={{ marginBottom: 12 }}>
-        <Col flex="1"><MetricCard title="员工总数" value={stats?.employee_count || 0} unit="人" icon={<TeamOutlined />} color="#722ed1" /></Col>
-        <Col flex="1"><MetricCard title="应发工资总计" value={stats?.total_wage_subtotal} unit="元" icon={<DollarOutlined />} color={GREEN} prev={prevStats?.total_wage_subtotal} /></Col>
-        <Col flex="1"><MetricCard title="社保公积金扣除" value={stats?.total_personal_welfare} unit="元" icon={<SafetyCertificateOutlined />} color={ORANGE} prev={prevStats?.total_personal_welfare} /></Col>
-        <Col flex="1"><MetricCard title="个税总计" value={stats?.total_tax} unit="元" icon={<CalculatorOutlined />} color={WARNING} prev={prevStats?.total_tax} /></Col>
-        <Col flex="1"><MetricCard title="实发工资总计" value={stats?.total_net_pay} unit="元" icon={<BankOutlined />} color="#13c2c2" prev={prevStats?.total_net_pay} /></Col>
+        <Col flex="1"><MetricCard title="员工总数" value={stats?.employee_count || 0} unit="人" icon={<TeamOutlined />} color={BRAND} /></Col>
+        <Col flex="1"><MetricCard title="应发工资总计" value={stats?.total_wage_subtotal} unit="元" icon={<DollarOutlined />} color={BRAND_2} prev={prevStats?.total_wage_subtotal} /></Col>
+        <Col flex="1"><MetricCard title="社保公积金扣除" value={stats?.total_personal_welfare} unit="元" icon={<SafetyCertificateOutlined />} color="#c9a227" prev={prevStats?.total_personal_welfare} /></Col>
+        <Col flex="1"><MetricCard title="个税总计" value={stats?.total_tax} unit="元" icon={<CalculatorOutlined />} color="#d9822b" prev={prevStats?.total_tax} /></Col>
+        <Col flex="1"><MetricCard title="实发工资总计" value={stats?.total_net_pay} unit="元" icon={<BankOutlined />} color="#2e7d5b" prev={prevStats?.total_net_pay} /></Col>
       </Row>
 
       {/* 核心指标卡 第二排（2张，宽度对齐第一排前两张） */}
       <Row gutter={12} style={{ marginBottom: 16 }}>
-        <Col flex="2"><MetricCard title="当月人力成本" value={stats?.total_cost} unit="元" icon={<AccountBookOutlined />} color="#2f54eb" prev={prevStats?.total_cost} warn={stats && stats.total_cost < stats.total_wage_subtotal} /></Col>
-        <Col flex="2"><MetricCard title="人均实发工资" value={stats?.avg_net} unit="元" icon={<UserOutlined />} color="#eb2f96" prev={prevStats?.avg_net} /></Col>
+        <Col flex="2"><MetricCard title="当月人力成本" value={stats?.total_cost} unit="元" icon={<AccountBookOutlined />} color="#3a4a5e" prev={prevStats?.total_cost} warn={stats && stats.total_cost < stats.total_wage_subtotal} /></Col>
+        <Col flex="2"><MetricCard title="人均实发工资" value={stats?.avg_net} unit="元" icon={<UserOutlined />} color="#5b7fa6" prev={prevStats?.avg_net} /></Col>
         <Col flex="1" />
       </Row>
 
       {/* 统计分析图表区 */}
-      <Card size="small" title="统计分析" style={{ marginBottom: 16 }}>
+      <Card size="small" style={{ ...cardStyle, marginBottom: 16, background: '#fafbfc' }} styles={{ body: { padding: 16 } }}>
         <Row gutter={[16, 16]}>
           {/* 第一行左：各部门薪资分布（分组柱） */}
           <Col xs={24} xl={12}>
-            <Card size="small" title="各部门薪资分布"
+            <Card size="small" title="各部门薪资分布" style={{ ...cardStyle, background: '#fff' }}
               extra={<Segmented size="small" value={groupView} onChange={(v) => setGroupView(v as 'dept' | 'cost')} options={[{ label: '按部门', value: 'dept' }, { label: '按成本中心', value: 'cost' }]} />}>
               <div ref={groupRef} style={{ width: '100%', height: 300 }} />
             </Card>
@@ -616,10 +656,10 @@ const Dashboard: React.FC = () => {
 
           {/* 第一行右：薪资区间人数分布（纵向柱） */}
           <Col xs={24} xl={12}>
-            <Card size="small" title="薪资区间人数分布">
+            <Card size="small" title="薪资区间人数分布" style={{ ...cardStyle, background: '#fff' }}>
               <div ref={histRef} style={{ width: '100%', height: 300 }} />
               {salaryDist.length > 0 && (
-                <div style={{ marginTop: 8, color: '#999', fontSize: 12 }}>
+                <div style={{ marginTop: 8, color: INK_SUB, fontSize: 12 }}>
                   中位数 {fmtMoneyInt(salaryMedian)}；区间按当月实发工资动态划分（含下限不含上限），共 {salaryDist.length} 档。
                   {salaryDist.some(b => b.pct >= 50) && <span style={{ color: WARNING, marginLeft: 6 }}>⚠️ 某区间人数占比超 50%，薪酬带宽可能过于集中</span>}
                 </div>
@@ -629,14 +669,14 @@ const Dashboard: React.FC = () => {
 
           {/* 第二行左：各部门平均实发工资 */}
           <Col xs={24} xl={12}>
-            <Card size="small" title="各部门平均实发工资">
+            <Card size="small" title="各部门平均实发工资" style={{ ...cardStyle, background: '#fff' }}>
               <div ref={avgRef} style={{ width: '100%', height: 300 }} />
             </Card>
           </Col>
 
           {/* 第二行右：工资构成占比 */}
           <Col xs={24} xl={12}>
-            <Card size="small" title="工资构成占比（应发口径）">
+            <Card size="small" title="工资构成占比（应发口径）" style={{ ...cardStyle, background: '#fff' }}>
               <Row align="middle">
                 <Col span={12}>
                   <div ref={donutRef} style={{ width: '100%', height: 300 }} />
@@ -676,12 +716,12 @@ const Dashboard: React.FC = () => {
       </Card>
 
       {/* 花名册变动分析 */}
-      <Card title="花名册变动分析" size="small" style={{ marginBottom: 16 }}>
+      <Card title="花名册变动分析" size="small" style={{ ...cardStyle, marginBottom: 16 }}>
         <Row gutter={16}>
           <Col span={12}>
             <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Badge count={rosterChanges.additions.length} style={{ backgroundColor: '#27ae60' }} showZero />
-              <span style={{ color: '#27ae60', fontWeight: 600, fontSize: 15 }}>新增</span>
+              <Badge count={rosterChanges.additions.length} style={{ backgroundColor: '#2e7d5b' }} showZero />
+              <span style={{ color: '#2e7d5b', fontWeight: 600, fontSize: 15 }}>新增</span>
               <Tag color="green">上月 {rosterChanges.prevActiveCount ?? '—'} 人</Tag>
             </div>
             <Table size="small" pagination={false}
@@ -695,8 +735,8 @@ const Dashboard: React.FC = () => {
           </Col>
           <Col span={12}>
             <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Badge count={rosterChanges.removals.length} style={{ backgroundColor: '#e74c3c' }} showZero />
-              <span style={{ color: '#e74c3c', fontWeight: 600, fontSize: 15 }}>减少</span>
+              <Badge count={rosterChanges.removals.length} style={{ backgroundColor: '#c0392b' }} showZero />
+              <span style={{ color: '#c0392b', fontWeight: 600, fontSize: 15 }}>减少</span>
               <Tag color="red">上月 {rosterChanges.prevActiveCount ?? '—'} 人</Tag>
             </div>
             <Table size="small" pagination={false}
@@ -712,7 +752,7 @@ const Dashboard: React.FC = () => {
       </Card>
 
       {/* 数据统计 Summary */}
-      <Card size="small" title="数据统计 Summary">
+      <Card size="small" title="数据统计 Summary" style={cardStyle}>
         <Tabs activeKey={summaryTab} onChange={(k) => { setSummaryTab(k as 'dept' | 'company'); }}
           items={[
             { key: 'company', label: '按公司' },
