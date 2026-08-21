@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Card, Button, Space, message, Input, Tag } from 'antd';
-import { CalculatorOutlined, LinkOutlined } from '@ant-design/icons';
+import { CalculatorOutlined, LinkOutlined, DownloadOutlined } from '@ant-design/icons';
 import api from '../../api/client';
 import { calcIncomeTax } from '../../utils/taxCalc';
+import { exportXlsx, type ExportDef } from '../../utils/importExport';
 import { withSource } from '../../components/SourceTag';
 
 /**
@@ -15,6 +16,37 @@ const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth(
 const fmtMoney = (v: any) => {
   if (v === undefined || v === null || v === '' || Number(v) === 0) return '—';
   return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+// 导出表头（只导出，不支持导入）
+const EXPORT_DEF: ExportDef = {
+  module: '个税月度计算',
+  columns: [
+    { key: 'unique_hash', label: '唯一值', hidden: false },
+    { key: 'employee_name', label: '姓名' },
+    { key: 'pay_company', label: '发薪公司' },
+    { key: 'cost_center', label: '成本中心' },
+    { key: 'department', label: '部门' },
+    { key: 'report_to', label: '汇报人' },
+    { key: 'position', label: '职位' },
+    { key: 'entry_date', label: '入职日期' },
+    { key: 'attendance_type', label: '考勤制' },
+    { key: 'current_taxable_income', label: '本期应税收入' },
+    { key: 'current_five_insurance', label: '本期五险一金' },
+    { key: 'current_special_deduct', label: '本期专项附加' },
+    { key: 'current_other_deduct', label: '本期其他扣除' },
+    { key: 'current_tax_relief', label: '本期减免税额' },
+    { key: 'cumul_taxable_income', label: '累计应税收入' },
+    { key: 'cumul_basic_deduction', label: '累计减除费用' },
+    { key: 'cumul_five_insurance', label: '累计五险一金' },
+    { key: 'cumul_special_deduct', label: '累计专项附加' },
+    { key: 'cumul_other_deduct', label: '累计其他扣除' },
+    { key: 'cumul_tax_relief', label: '累计减免税额' },
+    { key: 'cumul_taxable_income_net', label: '累计应纳税所得额' },
+    { key: 'tax_rate', label: '预扣率' },
+    { key: 'quick_deduction', label: '速算扣除数' },
+    { key: 'monthly_tax', label: '当月个人所得税' },
+  ],
 };
 
 const TaxMonthlyCalcPage: React.FC = () => {
@@ -251,6 +283,7 @@ const TaxMonthlyCalcPage: React.FC = () => {
         <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 180 }} />
         <Button type="primary" icon={<CalculatorOutlined />} onClick={handleCalc}>计算当月个税</Button>
         <Button icon={<LinkOutlined />} onClick={handleSync}>同步到薪酬板块</Button>
+        <Button icon={<DownloadOutlined />} onClick={() => exportXlsx(EXPORT_DEF, records, period)}>导出</Button>
       </Space>
       <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 2000 }} size="small" pagination={{ pageSize: 50 }} />
     </Card>

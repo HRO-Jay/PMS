@@ -9,6 +9,7 @@
  */
 
 const round2 = (v: number): number => Number(v.toFixed(2));
+const round4 = (v: number): number => Number(v.toFixed(4));
 
 /** 病假支付系数分档（按本企业连续工龄） */
 export interface SickPayTier {
@@ -50,6 +51,7 @@ export const DEFAULT_ATTENDANCE_RULES: AttendanceRules = {
     { type: '平时加班', rate: 1 },
     { type: '周末加班', rate: 2 },
     { type: '法定节假日加班', rate: 3 },
+    { type: '保安法定加班', rate: 2 },
   ],
 };
 
@@ -110,13 +112,16 @@ function pickPayRate(tiers: SickPayTier[], years: number): number {
   return tiers.length ? tiers[tiers.length - 1].pay_rate : 1;
 }
 
-/** 按加班类型取倍率（找不到回退 1 倍） */
+/** 按加班类型取倍率（优先规则表，找不到回退内置默认，再找不到回退 1 倍） */
 function overtimeRate(type: string, rules?: AttendanceRules): number {
   const list = (rules?.overtime_rates && rules.overtime_rates.length)
     ? rules.overtime_rates
     : DEFAULT_ATTENDANCE_RULES.overtime_rates;
   const found = list.find(o => o.type === type);
-  return found ? Number(found.rate) : 1;
+  if (found) return Number(found.rate);
+  // 规则表里缺这一项时，从内置默认兜底
+  const fallback = DEFAULT_ATTENDANCE_RULES.overtime_rates.find(o => o.type === type);
+  return fallback ? Number(fallback.rate) : 1;
 }
 
 /** 计算本企业连续工龄（年），按月粗略计算 */
@@ -222,7 +227,8 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
   // 考勤工资作为计薪基数
   const wage = Number(input.attendance_wage || 0);
   const payDays = Number(input.pay_days || 21.75);
-  const dailyWage = payDays > 0 ? round2(wage / payDays) : 0;
+  // 日薪保留4位小数（四舍五入），其余金额保留2位
+  const dailyWage = payDays > 0 ? round4(wage / payDays) : 0;
   const seniorityYears = calcSeniorityYears(input.entry_date || '', input.period);
 
   // 病假
@@ -255,7 +261,9 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
   const regularRate = overtimeRate('平时加班', rules);
   const weekendRate = overtimeRate('周末加班', rules);
   const holidayRate = overtimeRate('法定节假日加班', rules);
+  const guardRate = overtimeRate('保安法定加班', rules);
 
+  // 加班金额 = [平时(天)×1 + 周末(天)×2 + 节假日(天)×3 + 保安法定(天)×2] × 日薪 + 延时(小时)×时薪
   // 平时加班金额
   let regularAmount = round2(regularDays * dailyWage * regularRate);
   // 周末加班金额
@@ -271,7 +279,7 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
     }
   }
   // 保安法定加班金额 = 保安法定加班(天) × 2 × 日薪
-  const guardAmount = round2(guardDays * dailyWage * 2);
+  const guardAmount = round2(guardDays * dailyWage * guardRate);
   // 延时加班金额 = 延时加班小时 × 时薪
   const delayedAmount = round2(overtimeHours * hourlyRate);
 

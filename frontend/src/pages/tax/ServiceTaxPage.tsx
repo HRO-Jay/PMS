@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Card, Space, Input, message, Button, Tag } from 'antd';
-import { CalculatorOutlined, SaveOutlined } from '@ant-design/icons';
+import { CalculatorOutlined, SaveOutlined, DownloadOutlined } from '@ant-design/icons';
 import api from '../../api/client';
+import { exportXlsx, type ExportDef } from '../../utils/importExport';
 import { withSource } from '../../components/SourceTag';
 
 /**
@@ -14,6 +15,19 @@ const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth(
 const fmtMoney = (v: any) => {
   if (v === undefined || v === null || v === '' || Number(v) === 0) return '—';
   return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+// 导出表头（只导出，不支持导入）
+const EXPORT_DEF: ExportDef = {
+  module: '劳务个税计算',
+  columns: [
+    { key: 'unique_hash', label: '唯一值', hidden: false },
+    { key: 'employee_name', label: '姓名' },
+    { key: 'pay_company', label: '发薪公司' },
+    { key: 'tax_method', label: '计税方式' },
+    { key: 'wage_subtotal', label: '薪资小计' },
+    { key: 'monthly_tax', label: '当月个人所得税' },
+  ],
 };
 
 const ServiceTaxPage: React.FC = () => {
@@ -100,6 +114,7 @@ const ServiceTaxPage: React.FC = () => {
         <span>所得期间：</span>
         <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 180 }} />
         <Button type="primary" icon={<CalculatorOutlined />} onClick={handleCalc}>计算劳务个税</Button>
+        <Button icon={<DownloadOutlined />} onClick={() => exportXlsx(EXPORT_DEF, records, period)}>导出</Button>
       </Space>
       <div style={{ marginBottom: 12, color: '#888' }}>
         计算口径：当月个人所得税 =（薪资小计 − 800）× 20%，薪资小计不超过 800 元时为 0。

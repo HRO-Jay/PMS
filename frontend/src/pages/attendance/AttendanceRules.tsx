@@ -11,7 +11,7 @@ import { DEFAULT_ATTENDANCE_RULES, type SickPayTier, type OvertimeRate } from '.
  */
 
 const PAY_DAYS_DEFAULT = [21.75, 26, 30];
-const OVERTIME_TYPES = ['平时加班', '周末加班', '法定节假日加班'];
+const OVERTIME_TYPES = ['平时加班', '周末加班', '法定节假日加班', '保安法定加班'];
 
 const AttendanceRulesPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
