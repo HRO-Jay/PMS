@@ -585,8 +585,11 @@ const AttendancePage: React.FC = () => {
             await api.post('/attendance_records', payload);
           }
           success++;
-        } catch {
-          failures.push('导入失败');
+        } catch (e: any) {
+          // 把具体错误带出来，方便定位（如数据库缺字段、RLS 拒绝等）
+          const detail = e?.response?.data?.message || e?.message || '';
+          const name = row.employee_name || row.unique_hash || '?';
+          failures.push(`${name}：${detail || '导入失败'}`);
         }
       }
       if (failures.length > 0) {

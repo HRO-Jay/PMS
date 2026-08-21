@@ -17,7 +17,6 @@ ALTER TABLE attendance_records
 UPDATE attendance_records
 SET regular_overtime_days = COALESCE(overtime_qty, 0)
 WHERE overtime_type = '平时加班' AND overtime_unit = '天';
-
 UPDATE attendance_records
 SET weekend_overtime_days = COALESCE(overtime_qty, 0)
 WHERE overtime_type = '周末加班' AND overtime_unit = '天';
