@@ -78,14 +78,14 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   }, [siderWidth]);
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ height: '100vh', overflow: 'hidden' }}>
       <Sider
         collapsible
         collapsed={collapsed}
         onCollapse={setCollapsed}
         width={siderWidth}
         collapsedWidth={64}
-        style={{ background: '#001529', position: 'relative' }}
+        style={{ background: '#001529', position: 'relative', overflow: 'auto' }}
       >
         <div style={{
           height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -122,12 +122,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         />
       </Sider>
 
-      <Layout>
+      <Layout style={{ height: '100%', overflow: 'hidden' }}>
         <Header style={{
           background: '#fff', padding: '0 24px', display: 'flex',
           justifyContent: 'flex-end', alignItems: 'center',
           borderBottom: '1px solid #f0f0f0',
           height: 56,
+          flexShrink: 0,
         }}>
           <Dropdown menu={{
             items: [

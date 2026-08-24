@@ -155,7 +155,8 @@ const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<any>(null);
   const [prevStats, setPrevStats] = useState<any>(null);
   const [ready, setReady] = useState(false);
-  const [summaryRows, setSummaryRows] = useState<any[]>([]);
+  // Summary 原始数据（用于切 Tab 时按维度重算，无需重新请求）
+  const [summaryRaw, setSummaryRaw] = useState<{ activeEmps: any[]; salList: any[]; empMap: Record<string, any>; addMap: Record<string, any>; welfareMap: Record<string, any>; attMap: Record<string, any> }>({ activeEmps: [], salList: [], empMap: {}, addMap: {}, welfareMap: {}, attMap: {} });
   const [rosterChanges, setRosterChanges] = useState<{ additions: any[]; removals: any[]; prevActiveCount?: number }>({ additions: [], removals: [] });
   const [expandAdd, setExpandAdd] = useState(false);
   const [expandRemove, setExpandRemove] = useState(false);
@@ -179,7 +180,7 @@ const Dashboard: React.FC = () => {
   const avgRef = React.useRef<HTMLDivElement>(null);
   const donutRef = React.useRef<HTMLDivElement>(null);
 
-  useEffect(() => { loadData(); }, [period, summaryTab]);
+  useEffect(() => { loadData(); }, [period]);
 
   function prevPeriod(p: string): string {
     const [y, m] = p.split('-').map(Number);
@@ -355,32 +356,8 @@ const Dashboard: React.FC = () => {
       const main = compArr.filter(c => !c.isOther);
       setComposition([...main, ...others]);
 
-      // ===== Summary 汇总表 =====
-      const buildSummary = (groupKey: 'cost_center' | 'pay_company') => {
-        const byGroup: Record<string, any> = {};
-        activeEmps.forEach((e: any) => {
-          const g = e[groupKey] || '未知';
-          if (!byGroup[g]) byGroup[g] = { group: g, count: 0, net: 0, company_welfare: 0, personal_welfare: 0, perf_comm: 0, attendance_adjust: 0, insurance: 0, provision: 0, total_cost: 0 };
-          byGroup[g].count++;
-        });
-        salList.forEach((r: any) => {
-          const emp = empMap[r.unique_hash];
-          if (!emp) return;
-          const g = emp[groupKey] || '未知';
-          if (!byGroup[g]) byGroup[g] = { group: g, count: 0, net: 0, company_welfare: 0, personal_welfare: 0, perf_comm: 0, attendance_adjust: 0, insurance: 0, provision: 0, total_cost: 0 };
-          const add = addMap[r.unique_hash] || {};
-          byGroup[g].net += Number(r.net_pay || 0);
-          byGroup[g].company_welfare += Number(welfareMap[r.unique_hash]?.company_total || 0);
-          byGroup[g].personal_welfare += Number(welfareMap[r.unique_hash]?.personal_total || 0);
-          byGroup[g].perf_comm += perfComm(add);
-          byGroup[g].attendance_adjust += Number(attMap[r.unique_hash]?.attendance_adjust_total || 0);
-          byGroup[g].insurance += Number(add.insurance_amount || 0);
-          byGroup[g].provision += Number(r.provision_welfare || 0);
-          byGroup[g].total_cost += Number(r.total_cost || 0);
-        });
-        return Object.values(byGroup).map((g: any) => ({ ...g, key: g.group }));
-      };
-      setSummaryRows(buildSummary(summaryTab === 'company' ? 'pay_company' : 'cost_center'));
+      // 保存原始数据，供切 Tab 时按维度重算（不重新请求）
+      setSummaryRaw({ activeEmps, salList, empMap, addMap, welfareMap, attMap });
 
       // ===== 花名册变动 =====
       const additions = activeEmps.filter((e: any) => e.entry_date && e.entry_date.startsWith(period)).map((e: any) => ({ key: e.unique_hash, name: e.name, department: e.department || '', date: e.entry_date, cost_center: e.cost_center || '' }));
@@ -390,6 +367,35 @@ const Dashboard: React.FC = () => {
     } catch { message.error('加载数据总览失败'); }
     finally { setLoading(false); }
   };
+
+  // 切换 Tab 时，仅用已加载的原始数据按维度重算 Summary，不重新请求
+  const perfCommLocal = (add: any) => (add.performance_pay || 0) + (add.kpi_provision || 0) + (add.office_comm || 0) + (add.apartment_comm || 0) + (add.talent_kpi || 0);
+  const displaySummaryRows = useMemo(() => {
+    const { activeEmps, salList, empMap, addMap, welfareMap, attMap } = summaryRaw;
+    const groupKey = summaryTab === 'company' ? 'pay_company' : 'cost_center';
+    const byGroup: Record<string, any> = {};
+    activeEmps.forEach((e: any) => {
+      const g = e[groupKey] || '未知';
+      if (!byGroup[g]) byGroup[g] = { group: g, count: 0, net: 0, company_welfare: 0, personal_welfare: 0, perf_comm: 0, attendance_adjust: 0, insurance: 0, provision: 0, total_cost: 0 };
+      byGroup[g].count++;
+    });
+    salList.forEach((r: any) => {
+      const emp = empMap[r.unique_hash];
+      if (!emp) return;
+      const g = emp[groupKey] || '未知';
+      if (!byGroup[g]) byGroup[g] = { group: g, count: 0, net: 0, company_welfare: 0, personal_welfare: 0, perf_comm: 0, attendance_adjust: 0, insurance: 0, provision: 0, total_cost: 0 };
+      const add = addMap[r.unique_hash] || {};
+      byGroup[g].net += Number(r.net_pay || 0);
+      byGroup[g].company_welfare += Number(welfareMap[r.unique_hash]?.company_total || 0);
+      byGroup[g].personal_welfare += Number(welfareMap[r.unique_hash]?.personal_total || 0);
+      byGroup[g].perf_comm += perfCommLocal(add);
+      byGroup[g].attendance_adjust += Number(attMap[r.unique_hash]?.attendance_adjust_total || 0);
+      byGroup[g].insurance += Number(add.insurance_amount || 0);
+      byGroup[g].provision += Number(r.provision_welfare || 0);
+      byGroup[g].total_cost += Number(r.total_cost || 0);
+    });
+    return Object.values(byGroup).map((g: any) => ({ ...g, key: g.group }));
+  }, [summaryTab, summaryRaw]);
 
   // ===== 图表1：各部门薪资分布（分组柱） =====
   useEffect(() => {
@@ -686,7 +692,7 @@ const Dashboard: React.FC = () => {
           <Space>
             <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 150 }} />
             <Button icon={<ReloadOutlined />} onClick={loadData}>刷新</Button>
-            <Button icon={<DownloadOutlined />} onClick={() => exportXlsx(SUMMARY_EXPORT_DEF, summaryRows, period)}>导出</Button>
+            <Button icon={<DownloadOutlined />} onClick={() => exportXlsx(SUMMARY_EXPORT_DEF, displaySummaryRows, period)}>导出</Button>
           </Space>
         </div>
       </div>
@@ -820,7 +826,7 @@ const Dashboard: React.FC = () => {
         <div style={{ overflowX: 'auto' }}>
           <Table
             columns={summaryColumns}
-            dataSource={summaryRows}
+            dataSource={displaySummaryRows}
             loading={loading}
             size="small"
             pagination={false}
