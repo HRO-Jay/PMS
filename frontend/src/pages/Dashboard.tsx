@@ -2,12 +2,13 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Card, Col, Row, Statistic, Space, Input, message, Table, Tabs, Tag, Badge, Button, Segmented } from 'antd';
 import {
   TeamOutlined, DollarOutlined, SafetyCertificateOutlined, CalculatorOutlined,
-  BankOutlined, AccountBookOutlined, UserOutlined, DownloadOutlined, ReloadOutlined,
+  BankOutlined, AccountBookOutlined, UserOutlined, DownloadOutlined, ReloadOutlined, FilePdfOutlined,
 } from '@ant-design/icons';
 import * as echarts from 'echarts';
 import api from '../api/client';
 import { exportXlsx, type ExportDef } from '../utils/importExport';
 import { isActiveInPeriod } from '../utils/employee';
+import { exportSummaryPdf } from '../utils/pdfExport';
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
@@ -370,9 +371,9 @@ const Dashboard: React.FC = () => {
 
   // 切换 Tab 时，仅用已加载的原始数据按维度重算 Summary，不重新请求
   const perfCommLocal = (add: any) => (add.performance_pay || 0) + (add.kpi_provision || 0) + (add.office_comm || 0) + (add.apartment_comm || 0) + (add.talent_kpi || 0);
-  const displaySummaryRows = useMemo(() => {
+
+  const buildSummaryByGroup = (groupKey: 'pay_company' | 'cost_center' | 'department') => {
     const { activeEmps, salList, empMap, addMap, welfareMap, attMap } = summaryRaw;
-    const groupKey = summaryTab === 'company' ? 'pay_company' : 'cost_center';
     const byGroup: Record<string, any> = {};
     activeEmps.forEach((e: any) => {
       const g = e[groupKey] || '未知';
@@ -395,7 +396,12 @@ const Dashboard: React.FC = () => {
       byGroup[g].total_cost += Number(r.total_cost || 0);
     });
     return Object.values(byGroup).map((g: any) => ({ ...g, key: g.group }));
-  }, [summaryTab, summaryRaw]);
+  };
+
+  const displaySummaryRows = useMemo(
+    () => buildSummaryByGroup(summaryTab === 'company' ? 'pay_company' : 'cost_center'),
+    [summaryTab, summaryRaw]
+  );
 
   // ===== 图表1：各部门薪资分布（分组柱） =====
   useEffect(() => {
@@ -817,7 +823,12 @@ const Dashboard: React.FC = () => {
       </Card>
 
       {/* 数据统计 Summary */}
-      <Card size="small" title="数据统计 Summary" style={cardStyle}>
+      <Card size="small" title="数据统计 Summary" style={cardStyle}
+        extra={<Button icon={<FilePdfOutlined />} onClick={() => {
+          const companyRows = buildSummaryByGroup('pay_company');
+          const deptRows = buildSummaryByGroup('department');
+          exportSummaryPdf(companyRows, deptRows, period);
+        }}>导出PDF</Button>}>
         <Tabs activeKey={summaryTab} onChange={(k) => { setSummaryTab(k as 'dept' | 'company'); }}
           items={[
             { key: 'company', label: '按公司' },
