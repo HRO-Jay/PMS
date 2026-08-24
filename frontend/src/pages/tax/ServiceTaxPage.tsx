@@ -120,7 +120,7 @@ const ServiceTaxPage: React.FC = () => {
       <div style={{ marginBottom: 12, color: '#888' }}>
         计算口径：当月个人所得税 =（薪资小计 − 800）× 20%，薪资小计不超过 800 元时为 0。
       </div>
-      <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 800 }} size="small" pagination={{ pageSize: 50 }} />
+      <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 800 }} size="small" pagination={{ pageSize: 50, showSizeChanger: true, showTotal: t => `共 ${t} 条` }} />
     </Card>
   );
 };

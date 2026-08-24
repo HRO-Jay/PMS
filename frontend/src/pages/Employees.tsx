@@ -405,7 +405,7 @@ const EmployeesPage: React.FC = () => {
         loading={loading}
         scroll={{ x: 1400 }}
         size="small"
-        pagination={{ pageSize: 50, showTotal: t => `共 ${t} 人` }}
+        pagination={{ pageSize: 50, showSizeChanger: true, showTotal: t => `共 ${t} 人` }}
       />
 
       {/* 编辑/添加抽屉 */}

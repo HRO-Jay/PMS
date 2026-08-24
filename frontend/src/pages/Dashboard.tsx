@@ -467,7 +467,7 @@ const Dashboard: React.FC = () => {
       lineStyle: { color: GOLD, type: 'dashed', width: 1.5 },
       label: {
         show: true, formatter: `中位数 ${fmtShort(salaryMedian)}`, color: '#8a6d1f', fontSize: 11,
-        position: 'end', rotate: 0, distance: 4,
+        position: 'insideStartTop', rotate: 0,
       },
       data: [{ xAxis: showData[medianIdx].label }],
     } : undefined;
@@ -556,12 +556,12 @@ const Dashboard: React.FC = () => {
           formatter: (p: any) => empty ? '' : `${fmtMoneyInt(p.data.value)}${p.data.count === 1 ? '（仅1人）' : ''}`,
         },
         emphasis: { itemStyle: { color: paletteColor(1) } },
-        // 公司平均线：水平虚线（参考薪资区间中位线的呈现方式，横排文字）
+        // 公司平均线：水平虚线（横排文字，放线内侧左上方，避免被右侧裁切）
         markLine: empty ? undefined : {
           silent: true, symbol: 'none',
           lineStyle: { color: GOLD, type: 'dashed', width: 1.5 },
           label: {
-            show: true, formatter: `公司平均 ${fmtShort(companyAvgNet)}`, position: 'end', rotate: 0, color: '#8a6d1f', fontSize: 11, distance: 4,
+            show: true, formatter: `公司平均 ${fmtShort(companyAvgNet)}`, position: 'insideStartTop', rotate: 0, color: '#8a6d1f', fontSize: 11,
           },
           data: [{ yAxis: companyAvgNet }],
         },

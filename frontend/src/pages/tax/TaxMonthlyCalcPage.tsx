@@ -293,7 +293,7 @@ const TaxMonthlyCalcPage: React.FC = () => {
         <Button icon={<LinkOutlined />} onClick={handleSync}>同步到薪酬板块</Button>
         <Button icon={<DownloadOutlined />} onClick={() => exportXlsx(EXPORT_DEF, records, period)}>导出</Button>
       </Space>
-      <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 2000 }} size="small" pagination={{ pageSize: 50 }} />
+      <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 2000 }} size="small" pagination={{ pageSize: 50, showSizeChanger: true, showTotal: t => `共 ${t} 条` }} />
     </Card>
   );
 };
