@@ -753,7 +753,7 @@ const AttendancePage: React.FC = () => {
       </Card>
 
       <div ref={scrollRef} onWheel={onWheel}>
-        <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 2400, y: 'calc(100vh - 360px)' }} size="small" pagination={{ pageSize: 50, showSizeChanger: true, showTotal: t => `共 ${t} 条` }} />
+        <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 2400, y: 'calc(100vh - 460px)' }} size="small" pagination={{ pageSize: 50, showSizeChanger: true, showTotal: t => `共 ${t} 条` }} />
       </div>
 
       {/* 详情抽屉 */}

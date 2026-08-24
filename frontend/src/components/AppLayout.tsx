@@ -143,7 +143,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           </Dropdown>
         </Header>
 
-        <Content style={{ margin: 16, padding: 24, background: '#fff', borderRadius: 8, overflow: 'auto' }}>
+        <Content style={{ margin: 16, padding: '16px 24px', background: '#fff', borderRadius: 8, overflow: 'auto' }}>
           {children}
         </Content>
       </Layout>
