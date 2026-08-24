@@ -1,15 +1,17 @@
 /**
  * 数据统计 Summary 导出 PDF
  * 生成一个 PDF 文件，包含两页：按公司汇总 + 按部门汇总
- * 中文通过内嵌 Noto Sans CJK SC 子集字体解决乱码问题
+ *
+ * 中文乱码解决方案：不用 jsPDF 的字体（对 CFF 字体支持差），
+ * 而是用 html2canvas 把表格渲染成图片，再放进 PDF —— 浏览器自己画中文，永不乱码。
  */
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 
 export interface SummaryRow {
-  group: string;          // 发薪公司 / 成本中心 / 部门
-  count: number;          // 人数
-  net: number;            // 实收工资
+  group: string;
+  count: number;
+  net: number;
   company_welfare: number;
   personal_welfare: number;
   perf_comm: number;
@@ -24,122 +26,130 @@ const money = (v: number): string => {
   return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
-// 中文字体（Noto Sans CJK SC 子集），放在 public 目录下
-const FONT_URL = `${import.meta.env.BASE_URL}NotoSansSC-subset.ttf`;
+/** 生成一张汇总表 HTML（用于渲染成图片） */
+function buildTableHtml(title: string, subtitle: string, groupLabel: string, rows: SummaryRow[]): string {
+  const columns = [groupLabel, '人数', '实收工资', '公司福利', '个人福利', '绩效&佣金', '考勤调整', '商保金额', '预提福利费', '人力成本总计'];
+  const sum = (key: keyof SummaryRow) => rows.reduce((s, r) => s + (Number(r[key]) || 0), 0);
 
-let fontBase64: string | null = null;
-let fontLoading: Promise<string> | null = null;
+  const headCells = columns.map(c => `<th>${c}</th>`).join('');
 
-async function loadChineseFont(): Promise<string> {
-  if (fontBase64) return fontBase64;
-  if (!fontLoading) {
-    fontLoading = (async () => {
-      const resp = await fetch(FONT_URL);
-      if (!resp.ok) throw new Error(`字体加载失败: ${resp.status}`);
-      const buf = await resp.arrayBuffer();
-      // 转 base64
-      const bytes = new Uint8Array(buf);
-      let binary = '';
-      const chunk = 8192;
-      for (let i = 0; i < bytes.length; i += chunk) {
-        binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-      }
-      fontBase64 = btoa(binary);
-      return fontBase64!;
-    })();
-  }
-  return fontLoading;
+  const bodyRows = rows.map(r => `
+    <tr>
+      <td class="left">${r.group}</td>
+      <td class="center">${r.count || 0}</td>
+      <td class="right">${money(r.net)}</td>
+      <td class="right">${money(r.company_welfare)}</td>
+      <td class="right">${money(r.personal_welfare)}</td>
+      <td class="right">${money(r.perf_comm)}</td>
+      <td class="right">${money(r.attendance_adjust)}</td>
+      <td class="right">${money(r.insurance)}</td>
+      <td class="right">${money(r.provision)}</td>
+      <td class="right">${money(r.total_cost)}</td>
+    </tr>`).join('');
+
+  const totalRow = `
+    <tr class="total">
+      <td class="left">合计</td>
+      <td class="center">${sum('count')}</td>
+      <td class="right">${money(sum('net'))}</td>
+      <td class="right">${money(sum('company_welfare'))}</td>
+      <td class="right">${money(sum('personal_welfare'))}</td>
+      <td class="right">${money(sum('perf_comm'))}</td>
+      <td class="right">${money(sum('attendance_adjust'))}</td>
+      <td class="right">${money(sum('insurance'))}</td>
+      <td class="right">${money(sum('provision'))}</td>
+      <td class="right">${money(sum('total_cost'))}</td>
+    </tr>`;
+
+  return `
+    <div style="font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif; padding: 20px; background: #fff;">
+      <div style="font-size: 18px; font-weight: 700; color: #1f2937; margin-bottom: 4px;">${title}</div>
+      <div style="font-size: 12px; color: #888; margin-bottom: 12px;">${subtitle}</div>
+      <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+        <thead>
+          <tr style="background: #1e3a5f; color: #fff;">${headCells}</tr>
+        </thead>
+        <tbody>
+          ${bodyRows}
+          ${totalRow}
+        </tbody>
+      </table>
+      <style>
+        th, td { border: 1px solid #e6e9ef; padding: 6px 8px; }
+        th { font-weight: 600; }
+        .left { text-align: left; }
+        .center { text-align: center; }
+        .right { text-align: right; font-variant-numeric: tabular-nums; }
+        .total td { background: #f5f7fa; font-weight: 700; }
+      </style>
+    </div>`;
 }
 
-function buildTable(doc: jsPDF, title: string, subtitle: string, groupLabel: string, rows: SummaryRow[], startY: number) {
-  // 标题
-  doc.setFont('NotoSansSC', 'normal');
-  doc.setFontSize(16);
-  doc.text(title, 14, startY);
+async function tableToImage(doc: jsPDF, html: string): Promise<{ imgData: string; width: number; height: number }> {
+  // 离屏容器渲染
+  const container = document.createElement('div');
+  container.style.position = 'absolute';
+  container.style.left = '-9999px';
+  container.style.top = '0';
+  container.style.width = '1200px';
+  container.style.background = '#fff';
+  container.innerHTML = html;
+  document.body.appendChild(container);
 
-  doc.setFontSize(10);
-  doc.setTextColor(120, 120, 120);
-  doc.text(subtitle, 14, startY + 6);
-  doc.setTextColor(0, 0, 0);
-
-  const columns = [
-    groupLabel, '人数', '实收工资', '公司福利', '个人福利',
-    '绩效&佣金', '考勤调整', '商保金额', '预提福利费', '人力成本总计',
-  ];
-
-  const body = rows.map(r => [
-    r.group,
-    r.count || 0,
-    money(r.net),
-    money(r.company_welfare),
-    money(r.personal_welfare),
-    money(r.perf_comm),
-    money(r.attendance_adjust),
-    money(r.insurance),
-    money(r.provision),
-    money(r.total_cost),
-  ]);
-
-  // 合计行
-  const sum = (key: keyof SummaryRow) => rows.reduce((s, r) => s + (Number(r[key]) || 0), 0);
-  const totalRow = [
-    '合计',
-    sum('count'),
-    money(sum('net')),
-    money(sum('company_welfare')),
-    money(sum('personal_welfare')),
-    money(sum('perf_comm')),
-    money(sum('attendance_adjust')),
-    money(sum('insurance')),
-    money(sum('provision')),
-    money(sum('total_cost')),
-  ];
-
-  autoTable(doc, {
-    head: [columns],
-    body: [...body, totalRow],
-    startY: startY + 10,
-    styles: { font: 'NotoSansSC', fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
-    headStyles: { fillColor: [30, 58, 95], textColor: 255, fontSize: 7, halign: 'center', font: 'NotoSansSC' },
-    columnStyles: {
-      0: { halign: 'left' },
-      1: { halign: 'center' },
-      2: { halign: 'right' },
-      3: { halign: 'right' },
-      4: { halign: 'right' },
-      5: { halign: 'right' },
-      6: { halign: 'right' },
-      7: { halign: 'right' },
-      8: { halign: 'right' },
-      9: { halign: 'right' },
-    },
-    // 最后一行为合计行，加粗
-    didParseCell: (data) => {
-      if (data.section === 'body' && data.row.index === body.length - 1) {
-        data.cell.styles.fontStyle = 'bold';
-        data.cell.styles.fillColor = [245, 247, 250];
-      }
-    },
-    margin: { left: 10, right: 10 },
-  });
+  try {
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+    });
+    const imgData = canvas.toDataURL('image/png');
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    // 图片按页面宽度适配，保留边距
+    const margin = 10;
+    const maxW = pageW - margin * 2;
+    const ratio = canvas.height / canvas.width;
+    const width = maxW;
+    const height = width * ratio;
+    return { imgData, width, height };
+  } finally {
+    document.body.removeChild(container);
+  }
 }
 
 export async function exportSummaryPdf(companyRows: SummaryRow[], deptRows: SummaryRow[], period: string) {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-
-  // 注册中文字体
-  const fontB64 = await loadChineseFont();
-  doc.addFileToVFS('NotoSansSC-subset.ttf', fontB64);
-  doc.addFont('NotoSansSC-subset.ttf', 'NotoSansSC', 'normal');
-
   const subtitle = `数据期间：${period}　·　金额单位：元`;
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 10;
 
   // 第一页：按公司
-  buildTable(doc, '数据统计 Summary — 按公司', subtitle, '发薪公司', companyRows, 15);
+  const img1 = await tableToImage(doc, buildTableHtml('数据统计 Summary — 按公司', subtitle, '发薪公司', companyRows));
+  let x = (pageW - img1.width) / 2;
+  let y = margin;
+  // 如果图太高，等比缩到一页内
+  if (img1.height > pageH - margin * 2) {
+    const scale = (pageH - margin * 2) / img1.height;
+    const w2 = img1.width * scale;
+    x = (pageW - w2) / 2;
+    doc.addImage(img1.imgData, 'PNG', x, y, w2, img1.height * scale);
+  } else {
+    doc.addImage(img1.imgData, 'PNG', x, y, img1.width, img1.height);
+  }
 
   // 第二页：按部门
   doc.addPage();
-  buildTable(doc, '数据统计 Summary — 按部门', subtitle, '成本中心/部门', deptRows, 15);
+  const img2 = await tableToImage(doc, buildTableHtml('数据统计 Summary — 按部门', subtitle, '成本中心/部门', deptRows));
+  let x2 = (pageW - img2.width) / 2;
+  if (img2.height > pageH - margin * 2) {
+    const scale = (pageH - margin * 2) / img2.height;
+    const w2 = img2.width * scale;
+    x2 = (pageW - w2) / 2;
+    doc.addImage(img2.imgData, 'PNG', x2, margin, w2, img2.height * scale);
+  } else {
+    doc.addImage(img2.imgData, 'PNG', x2, margin, img2.width, img2.height);
+  }
 
   doc.save(`数据统计Summary_${period}.pdf`);
 }
