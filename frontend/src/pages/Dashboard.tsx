@@ -507,7 +507,7 @@ const Dashboard: React.FC = () => {
     return () => { chart.dispose(); };
   }, [salaryDist, salaryMedian]);
 
-  // ===== 图表3：各部门平均实发工资（横向条） =====
+  // ===== 图表3：各部门平均实发工资（纵向柱状图，与薪资分布同构） =====
   useEffect(() => {
     const el = avgRef.current;
     if (!el) return;
@@ -516,41 +516,53 @@ const Dashboard: React.FC = () => {
     const showData = empty ? Array.from({ length: 8 }, () => ({ name: '', avg: 1, count: 0, median: 0, above: false })) : avgPayList;
     const maxVal = Math.max(...showData.map(d => d.avg), companyAvgNet, 1);
     chart.setOption({
-      grid: { left: 8, right: 100, top: 8, bottom: 8, containLabel: true },
+      grid: { left: 8, right: 70, top: 36, bottom: 8, containLabel: true },
       tooltip: {
-        trigger: 'item',
+        trigger: 'axis',
+        axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(30,58,95,0.04)' } },
         backgroundColor: 'rgba(23,32,46,0.92)', borderWidth: 0, textStyle: { color: '#fff', fontSize: 12 },
-        formatter: (p: any) => empty ? '' : `<div style="font-weight:600;margin-bottom:4px">${p.name}</div>平均实发　¥${Number(p.data.value).toLocaleString('zh-CN')}<br/>样本量　${p.data.count}人<br/>中位数　¥${Number(p.data.median).toLocaleString('zh-CN')}`,
+        formatter: (params: any) => {
+          if (empty) return '';
+          const name = params[0]?.name;
+          const d = avgPayList.find(x => x.name === name);
+          if (!d) return '';
+          return `<div style="font-weight:600;margin-bottom:4px">${d.name}</div>平均实发　¥${d.avg.toLocaleString('zh-CN')}<br/>样本量　${d.count}人<br/>中位数　¥${d.median.toLocaleString('zh-CN')}`;
+        },
       },
-      xAxis: { type: 'value', show: false, max: maxVal * 1.25 },
+      xAxis: {
+        type: 'category', data: showData.map(d => truncateLabel(d.name, 8)),
+        axisLine: { lineStyle: { color: BORDER } }, axisTick: { show: false },
+        axisLabel: { ...horizontalAxisLabel, formatter: (v: string) => truncateLabel(v, 8) },
+      },
       yAxis: {
-        type: 'category', data: showData.map(d => truncateLabel(d.name, 9)),
-        axisLine: { show: false }, axisTick: { show: false },
-        axisLabel: { ...horizontalAxisLabel, formatter: (v: string) => truncateLabel(v, 9) },
+        type: 'value', min: 0, splitLine: gridLine,
+        axisLabel: { color: INK_SUB, fontSize: 11, formatter: (v: number) => axisMoney(v) },
       },
       series: [{
         type: 'bar',
+        barWidth: 24,
         data: showData.map((d) => ({
           value: d.avg, count: d.count, median: d.median,
           itemStyle: empty ? { color: PLACEHOLDER } : {
-            borderRadius: [0, 4, 4, 0],
-            color: d.above ? new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: 'rgba(30,58,95,0.85)' }, { offset: 1, color: 'rgba(59,125,216,0.55)' }]) : '#cfd6e0',
+            borderRadius: [5, 5, 0, 0],
+            color: d.above
+              ? new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(30,58,95,0.9)' }, { offset: 1, color: 'rgba(59,125,216,0.4)' }])
+              : 'rgba(125,133,144,0.45)',
           },
         })),
-        barWidth: 14,
         label: {
-          show: true, position: 'right', color: INK, fontSize: 12, fontWeight: 600,
+          show: true, position: 'top', color: INK, fontSize: 11, fontWeight: 600,
           formatter: (p: any) => empty ? '' : `${fmtMoneyInt(p.data.value)}${p.data.count === 1 ? '（仅1人）' : ''}`,
         },
-        emphasis: { focus: 'series', itemStyle: { color: paletteColor(0) } },
-        blur: { itemStyle: { opacity: 0.3 } },
+        emphasis: { itemStyle: { color: paletteColor(1) } },
+        // 公司平均线：水平虚线（参考薪资区间中位线的呈现方式，横排文字）
         markLine: empty ? undefined : {
           silent: true, symbol: 'none',
           lineStyle: { color: GOLD, type: 'dashed', width: 1.5 },
           label: {
             show: true, formatter: `公司平均 ${fmtShort(companyAvgNet)}`, position: 'end', rotate: 0, color: '#8a6d1f', fontSize: 11, distance: 4,
           },
-          data: [{ xAxis: companyAvgNet }],
+          data: [{ yAxis: companyAvgNet }],
         },
       }],
       graphic: empty ? [{ type: 'text', left: 'center', top: 'middle', style: { text: '暂无薪资数据', fill: '#9aa4b2', fontSize: 14 } }] : [],
@@ -700,7 +712,14 @@ const Dashboard: React.FC = () => {
             </Card>
           </Col>
 
-          {/* 第二行左：薪资区间人数分布（纵向柱） */}
+          {/* 第二行：各部门平均实发工资（纵向柱），独占整行 */}
+          <Col span={24}>
+            <Card size="small" title="各部门平均实发工资" style={{ ...cardStyle, background: '#fff' }}>
+              <div ref={avgRef} style={{ width: '100%', height: 320 }} />
+            </Card>
+          </Col>
+
+          {/* 第三行左：薪资区间人数分布（纵向柱） */}
           <Col xs={24} xl={12}>
             <Card size="small" title="薪资区间人数分布" style={{ ...cardStyle, background: '#fff' }}>
               <div ref={histRef} style={{ width: '100%', height: 300 }} />
@@ -713,14 +732,7 @@ const Dashboard: React.FC = () => {
             </Card>
           </Col>
 
-          {/* 第二行右：各部门平均实发工资 */}
-          <Col xs={24} xl={12}>
-            <Card size="small" title="各部门平均实发工资" style={{ ...cardStyle, background: '#fff' }}>
-              <div ref={avgRef} style={{ width: '100%', height: 300 }} />
-            </Card>
-          </Col>
-
-          {/* 第三行左：工资构成占比 */}
+          {/* 第三行右：工资构成占比 */}
           <Col xs={24} xl={12}>
             <Card size="small" title="工资构成占比（应发口径）" style={{ ...cardStyle, background: '#fff' }}>
               <Row align="middle">
