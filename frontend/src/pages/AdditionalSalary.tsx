@@ -5,6 +5,7 @@ import api from '../api/client';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
 import { withSource } from '../components/SourceTag';
 import { useHorizontalScroll } from '../utils/useHorizontalScroll';
+import { isActiveInPeriod } from '../utils/employee';
 
 /**
  * 附加薪酬板块
@@ -65,7 +66,7 @@ const AdditionalSalaryPage: React.FC = () => {
     setLoading(true);
     try {
       const [empRes, recRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,attendance_type'),
+        api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,leave_date,attendance_type'),
         api.get(`/additional_salary_records?select=*&period=eq.${period}`),
       ]);
       const empList: any[] = empRes.data;
@@ -77,7 +78,7 @@ const AdditionalSalaryPage: React.FC = () => {
       recRes.data.forEach((r: any) => { recMap[r.unique_hash] = r; });
 
       let merged = empList
-        .filter((e: any) => e.status === '在职' || recMap[e.unique_hash])
+        .filter((e: any) => isActiveInPeriod(e, period) || recMap[e.unique_hash])
         .map((e: any) => {
           const r = recMap[e.unique_hash];
           const additionalTotal = Number((

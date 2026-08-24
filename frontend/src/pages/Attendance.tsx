@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
 import { calcAttendance, parseAttendanceRules, type AttendanceRules, DEFAULT_ATTENDANCE_RULES } from '../utils/attendanceCalc';
+import { isActiveInPeriod } from '../utils/employee';
 import { withSource } from '../components/SourceTag';
 import { useHorizontalScroll } from '../utils/useHorizontalScroll';
 import dayjs from 'dayjs';
@@ -114,9 +115,9 @@ const AttendancePage: React.FC = () => {
       const recMap: Record<string, any> = {};
       recRes.data.forEach((r: any) => { recMap[r.unique_hash] = r; });
 
-      // 左连接：以花名册员工为准，自动列出所有人（在职全显 + 离职但当月有记录也显示）
+      // 左连接：以花名册员工为准，自动列出所有人（当月在职 + 离职但离职月份含当月 + 当月有记录也显示）
       const merged = empList
-        .filter((e: any) => e.status === '在职' || recMap[e.unique_hash])
+        .filter((e: any) => isActiveInPeriod(e, period) || recMap[e.unique_hash])
         .map((e: any) => {
           const rec = recMap[e.unique_hash];
           return {

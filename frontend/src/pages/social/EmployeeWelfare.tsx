@@ -9,6 +9,7 @@ import { calcSocial, calcHousingFund } from '../../utils/welfareCalc';
 import { exportXlsx, importXlsx, type ExportDef } from '../../utils/importExport';
 import { withSource } from '../../components/SourceTag';
 import { useHorizontalScroll } from '../../utils/useHorizontalScroll';
+import { isActiveInPeriod } from '../../utils/employee';
 import dayjs from 'dayjs';
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
@@ -115,7 +116,7 @@ const EmployeeWelfare: React.FC = () => {
     setLoading(true);
     try {
       const [empRes, sRes, hRes, recRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,attendance_type'),
+        api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,leave_date,attendance_type'),
         api.get('/social_welfare_sets?select=*&order=code'),
         api.get('/housing_fund_sets?select=*&order=code'),
         api.get(`/employee_welfare_records?select=*&period=eq.${period}`),
@@ -132,7 +133,7 @@ const EmployeeWelfare: React.FC = () => {
 
       // 左连接：以花名册在职员工为准自动列出，离职但当月有记录也显示
       const merged = empList
-        .filter((e: any) => e.status === '在职' || recMap[e.unique_hash])
+        .filter((e: any) => isActiveInPeriod(e, period) || recMap[e.unique_hash])
         .map((e: any) => {
           const r = recMap[e.unique_hash];
           const psAdj = Number(r?.personal_social_adj || 0);

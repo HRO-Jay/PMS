@@ -7,6 +7,7 @@ import {
 import * as echarts from 'echarts';
 import api from '../api/client';
 import { exportXlsx, type ExportDef } from '../utils/importExport';
+import { isActiveInPeriod } from '../utils/employee';
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
@@ -192,7 +193,7 @@ const Dashboard: React.FC = () => {
       const prev = prevPeriod(period);
       const empRes = await api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,entry_date,leave_date,basic_salary');
       const empList: any[] = empRes.data;
-      const activeEmps = empList.filter((e: any) => e.status === '在职');
+      const activeEmps = empList.filter((e: any) => isActiveInPeriod(e, period));
       const empMap: Record<string, any> = {};
       empList.forEach((e: any) => { empMap[e.unique_hash] = e; });
 

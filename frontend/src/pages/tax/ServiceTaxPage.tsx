@@ -4,6 +4,7 @@ import { CalculatorOutlined, SaveOutlined, DownloadOutlined } from '@ant-design/
 import api from '../../api/client';
 import { exportXlsx, type ExportDef } from '../../utils/importExport';
 import { withSource } from '../../components/SourceTag';
+import { isActiveInPeriod } from '../../utils/employee';
 
 /**
  * 个税扣缴 — 劳务个税计算（计税方式为"劳务计税"的人员）
@@ -42,7 +43,7 @@ const ServiceTaxPage: React.FC = () => {
     try {
       // 只取计税方式为"劳务计税"(service)的人员
       const [empRes, salaryRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,status,pay_company,tax_method&tax_method=eq.service'),
+        api.get('/employees?select=unique_hash,name,status,pay_company,tax_method,leave_date&tax_method=eq.service'),
         api.get(`/salary_records?select=unique_hash,wage_subtotal,monthly_tax&period=eq.${period}`),
       ]);
 
@@ -50,7 +51,7 @@ const ServiceTaxPage: React.FC = () => {
       salaryRes.data.forEach((r: any) => { salaryMap[r.unique_hash] = r; });
 
       const merged = empRes.data
-        .filter((e: any) => e.status === '在职' || salaryMap[e.unique_hash])
+        .filter((e: any) => isActiveInPeriod(e, period) || salaryMap[e.unique_hash])
         .map((e: any) => {
           const sal = salaryMap[e.unique_hash] || {};
           const wageSubtotal = Number(sal.wage_subtotal || 0);

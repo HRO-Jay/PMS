@@ -5,6 +5,7 @@ import api from '../../api/client';
 import { calcIncomeTax } from '../../utils/taxCalc';
 import { exportXlsx, type ExportDef } from '../../utils/importExport';
 import { withSource } from '../../components/SourceTag';
+import { isActiveInPeriod } from '../../utils/employee';
 
 /**
  * 个税扣缴 — Tab 3：月度计算（累计预扣法）
@@ -58,7 +59,7 @@ const TaxMonthlyCalcPage: React.FC = () => {
     try {
       // 并行加载：员工、期初累计数、专项附加、上月专项附加、上月计算、当月计算、社保个人福利、考勤调整、附加薪酬
       const [empRes, openingRes, specialRes, prevSpecialRes, prevCalcRes, calcRes, welfareRes, attRes, addRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,attendance_type,basic_salary&tax_method=eq.normal'),
+        api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,leave_date,attendance_type,basic_salary&tax_method=eq.normal'),
         api.get('/tax_opening_balances?select=*'),
         api.get(`/tax_special_deductions?select=*&period=eq.${period}`),
         api.get(`/tax_special_deductions?select=*&period=eq.${prevPeriod(period)}`),
@@ -88,7 +89,7 @@ const TaxMonthlyCalcPage: React.FC = () => {
       addRes.data.forEach((r: any) => { addMap[r.unique_hash] = r; });
 
       const merged = empList
-        .filter((e: any) => e.status === '在职' || calcMap[e.unique_hash])
+        .filter((e: any) => isActiveInPeriod(e, period) || calcMap[e.unique_hash])
         .map((e: any) => {
           const opening = openingMap[e.unique_hash] || {};
           const special = specialMap[e.unique_hash] || {};

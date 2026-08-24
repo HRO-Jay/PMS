@@ -5,6 +5,7 @@ import api from '../api/client';
 import { exportXlsx, type ExportDef } from '../utils/importExport';
 import { withSource } from '../components/SourceTag';
 import { useHorizontalScroll } from '../utils/useHorizontalScroll';
+import { isActiveInPeriod } from '../utils/employee';
 
 /**
  * 薪资计算板块（改造版）
@@ -70,7 +71,7 @@ const PayrollPage: React.FC = () => {
   // 拉取各模块数据源并按当月口径计算（返回员工映射 + 合并后的所有在职行）
   const fetchAndCompute = async (): Promise<{ empMap: Record<string, any>; merged: any[] }> => {
     const [empRes, attRes, addRes, welfareRes, taxRes] = await Promise.all([
-      api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,attendance_type,tax_method,basic_salary'),
+      api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,leave_date,attendance_type,tax_method,basic_salary'),
       api.get(`/attendance_records?select=unique_hash,attendance_adjust_total,data_status&period=eq.${period}`),
       api.get(`/additional_salary_records?select=*&period=eq.${period}`),
       api.get(`/employee_welfare_records?select=unique_hash,personal_total,company_total,pension_p_amt,medical_p_amt,unemployment_p_amt,normal_housing_p_amt,supp_housing_p_amt,pension_c_amt,medical_c_amt,unemployment_c_amt,injury_c_amt,maternity_c_amt,normal_housing_c_amt,supp_housing_c_amt&period=eq.${period}`),
@@ -91,7 +92,7 @@ const PayrollPage: React.FC = () => {
     taxRes.data.forEach((r: any) => { taxMap[r.unique_hash] = r; });
 
     const merged = empList
-      .filter((e: any) => e.status === '在职')
+      .filter((e: any) => isActiveInPeriod(e, period))
       .map((e: any) => {
         const add = addMap[e.unique_hash] || {};
         const welfare = welfareMap[e.unique_hash] || {};
