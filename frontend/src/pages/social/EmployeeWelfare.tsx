@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Table, Button, Drawer, Form, Input, Select, Space, message, Card, InputNumber, Switch, Tag, Descriptions, DatePicker, Upload, Dropdown, Popconfirm,
 } from 'antd';
-import { PlusOutlined, DownloadOutlined, UploadOutlined, CalculatorOutlined } from '@ant-design/icons';
+import { PlusOutlined, DownloadOutlined, UploadOutlined, CalculatorOutlined, SearchOutlined } from '@ant-design/icons';
 import api from '../../api/client';
 import type { SocialWelfareSet, HousingFundSet, EmployeeWelfareRecord } from '../../types';
 import { calcSocial, calcHousingFund } from '../../utils/welfareCalc';
@@ -110,6 +110,14 @@ const EmployeeWelfare: React.FC = () => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRecord, setDetailRecord] = useState<any>(null);
 
+  // 筛选器
+  const [fPayCompany, setFPayCompany] = useState<string>();
+  const [fDepartment, setFDepartment] = useState<string>();
+  const [fSocialStatus, setFSocialStatus] = useState<string>();
+  const [fHousingStatus, setFHousingStatus] = useState<string>();
+  const [fDataStatus, setFDataStatus] = useState<string>();
+  const [keyword, setKeyword] = useState('');
+
   useEffect(() => { loadData(); }, [period]);
 
   const loadData = async () => {
@@ -136,16 +144,22 @@ const EmployeeWelfare: React.FC = () => {
         .filter((e: any) => isActiveInPeriod(e, period) || recMap[e.unique_hash])
         .map((e: any) => {
           const r = recMap[e.unique_hash];
-          const psAdj = Number(r?.personal_social_adj || 0);
-          const csAdj = Number(r?.company_social_adj || 0);
-          const phAdj = Number(r?.personal_housing_adj || 0);
-          const chAdj = Number(r?.company_housing_adj || 0);
+          // 生效日期识别：生效日期(如2026-07) > 当前月份(如2026-06) 时，该月社保/公积金金额为 0
+          const notYetEffective = !!(r?.effective_month && r.effective_month > period);
+          const psAdj = notYetEffective ? 0 : Number(r?.personal_social_adj || 0);
+          const csAdj = notYetEffective ? 0 : Number(r?.company_social_adj || 0);
+          const phAdj = notYetEffective ? 0 : Number(r?.personal_housing_adj || 0);
+          const chAdj = notYetEffective ? 0 : Number(r?.company_housing_adj || 0);
+          const psBase = notYetEffective ? 0 : Number(r?.personal_social_total || 0);
+          const csBase = notYetEffective ? 0 : Number(r?.company_social_total || 0);
+          const phBase = notYetEffective ? 0 : Number(r?.personal_housing_total || 0);
+          const chBase = notYetEffective ? 0 : Number(r?.company_housing_total || 0);
           const socialAdjTotal = Number((psAdj + csAdj).toFixed(2));
           const housingAdjTotal = Number((phAdj + chAdj).toFixed(2));
-          const psWithAdj = Number(((r?.personal_social_total || 0) + psAdj).toFixed(2));
-          const csWithAdj = Number(((r?.company_social_total || 0) + csAdj).toFixed(2));
-          const phWithAdj = Number(((r?.personal_housing_total || 0) + phAdj).toFixed(2));
-          const chWithAdj = Number(((r?.company_housing_total || 0) + chAdj).toFixed(2));
+          const psWithAdj = Number((psBase + psAdj).toFixed(2));
+          const csWithAdj = Number((csBase + csAdj).toFixed(2));
+          const phWithAdj = Number((phBase + phAdj).toFixed(2));
+          const chWithAdj = Number((chBase + chAdj).toFixed(2));
           return {
             ...(r || { id: undefined, data_status: '未录入', supp_enabled: undefined }),
             key: r?.id ?? `emp-${e.unique_hash}`,
@@ -158,6 +172,7 @@ const EmployeeWelfare: React.FC = () => {
             position: e.position || '',
             entry_date: e.entry_date || '',
             attendance_type: e.attendance_type || '',
+            not_yet_effective: notYetEffective,
             social_adj_total: socialAdjTotal,
             housing_adj_total: housingAdjTotal,
             personal_social_with_adj: psWithAdj,
@@ -168,6 +183,25 @@ const EmployeeWelfare: React.FC = () => {
             housing_total_with_adj: Number((phWithAdj + chWithAdj).toFixed(2)),
             personal_total_with_adj: Number((psWithAdj + phWithAdj).toFixed(2)),
             company_total_with_adj: Number((csWithAdj + chWithAdj).toFixed(2)),
+            // 覆盖原始金额为 0（未生效月显示 0）
+            pension_p_amt: notYetEffective ? 0 : r?.pension_p_amt,
+            medical_p_amt: notYetEffective ? 0 : r?.medical_p_amt,
+            unemployment_p_amt: notYetEffective ? 0 : r?.unemployment_p_amt,
+            pension_c_amt: notYetEffective ? 0 : r?.pension_c_amt,
+            medical_c_amt: notYetEffective ? 0 : r?.medical_c_amt,
+            unemployment_c_amt: notYetEffective ? 0 : r?.unemployment_c_amt,
+            injury_c_amt: notYetEffective ? 0 : r?.injury_c_amt,
+            maternity_c_amt: notYetEffective ? 0 : r?.maternity_c_amt,
+            normal_housing_p_amt: notYetEffective ? 0 : r?.normal_housing_p_amt,
+            normal_housing_c_amt: notYetEffective ? 0 : r?.normal_housing_c_amt,
+            supp_housing_p_amt: notYetEffective ? 0 : r?.supp_housing_p_amt,
+            supp_housing_c_amt: notYetEffective ? 0 : r?.supp_housing_c_amt,
+            personal_social_total: psBase,
+            personal_housing_total: phBase,
+            company_social_total: csBase,
+            company_housing_total: chBase,
+            personal_total: notYetEffective ? 0 : r?.personal_total,
+            company_total: notYetEffective ? 0 : r?.company_total,
           };
         });
 
@@ -175,6 +209,18 @@ const EmployeeWelfare: React.FC = () => {
     } catch { message.error('加载数据失败'); }
     finally { setLoading(false); }
   };
+
+  // 前端筛选（姓名/公司/部门/社保状态/公积金状态/数据状态）
+  const filteredRecords = records
+    .filter((r: any) => {
+      if (fPayCompany && r.pay_company !== fPayCompany) return false;
+      if (fDepartment && (r.department || '') !== fDepartment) return false;
+      if (fSocialStatus && r.social_status !== fSocialStatus) return false;
+      if (fHousingStatus && r.housing_status !== fHousingStatus) return false;
+      if (fDataStatus && r.data_status !== fDataStatus) return false;
+      if (keyword && !(r.employee_name || '').includes(keyword)) return false;
+      return true;
+    });
 
   const openCreate = () => {
     setEditing(null);
@@ -561,8 +607,25 @@ const EmployeeWelfare: React.FC = () => {
         </Space>
       </Card>
 
+      {/* 筛选区 */}
+      <Card size="small" style={{ marginBottom: 12 }}>
+        <Space wrap>
+          <Input placeholder="搜索姓名" prefix={<SearchOutlined />} value={keyword} onChange={e => setKeyword(e.target.value)} style={{ width: 140 }} allowClear />
+          <Select placeholder="发薪公司" allowClear showSearch optionFilterProp="label" value={fPayCompany} onChange={setFPayCompany} style={{ width: 150 }}
+            options={Object.values(employees).map((e: any) => ({ value: e.pay_company, label: e.pay_company })).filter((v, i, a) => a.findIndex(x => x.value === v.value) === i)} />
+          <Select placeholder="部门" allowClear showSearch optionFilterProp="label" value={fDepartment} onChange={setFDepartment} style={{ width: 130 }}
+            options={Object.values(employees).map((e: any) => ({ value: e.department, label: e.department })).filter((v, i, a) => v.value && a.findIndex(x => x.value === v.value) === i)} />
+          <Select placeholder="社保状态" allowClear value={fSocialStatus} onChange={setFSocialStatus} style={{ width: 110 }}
+            options={['参保', '不参保'].map(s => ({ value: s, label: s }))} />
+          <Select placeholder="公积金状态" allowClear value={fHousingStatus} onChange={setFHousingStatus} style={{ width: 120 }}
+            options={['缴存', '不缴存'].map(s => ({ value: s, label: s }))} />
+          <Select placeholder="数据状态" allowClear value={fDataStatus} onChange={setFDataStatus} style={{ width: 140 }}
+            options={['正常', '社保基数缺失', '公积金基数缺失', '补充公积金基数缺失', '不缴纳原因缺失', '含调整', '调整原因缺失', '调整期间缺失', '未录入'].map(s => ({ value: s, label: s }))} />
+        </Space>
+      </Card>
+
       <div ref={scrollRef} onWheel={onWheel}>
-        <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 1800 }} size="small" pagination={{ pageSize: 50 }} />
+        <Table columns={columns} dataSource={filteredRecords} loading={loading} scroll={{ x: 1800 }} size="small" pagination={{ pageSize: 50 }} />
       </div>
 
       {/* 编辑抽屉 */}

@@ -702,6 +702,42 @@ const Dashboard: React.FC = () => {
         <Col flex="1"><MetricCard title="人均实发工资" value={stats?.avg_net} unit="元" icon={<UserOutlined />} color={paletteColor(8)} prev={prevStats?.avg_net} /></Col>
       </Row>
 
+      {/* 花名册变动分析 */}
+      <Card title="花名册变动分析" size="small" style={{ ...cardStyle, marginBottom: 16 }}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Badge count={rosterChanges.additions.length} style={{ backgroundColor: '#2e7d5b' }} showZero />
+              <span style={{ color: '#2e7d5b', fontWeight: 600, fontSize: 15 }}>新增</span>
+              <Tag color="green">上月 {rosterChanges.prevActiveCount ?? '—'} 人</Tag>
+            </div>
+            <Table size="small" pagination={false}
+              dataSource={expandAdd ? rosterChanges.additions : rosterChanges.additions.slice(0, 5)}
+              columns={changeColumns('入职日期')} />
+            {rosterChanges.additions.length > 5 && (
+              <Button type="link" size="small" onClick={() => setExpandAdd(!expandAdd)}>
+                {expandAdd ? '收起' : `展开全部（${rosterChanges.additions.length} 人）`}
+              </Button>
+            )}
+          </Col>
+          <Col span={12}>
+            <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Badge count={rosterChanges.removals.length} style={{ backgroundColor: '#c0392b' }} showZero />
+              <span style={{ color: '#c0392b', fontWeight: 600, fontSize: 15 }}>减少</span>
+              <Tag color="red">上月 {rosterChanges.prevActiveCount ?? '—'} 人</Tag>
+            </div>
+            <Table size="small" pagination={false}
+              dataSource={expandRemove ? rosterChanges.removals : rosterChanges.removals.slice(0, 5)}
+              columns={changeColumns('离职日期')} />
+            {rosterChanges.removals.length > 5 && (
+              <Button type="link" size="small" onClick={() => setExpandRemove(!expandRemove)}>
+                {expandRemove ? '收起' : `展开全部（${rosterChanges.removals.length} 人）`}
+              </Button>
+            )}
+          </Col>
+        </Row>
+      </Card>
+
       {/* 统计分析图表区 */}
       <Card size="small" style={{ ...cardStyle, marginBottom: 16, background: '#fafbfc' }} styles={{ body: { padding: 16 } }}>
         <Row gutter={[16, 16]}>
@@ -770,42 +806,6 @@ const Dashboard: React.FC = () => {
                 </Col>
               </Row>
             </Card>
-          </Col>
-        </Row>
-      </Card>
-
-      {/* 花名册变动分析 */}
-      <Card title="花名册变动分析" size="small" style={{ ...cardStyle, marginBottom: 16 }}>
-        <Row gutter={16}>
-          <Col span={12}>
-            <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Badge count={rosterChanges.additions.length} style={{ backgroundColor: '#2e7d5b' }} showZero />
-              <span style={{ color: '#2e7d5b', fontWeight: 600, fontSize: 15 }}>新增</span>
-              <Tag color="green">上月 {rosterChanges.prevActiveCount ?? '—'} 人</Tag>
-            </div>
-            <Table size="small" pagination={false}
-              dataSource={expandAdd ? rosterChanges.additions : rosterChanges.additions.slice(0, 5)}
-              columns={changeColumns('入职日期')} />
-            {rosterChanges.additions.length > 5 && (
-              <Button type="link" size="small" onClick={() => setExpandAdd(!expandAdd)}>
-                {expandAdd ? '收起' : `展开全部（${rosterChanges.additions.length} 人）`}
-              </Button>
-            )}
-          </Col>
-          <Col span={12}>
-            <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Badge count={rosterChanges.removals.length} style={{ backgroundColor: '#c0392b' }} showZero />
-              <span style={{ color: '#c0392b', fontWeight: 600, fontSize: 15 }}>减少</span>
-              <Tag color="red">上月 {rosterChanges.prevActiveCount ?? '—'} 人</Tag>
-            </div>
-            <Table size="small" pagination={false}
-              dataSource={expandRemove ? rosterChanges.removals : rosterChanges.removals.slice(0, 5)}
-              columns={changeColumns('离职日期')} />
-            {rosterChanges.removals.length > 5 && (
-              <Button type="link" size="small" onClick={() => setExpandRemove(!expandRemove)}>
-                {expandRemove ? '收起' : `展开全部（${rosterChanges.removals.length} 人）`}
-              </Button>
-            )}
           </Col>
         </Row>
       </Card>
