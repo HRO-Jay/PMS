@@ -11,6 +11,9 @@
 const round2 = (v: number): number => Number(v.toFixed(2));
 const round4 = (v: number): number => Number(v.toFixed(4));
 
+/** 连续病假"超6个月"的天数阈值（按 180 天近似 6 个自然月） */
+const SIX_MONTHS_DAYS = 180;
+
 /** 病假支付系数分档（按本企业连续工龄） */
 export interface SickPayTier {
   min_years: number;           // 工龄下限（含）
@@ -147,8 +150,12 @@ export function calcContinuousSickDays(start: string, end: string): number {
  * 病假支付系数（按本企业连续工龄分档，规则可配置）
  *
  * 两档规则：
- * 1. 连续病假 ≤ 6 个月 → 疾病休假工资（sick_lt_6m）
+ * 1. 连续病假 ≤ 6 个月（或非连续病假）→ 疾病休假工资（sick_lt_6m）
+ *    按工龄：不满2年60% / 满2年不满4年70% / 满4年不满6年80% / 满6年不满8年90% / 满8年及以上100%
  * 2. 连续病假 > 6 个月 → 疾病救济费（sick_gte_6m）
+ *    按工龄：不满1年40% / 满1年不满3年50% / 满3年及以上60%
+ *
+ * 病假金额 = 日薪 × 病假天数 × (1 - 支付系数)，即扣款部分。
  */
 export function calcSickPayRate(
   entryDate: string,
@@ -159,7 +166,7 @@ export function calcSickPayRate(
 ): number {
   const r = rules || DEFAULT_ATTENDANCE_RULES;
   const years = calcSeniorityYears(entryDate, period);
-  const overSixMonths = continuousDays > 180; // 约6个月
+  const overSixMonths = continuousDays > SIX_MONTHS_DAYS; // 约6个月
   const tiers = isContinuous && overSixMonths ? r.sick_gte_6m : r.sick_lt_6m;
   return pickPayRate(tiers, years);
 }
@@ -215,7 +222,7 @@ export interface AttendanceResult {
   attendance_adjust_total: number;
 }
 
-/** 判断是否保洁（职位精确等于"保洁"） */
+/** 判断是否保洁（职位精确等于"保洁"，不含"保洁主管"） */
 function isCleaner(position?: string): boolean {
   return position?.trim() === '保洁';
 }
@@ -268,7 +275,9 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
   let regularAmount = round2(regularDays * dailyWage * regularRate);
   // 周末加班金额
   let weekendAmount = round2(weekendDays * dailyWage * weekendRate);
-  // 节假日加班金额（保洁按固定金额）
+  // 节假日加班金额：
+  // - 保洁（不含保洁主管）：节假日加班(天) × 法定节假日固定金额
+  // - 其他人：节假日加班(天) × 日薪 × 3倍
   let holidayAmount = 0;
   if (holidayDays > 0) {
     if (isCleaner(input.position)) {

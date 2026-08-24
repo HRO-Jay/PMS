@@ -660,6 +660,7 @@ const AttendancePage: React.FC = () => {
     { title: withSource('保安法定加班(天)', '导入'), dataIndex: 'guard_overtime_days', key: 'god', width: 120, render: (v: any) => v ? v : '—' },
     { title: withSource('延时加班(小时)', '导入'), dataIndex: 'overtime_hours', key: 'oh', width: 110, render: (v: any) => v ? v : '—' },
     { title: withSource('时薪', '导入'), dataIndex: 'hourly_rate', key: 'hr', width: 90, render: (v: any) => fmtMoney(v) },
+    { title: withSource('调整金额', '导入'), dataIndex: 'adjust_amount', key: 'adjamt', width: 100, render: (v: any) => fmtMoney(v) },
     { title: withSource('加班金额', '系统计算'), dataIndex: 'overtime_amount', key: 'oa', width: 90, render: (v: number) => fmtMoney(v) },
     { title: withSource('入离职调整', '系统计算'), dataIndex: 'on_off_adjust', key: 'oof', width: 100, render: (v: number) => fmtMoney(v) },
     { title: withSource('考勤调整合计', '系统计算'), dataIndex: 'attendance_adjust_total', key: 'aat', width: 110, fixed: 'right',
@@ -789,11 +790,11 @@ const AttendancePage: React.FC = () => {
             <Descriptions.Item label="保安法定加班(天)">{detailRecord.guard_overtime_days ? detailRecord.guard_overtime_days : '—'}</Descriptions.Item>
             <Descriptions.Item label="延时加班(小时)">{detailRecord.overtime_hours ? detailRecord.overtime_hours : '—'}</Descriptions.Item>
             <Descriptions.Item label="时薪">{fmtMoney(detailRecord.hourly_rate)}</Descriptions.Item>
+            <Descriptions.Item label="调整金额">{fmtMoney(detailRecord.adjust_amount)}</Descriptions.Item>
             <Descriptions.Item label="加班金额">{fmtMoney(detailRecord.overtime_amount)}</Descriptions.Item>
             <Descriptions.Item label="实际出勤天数">{detailRecord.actual_attendance_days || '—'}</Descriptions.Item>
             <Descriptions.Item label="入离职调整">{fmtMoney(detailRecord.on_off_adjust)}</Descriptions.Item>
             <Descriptions.Item label="调整类型">{detailRecord.adjust_type || '—'}</Descriptions.Item>
-            <Descriptions.Item label="调整金额">{fmtMoney(detailRecord.adjust_amount)}</Descriptions.Item>
             <Descriptions.Item label="考勤调整合计" span={2}>
               <strong>{fmtMoney(detailRecord.attendance_adjust_total)}</strong>
             </Descriptions.Item>
