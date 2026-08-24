@@ -403,7 +403,7 @@ const EmployeesPage: React.FC = () => {
         columns={columns}
         dataSource={employees.map(e => ({ ...e, key: e.id }))}
         loading={loading}
-        scroll={{ x: 1400 }}
+        scroll={{ x: 1400, y: 'calc(100vh - 300px)' }}
         size="small"
         pagination={{ pageSize: 50, showSizeChanger: true, showTotal: t => `共 ${t} 人` }}
       />

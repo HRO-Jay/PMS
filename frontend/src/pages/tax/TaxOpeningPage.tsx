@@ -151,7 +151,7 @@ const TaxOpeningPage: React.FC = () => {
           <Button icon={<UploadOutlined />}>导入</Button>
         </Upload>
       </Space>
-      <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 1400 }} size="small" pagination={{ pageSize: 50, showSizeChanger: true, showTotal: t => `共 ${t} 条` }} />
+      <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 1400, y: 'calc(100vh - 280px)' }} size="small" pagination={{ pageSize: 50, showSizeChanger: true, showTotal: t => `共 ${t} 条` }} />
     </Card>
   );
 };
