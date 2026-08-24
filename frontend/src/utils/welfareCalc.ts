@@ -18,6 +18,12 @@ export interface SocialWelfareSet {
   unemployment_enabled: boolean;
   injury_enabled: boolean;
   maternity_enabled: boolean;
+  // 各险种最低基数（个人和公司一致）
+  pension_base_min?: number | null;
+  medical_base_min?: number | null;
+  unemployment_base_min?: number | null;
+  injury_base_min?: number | null;
+  maternity_base_min?: number | null;
   pension_rate_p: number;
   medical_rate_p: number;
   medical_fixed_p: number;
@@ -104,20 +110,27 @@ export function calcSocial(
   const r = set.rounding_method;
   const p = set.rounding_precision;
 
-  const pension_p = set.pension_enabled ? roundBy(r, base * set.pension_rate_p, p) : 0;
+  // 各险种独立的计费基数（先应用整体上下限，再应用该险种最低基数）
+  const pensionBase = set.pension_base_min != null ? Math.max(base, set.pension_base_min) : base;
+  const medicalBase = set.medical_base_min != null ? Math.max(base, set.medical_base_min) : base;
+  const unemploymentBase = set.unemployment_base_min != null ? Math.max(base, set.unemployment_base_min) : base;
+  const injuryBase = set.injury_base_min != null ? Math.max(base, set.injury_base_min) : base;
+  const maternityBase = set.maternity_base_min != null ? Math.max(base, set.maternity_base_min) : base;
+
+  const pension_p = set.pension_enabled ? roundBy(r, pensionBase * set.pension_rate_p, p) : 0;
   const medical_p = set.medical_enabled
-    ? roundBy(r, base * set.medical_rate_p + (set.medical_fixed_p || 0), p)
+    ? roundBy(r, medicalBase * set.medical_rate_p + (set.medical_fixed_p || 0), p)
     : 0;
   const unemployment_p = set.unemployment_enabled
-    ? roundBy(r, base * set.unemployment_rate_p, p)
+    ? roundBy(r, unemploymentBase * set.unemployment_rate_p, p)
     : 0;
-  const pension_c = set.pension_enabled ? roundBy(r, base * set.pension_rate_c, p) : 0;
-  const medical_c = set.medical_enabled ? roundBy(r, base * set.medical_rate_c, p) : 0;
+  const pension_c = set.pension_enabled ? roundBy(r, pensionBase * set.pension_rate_c, p) : 0;
+  const medical_c = set.medical_enabled ? roundBy(r, medicalBase * set.medical_rate_c, p) : 0;
   const unemployment_c = set.unemployment_enabled
-    ? roundBy(r, base * set.unemployment_rate_c, p)
+    ? roundBy(r, unemploymentBase * set.unemployment_rate_c, p)
     : 0;
-  const injury_c = set.injury_enabled ? roundBy(r, base * set.injury_rate_c, p) : 0;
-  const maternity_c = set.maternity_enabled ? roundBy(r, base * set.maternity_rate_c, p) : 0;
+  const injury_c = set.injury_enabled ? roundBy(r, injuryBase * set.injury_rate_c, p) : 0;
+  const maternity_c = set.maternity_enabled ? roundBy(r, maternityBase * set.maternity_rate_c, p) : 0;
 
   const personal_total = roundBy('ROUND', pension_p + medical_p + unemployment_p, 2);
   const company_total = roundBy('ROUND', pension_c + medical_c + unemployment_c + injury_c + maternity_c, 2);

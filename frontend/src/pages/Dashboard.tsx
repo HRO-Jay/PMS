@@ -824,10 +824,14 @@ const Dashboard: React.FC = () => {
 
       {/* 数据统计 Summary */}
       <Card size="small" title="数据统计 Summary" style={cardStyle}
-        extra={<Button icon={<FilePdfOutlined />} onClick={() => {
+        extra={<Button icon={<FilePdfOutlined />} onClick={async () => {
           const companyRows = buildSummaryByGroup('pay_company');
           const deptRows = buildSummaryByGroup('department');
-          exportSummaryPdf(companyRows, deptRows, period);
+          try {
+            await exportSummaryPdf(companyRows, deptRows, period);
+          } catch (e: any) {
+            message.error(e?.message || 'PDF 导出失败');
+          }
         }}>导出PDF</Button>}>
         <Tabs activeKey={summaryTab} onChange={(k) => { setSummaryTab(k as 'dept' | 'company'); }}
           items={[

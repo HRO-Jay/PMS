@@ -1,6 +1,7 @@
 /**
  * 数据统计 Summary 导出 PDF
  * 生成一个 PDF 文件，包含两页：按公司汇总 + 按部门汇总
+ * 中文通过内嵌 Noto Sans CJK SC 子集字体解决乱码问题
  */
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -23,16 +24,43 @@ const money = (v: number): string => {
   return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+// 中文字体（Noto Sans CJK SC 子集），放在 public 目录下
+const FONT_URL = `${import.meta.env.BASE_URL}NotoSansSC-subset.ttf`;
+
+let fontBase64: string | null = null;
+let fontLoading: Promise<string> | null = null;
+
+async function loadChineseFont(): Promise<string> {
+  if (fontBase64) return fontBase64;
+  if (!fontLoading) {
+    fontLoading = (async () => {
+      const resp = await fetch(FONT_URL);
+      if (!resp.ok) throw new Error(`字体加载失败: ${resp.status}`);
+      const buf = await resp.arrayBuffer();
+      // 转 base64
+      const bytes = new Uint8Array(buf);
+      let binary = '';
+      const chunk = 8192;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+      }
+      fontBase64 = btoa(binary);
+      return fontBase64!;
+    })();
+  }
+  return fontLoading;
+}
+
 function buildTable(doc: jsPDF, title: string, subtitle: string, groupLabel: string, rows: SummaryRow[], startY: number) {
   // 标题
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('NotoSansSC', 'normal');
   doc.setFontSize(16);
   doc.text(title, 14, startY);
 
-  doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.setTextColor(120, 120, 120);
   doc.text(subtitle, 14, startY + 6);
+  doc.setTextColor(0, 0, 0);
 
   const columns = [
     groupLabel, '人数', '实收工资', '公司福利', '个人福利',
@@ -71,8 +99,8 @@ function buildTable(doc: jsPDF, title: string, subtitle: string, groupLabel: str
     head: [columns],
     body: [...body, totalRow],
     startY: startY + 10,
-    styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
-    headStyles: { fillColor: [30, 58, 95], textColor: 255, fontSize: 7, halign: 'center' },
+    styles: { font: 'NotoSansSC', fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
+    headStyles: { fillColor: [30, 58, 95], textColor: 255, fontSize: 7, halign: 'center', font: 'NotoSansSC' },
     columnStyles: {
       0: { halign: 'left' },
       1: { halign: 'center' },
@@ -96,8 +124,13 @@ function buildTable(doc: jsPDF, title: string, subtitle: string, groupLabel: str
   });
 }
 
-export function exportSummaryPdf(companyRows: SummaryRow[], deptRows: SummaryRow[], period: string) {
+export async function exportSummaryPdf(companyRows: SummaryRow[], deptRows: SummaryRow[], period: string) {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+  // 注册中文字体
+  const fontB64 = await loadChineseFont();
+  doc.addFileToVFS('NotoSansSC-subset.ttf', fontB64);
+  doc.addFont('NotoSansSC-subset.ttf', 'NotoSansSC', 'normal');
 
   const subtitle = `数据期间：${period}　·　金额单位：元`;
 

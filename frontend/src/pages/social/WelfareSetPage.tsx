@@ -43,6 +43,11 @@ const SOCIAL_EXPORT_DEF: ExportDef = {
     { key: 'unemployment_enabled', label: '失业缴纳开关' },
     { key: 'injury_enabled', label: '工伤缴纳开关' },
     { key: 'maternity_enabled', label: '生育缴纳开关' },
+    { key: 'pension_base_min', label: '养老最低基数' },
+    { key: 'medical_base_min', label: '医疗最低基数' },
+    { key: 'unemployment_base_min', label: '失业最低基数' },
+    { key: 'injury_base_min', label: '工伤最低基数' },
+    { key: 'maternity_base_min', label: '生育最低基数' },
     { key: 'pension_rate_p', label: '个人养老比例' },
     { key: 'medical_rate_p', label: '个人医疗比例' },
     { key: 'medical_fixed_p', label: '个人医疗固定附加' },
@@ -369,6 +374,15 @@ const WelfareSetPage: React.FC = () => {
                   <Form.Item name="unemployment_enabled" label="失业" valuePropName="checked"><Switch /></Form.Item>
                   <Form.Item name="injury_enabled" label="工伤" valuePropName="checked"><Switch /></Form.Item>
                   <Form.Item name="maternity_enabled" label="生育" valuePropName="checked"><Switch /></Form.Item>
+                </Space>
+              </Card>
+              <Card title="各险种最低基数（个人与公司一致）" size="small" style={{ marginBottom: 12 }}>
+                <Space wrap>
+                  <Form.Item name="pension_base_min" label="养老最低基数"><InputNumber style={{ width: 140 }} min={0} /></Form.Item>
+                  <Form.Item name="medical_base_min" label="医疗最低基数"><InputNumber style={{ width: 140 }} min={0} /></Form.Item>
+                  <Form.Item name="unemployment_base_min" label="失业最低基数"><InputNumber style={{ width: 140 }} min={0} /></Form.Item>
+                  <Form.Item name="injury_base_min" label="工伤最低基数"><InputNumber style={{ width: 140 }} min={0} /></Form.Item>
+                  <Form.Item name="maternity_base_min" label="生育最低基数"><InputNumber style={{ width: 140 }} min={0} /></Form.Item>
                 </Space>
               </Card>
               <Card title="个人费率" size="small" style={{ marginBottom: 12 }}>

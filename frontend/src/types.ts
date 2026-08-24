@@ -60,6 +60,12 @@ export interface SocialWelfareSet {
   unemployment_enabled: boolean;
   injury_enabled: boolean;
   maternity_enabled: boolean;
+  // 各险种最低基数（个人和公司一致）
+  pension_base_min?: number | null;
+  medical_base_min?: number | null;
+  unemployment_base_min?: number | null;
+  injury_base_min?: number | null;
+  maternity_base_min?: number | null;
   pension_rate_p: number;
   medical_rate_p: number;
   medical_fixed_p: number;
