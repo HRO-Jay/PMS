@@ -9,7 +9,6 @@
  */
 
 const round2 = (v: number): number => Number(v.toFixed(2));
-const round4 = (v: number): number => Number(v.toFixed(4));
 
 /** 连续病假"超6个月"的天数阈值（按 180 天近似 6 个自然月） */
 const SIX_MONTHS_DAYS = 180;
@@ -234,8 +233,8 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
   // 考勤工资作为计薪基数
   const wage = Number(input.attendance_wage || 0);
   const payDays = Number(input.pay_days || 21.75);
-  // 日薪保留4位小数（四舍五入），其余金额保留2位
-  const dailyWage = payDays > 0 ? round4(wage / payDays) : 0;
+  // 日薪：不做四舍五入，保留所有小数参与计算；显示时才取两位
+  const dailyWage = payDays > 0 ? wage / payDays : 0;
   const seniorityYears = calcSeniorityYears(input.entry_date || '', input.period);
 
   // 病假
