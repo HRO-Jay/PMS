@@ -131,6 +131,7 @@ const PayrollPage: React.FC = () => {
         // 当月个税按计税方式分支：
         // - 劳务计税(service)：一般预扣法（三级超额累进），与劳务个税板块一致
         // - 不计税(non_taxable)：0
+        // - 实习生计税(intern)：从个税月度计算表取（实习生个税板块也写这张表）
         // - 正常计税(normal)：从个税月度计算表取
         const taxMethod = e.tax_method || 'normal';
         let monthlyTax: number;
@@ -403,7 +404,16 @@ const PayrollPage: React.FC = () => {
     { title: withSource('入职日期', '花名册同步'), dataIndex: 'entry_date', key: 'jd', width: 100 },
     { title: withSource('考勤制', '花名册同步'), dataIndex: 'attendance_type', key: 'ws', width: 100 },
     { title: withSource('计税方式', '花名册同步'), dataIndex: 'tax_method', key: 'tm', width: 90,
-      render: (v: string) => <Tag color={v === 'normal' ? 'blue' : v === 'service' ? 'orange' : 'green'}>{v === 'normal' ? '正常计税' : v === 'service' ? '劳务计税' : '不计税'}</Tag> },
+      render: (v: string) => {
+        const map: Record<string, { label: string; color: string }> = {
+          normal: { label: '正常计税', color: 'blue' },
+          service: { label: '劳务计税', color: 'orange' },
+          intern: { label: '实习生计税', color: 'purple' },
+          non_taxable: { label: '不计税', color: 'green' },
+        };
+        const m = map[v] || { label: v, color: 'default' };
+        return <Tag color={m.color}>{m.label}</Tag>;
+      } },
     { title: withSource('基本工资', '花名册同步'), dataIndex: 'basic_salary', key: 'bs', width: 110, render: fmtMoney },
     { title: withSource('考勤调整合计', '考勤同步'), dataIndex: 'attendance_adjust_total', key: 'aat', width: 120, render: fmtMoney },
     { title: withSource('附加薪酬合计', '附加薪酬同步'), dataIndex: 'additional_total', key: 'at', width: 120, render: fmtMoney },

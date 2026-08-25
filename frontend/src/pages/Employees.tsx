@@ -19,15 +19,17 @@ const JOB_LEVELS = ['Ⅰ', 'Ⅱ', 'Ⅲ', 'Ⅳ', 'Ⅴ', 'Ⅵ', 'Ⅶ'];
 const TAX_METHODS = [
   { value: 'normal', label: '正常计税' },
   { value: 'service', label: '劳务计税' },
+  { value: 'intern', label: '实习生计税' },
   { value: 'non_taxable', label: '不计税' },
 ];
 const TAX_VALUE_TO_LABEL: Record<string, string> = {
-  normal: '正常计税', service: '劳务计税', non_taxable: '不计税',
+  normal: '正常计税', service: '劳务计税', intern: '实习生计税', non_taxable: '不计税',
 };
 // 中文/英文 → 枚举
 const TAX_LABEL_TO_VALUE: Record<string, string> = {
   '正常计税': 'normal', '累计预扣': 'normal', 'normal': 'normal',
   '劳务计税': 'service', '劳务报酬': 'service', 'service': 'service',
+  '实习生计税': 'intern', '实习': 'intern', 'intern': 'intern',
   '不计税': 'non_taxable', '国内不计税': 'non_taxable', 'non_taxable': 'non_taxable',
 };
 

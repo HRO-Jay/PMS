@@ -514,9 +514,11 @@ const AttendancePage: React.FC = () => {
           // 调整类型（文本）
           normalized.adjust_type = row.adjust_type || null;
 
-          // 用归一化后的数据重算金额
+          // 用归一化后的数据重算金额（entry_date 从花名册查，position 从花名册查，确保病假工龄和保洁判断生效）
+          const emp = Object.values(employees).find((x: any) => x.unique_hash === row.unique_hash);
           const calc = calcAttendance({
-            entry_date: undefined, period,
+            entry_date: emp?.entry_date,
+            period,
             attendance_wage: normalized.attendance_wage,
             pay_days: normalized.pay_days ?? pd,
             rules: attRules,
@@ -533,6 +535,7 @@ const AttendancePage: React.FC = () => {
             overtime_hours: normalized.overtime_hours,
             hourly_rate: normalized.hourly_rate,
             holiday_fixed_amount: normalized.holiday_fixed_amount,
+            position: emp?.position,
             actual_attendance_days: normalized.actual_attendance_days,
             adjust_type: normalized.adjust_type,
             adjust_amount: normalized.adjust_amount,

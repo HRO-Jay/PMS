@@ -94,6 +94,41 @@ export function calcServiceTax(income: number): ServiceTaxResult {
   };
 }
 
+/**
+ * 实习生个税（实习劳务报酬，一般累计预扣法）
+ * 本期应预扣预缴税额 =（累计收入额 − 累计减除费用）× 预扣率 − 速算扣除数 − 累计减免税额 − 累计已预扣预缴税额
+ */
+export interface InternTaxInput {
+  cumul_income: number;        // 累计收入额
+  cumul_basic_deduction: number; // 累计减除费用（5000×月数）
+  cumul_tax_relief: number;    // 累计减免税额
+  cumul_tax_paid: number;      // 累计已预扣预缴税额
+}
+
+export interface InternTaxResult {
+  cumul_taxable_income_net: number; // 累计应纳税所得额
+  tax_rate: number;
+  quick_deduction: number;
+  monthly_tax: number;              // 本期应预扣预缴税额
+}
+
+export function calcInternTax(input: InternTaxInput): InternTaxResult {
+  // 累计应纳税所得额 = 累计收入额 − 累计减除费用
+  const cumulTaxable = Math.max(0, input.cumul_income - input.cumul_basic_deduction);
+  // 套七级累进预扣率表
+  const bracket = findTaxBracket(cumulTaxable);
+  // 本期应预扣预缴税额
+  const monthlyTax = round2(
+    cumulTaxable * bracket.rate - bracket.quick_deduction - input.cumul_tax_relief - input.cumul_tax_paid
+  );
+  return {
+    cumul_taxable_income_net: round2(cumulTaxable),
+    tax_rate: bracket.rate,
+    quick_deduction: bracket.quick_deduction,
+    monthly_tax: Math.max(0, monthlyTax),
+  };
+}
+
 export interface TaxCalcInput {
   cumul_taxable_income: number;   // 累计应税收入
   cumul_tax_free_income: number;  // 累计免税收入
