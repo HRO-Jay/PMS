@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { Layout, Menu, Typography, Avatar, Dropdown, Button, message, Modal } from 'antd';
+import { Layout, Menu, Typography, Avatar, Dropdown, Button, message } from 'antd';
 import {
   TeamOutlined, DollarOutlined, CalculatorOutlined,
   LogoutOutlined, ScheduleOutlined, SyncOutlined,
@@ -56,14 +56,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       const result = await globalRefresh();
       const lines = result.steps
         .map(s => `${s.step}：成功 ${s.success}${s.skipped > 0 ? `，跳过 ${s.skipped}` : ''}`)
-        .join('\n');
-      Modal.success({
-        title: '全局刷新完成',
-        content: <pre style={{ whiteSpace: 'pre-wrap', margin: 0, fontSize: 13 }}>{lines}</pre>,
-        okText: '知道了',
-      });
+        .join('；');
+      message.success(`全局刷新完成｜${lines}`, 6);
     } catch (e: any) {
-      message.error(e?.message || '全局刷新失败');
+      message.error(e?.message || '全局刷新失败', 5);
     } finally {
       setRefreshing(false);
     }
