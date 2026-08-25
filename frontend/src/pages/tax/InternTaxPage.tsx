@@ -19,6 +19,18 @@ const fmtMoney = (v: any) => {
   return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+/** 按入职日期计算到指定月份的任职月数（含当月）。入职早于当年1月则从1月起算。 */
+function calcMonthsWorked(entryDate: string | undefined, period: string): number {
+  if (!entryDate) return 1;
+  const entryYear = parseInt(entryDate.slice(0, 4));
+  const entryMonth = parseInt(entryDate.slice(5, 7));
+  const [pYear, pMonth] = period.split('-').map(Number);
+  // 任职起始月：入职早于当年 → 从当年1月起算；否则从入职月起算
+  const startYear = entryYear < pYear ? pYear : entryYear;
+  const startMonth = entryYear < pYear ? 1 : entryMonth;
+  return (pYear - startYear) * 12 + (pMonth - startMonth) + 1;
+}
+
 // 导出表头（只导出）
 const EXPORT_DEF: ExportDef = {
   module: '实习生个税计算',
@@ -90,9 +102,9 @@ const InternTaxPage: React.FC = () => {
           const cumulIncome = isFirstMonth
             ? Number(opening.cumul_income || 0) + currentIncome
             : Number(prev.cumul_income || 0) + currentIncome;
-          // 累计减除费用 = 5000 × 任职月份数
-          const employedMonths = Number(opening.employed_months || 5);
-          const cumulBasicDeduction = 5000 * (isFirstMonth ? employedMonths + 1 : (Number(prev.cumul_basic_deduction || 0) / 5000 + 1));
+          // 累计减除费用 = 5000 × 实际任职月数（按入职日期计算）
+          const monthsWorked = calcMonthsWorked(e.entry_date, period);
+          const cumulBasicDeduction = 5000 * monthsWorked;
           // 累计减免税额
           const cumulTaxRelief = isFirstMonth
             ? Number(opening.cumul_tax_relief || 0)
