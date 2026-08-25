@@ -8,11 +8,7 @@
  * 数据库未配置时回退到 DEFAULT_ATTENDANCE_RULES 内置默认值。
  */
 
-/** 四舍五入保留2位（修正浮点误差，如 24.345 正确进位到 24.35） */
-const round2 = (v: number): number => {
-  const n = Math.round((v + Number.EPSILON) * 100) / 100;
-  return Object.is(n, -0) ? 0 : n;
-};
+import { round2 } from './round';
 
 /** 连续病假"超6个月"的天数阈值（按 180 天近似 6 个自然月） */
 const SIX_MONTHS_DAYS = 180;

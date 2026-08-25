@@ -6,6 +6,7 @@ import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
 import { withSource } from '../components/SourceTag';
 import { useHorizontalScroll } from '../utils/useHorizontalScroll';
 import { isActiveInPeriod } from '../utils/employee';
+import { round2 } from '../utils/round';
 
 /**
  * 附加薪酬板块
@@ -81,18 +82,18 @@ const AdditionalSalaryPage: React.FC = () => {
         .filter((e: any) => isActiveInPeriod(e, period) || recMap[e.unique_hash])
         .map((e: any) => {
           const r = recMap[e.unique_hash];
-          const additionalTotal = Number((
+          const additionalTotal = round2(
             (r?.allowance_supp || 0) + (r?.other_adjust || 0) + (r?.insurance_amount || 0) +
             (r?.kpi_provision || 0) + (r?.office_comm || 0) + (r?.performance_pay || 0) +
             (r?.apartment_comm || 0) + (r?.talent_kpi || 0) + (r?.heat_allowance || 0) +
             (r?.other_allowance || 0) + (r?.security_bonus || 0) + (r?.cleaning_bonus || 0)
-          ).toFixed(2));
+          );
           // 绩效&佣金合计 = 商办佣金 + 绩效 + 公寓佣金 + 人才系KPI + 防暑降温费 + 津贴 + 保安奖金 + 保洁奖金
-          const perfCommTotal = Number((
+          const perfCommTotal = round2(
             (r?.office_comm || 0) + (r?.performance_pay || 0) + (r?.apartment_comm || 0) +
             (r?.talent_kpi || 0) + (r?.heat_allowance || 0) + (r?.other_allowance || 0) +
             (r?.security_bonus || 0) + (r?.cleaning_bonus || 0)
-          ).toFixed(2));
+          );
           return {
             ...(r || {}),
             key: r?.id ?? `emp-${e.unique_hash}`,
@@ -210,7 +211,7 @@ const AdditionalSalaryPage: React.FC = () => {
       </Card>
 
       <div ref={scrollRef} onWheel={onWheel}>
-        <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 2200, y: 'calc(100vh - 360px)' }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
+        <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 2200, y: 480 }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
       </div>
     </div>
   );

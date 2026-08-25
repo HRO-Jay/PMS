@@ -9,6 +9,7 @@ import api from '../api/client';
 import { exportXlsx, type ExportDef } from '../utils/importExport';
 import { isActiveInPeriod } from '../utils/employee';
 import { exportSummaryPdf } from '../utils/pdfExport';
+import { round2 } from '../utils/round';
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
@@ -238,14 +239,14 @@ const Dashboard: React.FC = () => {
 
       // ===== 核心指标（口径严格） =====
       const sum = (arr: any[], key: string) => arr.reduce((s, r) => s + (Number(r[key]) || 0), 0);
-      const totalWageSubtotal = Number(sum(salList, 'wage_subtotal').toFixed(2));   // 应发工资总计
-      const totalPersonalWelfare = Number(sum(salList, 'personal_welfare_total').toFixed(2)); // 社保公积金扣除
-      const totalTax = Number(sum(salList, 'monthly_tax').toFixed(2));               // 个税总计
-      const totalNetPay = Number(sum(salList, 'net_pay').toFixed(2));                // 实发工资总计
-      const totalCompanyWelfare = Number(sum(salList, 'company_welfare_total').toFixed(2));
-      const totalCost = Number((totalWageSubtotal + totalCompanyWelfare).toFixed(2)); // 当月人力成本
+      const totalWageSubtotal = round2(sum(salList, 'wage_subtotal'));   // 应发工资总计
+      const totalPersonalWelfare = round2(sum(salList, 'personal_welfare_total')); // 社保公积金扣除
+      const totalTax = round2(sum(salList, 'monthly_tax'));               // 个税总计
+      const totalNetPay = round2(sum(salList, 'net_pay'));                // 实发工资总计
+      const totalCompanyWelfare = round2(sum(salList, 'company_welfare_total'));
+      const totalCost = round2(totalWageSubtotal + totalCompanyWelfare); // 当月人力成本
       const salEmpCount = salList.filter((r: any) => empMap[r.unique_hash]).length || 1;
-      const avgNet = Number((totalNetPay / salEmpCount).toFixed(2));                 // 人均实发
+      const avgNet = round2(totalNetPay / salEmpCount);                 // 人均实发
 
       setStats({
         employee_count: activeEmps.length,
@@ -258,13 +259,13 @@ const Dashboard: React.FC = () => {
       });
 
       // 上月核心指标（环比用）
-      const prevWageSubtotal = Number(sum(salPrevList, 'wage_subtotal').toFixed(2));
-      const prevPersonalWelfare = Number(sum(salPrevList, 'personal_welfare_total').toFixed(2));
-      const prevTax = Number(sum(salPrevList, 'monthly_tax').toFixed(2));
-      const prevNetPay = Number(sum(salPrevList, 'net_pay').toFixed(2));
-      const prevCost = Number((prevWageSubtotal + Number(sum(salPrevList, 'company_welfare_total').toFixed(2))).toFixed(2));
+      const prevWageSubtotal = round2(sum(salPrevList, 'wage_subtotal'));
+      const prevPersonalWelfare = round2(sum(salPrevList, 'personal_welfare_total'));
+      const prevTax = round2(sum(salPrevList, 'monthly_tax'));
+      const prevNetPay = round2(sum(salPrevList, 'net_pay'));
+      const prevCost = round2(prevWageSubtotal + round2(sum(salPrevList, 'company_welfare_total')));
       const prevSalCount = salPrevList.filter((r: any) => empMap[r.unique_hash]).length || 1;
-      const prevAvgNet = Number((prevNetPay / prevSalCount).toFixed(2));
+      const prevAvgNet = round2(prevNetPay / prevSalCount);
       setPrevStats({
         employee_count: activeEmps.length,
         total_wage_subtotal: prevWageSubtotal,
@@ -294,11 +295,11 @@ const Dashboard: React.FC = () => {
         return Object.entries(byGroup)
           .map(([name, d]) => ({
             name,
-            gross: Number(d.gross.toFixed(2)),
-            net: Number(d.net.toFixed(2)),
-            deduct: Number((d.gross - d.net).toFixed(2)),
+            gross: round2(d.gross),
+            net: round2(d.net),
+            deduct: round2(d.gross - d.net),
             count: d.count,
-            avgNet: d.count ? Number((d.net / d.count).toFixed(2)) : 0,
+            avgNet: d.count ? round2(d.net / d.count) : 0,
           }))
           .sort((a, b) => b.gross - a.gross || zhCompare(a.name, b.name));
       };
@@ -306,11 +307,11 @@ const Dashboard: React.FC = () => {
 
       // ===== 图表2：薪资区间人数分布（按实发） =====
       const netVals: number[] = salList.map((r: any) => Number(r.net_pay || 0)).filter(x => x > 0);
-      setSalaryMedian(Number(median(netVals).toFixed(2)));
+      setSalaryMedian(round2(median(netVals)));
       setSalaryDist(buildBins(netVals));
 
       // ===== 图表3：各部门平均实发工资 =====
-      const companyAvg = Number((totalNetPay / salEmpCount).toFixed(2));
+      const companyAvg = round2(totalNetPay / salEmpCount);
       setCompanyAvgNet(companyAvg);
       const netByDept: Record<string, { sum: number; count: number; list: number[] }> = {};
       salList.forEach((r: any) => {
@@ -325,10 +326,10 @@ const Dashboard: React.FC = () => {
       const avgList = Object.entries(netByDept)
         .map(([name, d]) => ({
           name,
-          avg: Number((d.sum / d.count).toFixed(2)),
+          avg: round2(d.sum / d.count),
           count: d.count,
-          median: Number(median(d.list).toFixed(2)),
-          above: Number((d.sum / d.count).toFixed(2)) >= companyAvg,
+          median: round2(median(d.list)),
+          above: round2(d.sum / d.count) >= companyAvg,
         }))
         .sort((a, b) => b.avg - a.avg || zhCompare(a.name, b.name));
       setAvgPayList(avgList);
@@ -354,8 +355,8 @@ const Dashboard: React.FC = () => {
       const order = ['基本工资', '绩效&佣金', '津贴补贴', '加班费', '其他'];
       const totalComp = order.reduce((s, k) => s + compCur[k], 0) || 1;
       const compArr = order.map((k) => {
-        const val = Number(compCur[k].toFixed(2));
-        const prevVal = Number(compPrev[k].toFixed(2));
+        const val = round2(compCur[k]);
+        const prevVal = round2(compPrev[k]);
         const chg = chgPct(val, prevVal);
         return { name: k, value: val, pct: Number(((val / totalComp) * 100).toFixed(1)), color: colorMap[k], prevVal, chg, isOther: k === '其他' };
       }).sort((a, b) => b.value - a.value);

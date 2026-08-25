@@ -10,6 +10,7 @@ import { exportXlsx, importXlsx, type ExportDef } from '../../utils/importExport
 import { withSource } from '../../components/SourceTag';
 import { useHorizontalScroll } from '../../utils/useHorizontalScroll';
 import { isActiveInPeriod } from '../../utils/employee';
+import { round2 } from '../../utils/round';
 import dayjs from 'dayjs';
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
@@ -154,12 +155,12 @@ const EmployeeWelfare: React.FC = () => {
           const csBase = notYetEffective ? 0 : Number(r?.company_social_total || 0);
           const phBase = notYetEffective ? 0 : Number(r?.personal_housing_total || 0);
           const chBase = notYetEffective ? 0 : Number(r?.company_housing_total || 0);
-          const socialAdjTotal = Number((psAdj + csAdj).toFixed(2));
-          const housingAdjTotal = Number((phAdj + chAdj).toFixed(2));
-          const psWithAdj = Number((psBase + psAdj).toFixed(2));
-          const csWithAdj = Number((csBase + csAdj).toFixed(2));
-          const phWithAdj = Number((phBase + phAdj).toFixed(2));
-          const chWithAdj = Number((chBase + chAdj).toFixed(2));
+          const socialAdjTotal = round2(psAdj + csAdj);
+          const housingAdjTotal = round2(phAdj + chAdj);
+          const psWithAdj = round2(psBase + psAdj);
+          const csWithAdj = round2(csBase + csAdj);
+          const phWithAdj = round2(phBase + phAdj);
+          const chWithAdj = round2(chBase + chAdj);
           return {
             ...(r || { id: undefined, data_status: '未录入', supp_enabled: undefined }),
             key: r?.id ?? `emp-${e.unique_hash}`,
@@ -179,10 +180,10 @@ const EmployeeWelfare: React.FC = () => {
             company_social_with_adj: csWithAdj,
             personal_housing_with_adj: phWithAdj,
             company_housing_with_adj: chWithAdj,
-            social_total_with_adj: Number((psWithAdj + csWithAdj).toFixed(2)),
-            housing_total_with_adj: Number((phWithAdj + chWithAdj).toFixed(2)),
-            personal_total_with_adj: Number((psWithAdj + phWithAdj).toFixed(2)),
-            company_total_with_adj: Number((csWithAdj + chWithAdj).toFixed(2)),
+            social_total_with_adj: round2(psWithAdj + csWithAdj),
+            housing_total_with_adj: round2(phWithAdj + chWithAdj),
+            personal_total_with_adj: round2(psWithAdj + phWithAdj),
+            company_total_with_adj: round2(csWithAdj + chWithAdj),
             // 覆盖原始金额为 0（未生效月显示 0）
             pension_p_amt: notYetEffective ? 0 : r?.pension_p_amt,
             medical_p_amt: notYetEffective ? 0 : r?.medical_p_amt,
@@ -278,8 +279,8 @@ const EmployeeWelfare: React.FC = () => {
       company_social_total: social?.company_total || 0,
       company_housing_total: housing?.company_total || 0,
     };
-    result.personal_total = Number((result.personal_social_total + result.personal_housing_total).toFixed(2));
-    result.company_total = Number((result.company_social_total + result.company_housing_total).toFixed(2));
+    result.personal_total = round2(result.personal_social_total + result.personal_housing_total);
+    result.company_total = round2(result.company_social_total + result.company_housing_total);
 
     // 调整金额（手工导入，不参与本月计算）
     const psAdj = Number(v.personal_social_adj || 0);
@@ -288,21 +289,21 @@ const EmployeeWelfare: React.FC = () => {
     const chAdj = Number(v.company_housing_adj || 0);
 
     // 含调整合计
-    result.personal_social_adj = Number(psAdj.toFixed(2));
-    result.company_social_adj = Number(csAdj.toFixed(2));
-    result.personal_housing_adj = Number(phAdj.toFixed(2));
-    result.company_housing_adj = Number(chAdj.toFixed(2));
-    result.social_adj_total = Number((psAdj + csAdj).toFixed(2));       // 社保调整金额
-    result.housing_adj_total = Number((phAdj + chAdj).toFixed(2));      // 公积金调整金额
-    result.personal_social_with_adj = Number((result.personal_social_total + psAdj).toFixed(2));
-    result.company_social_with_adj = Number((result.company_social_total + csAdj).toFixed(2));
-    result.personal_housing_with_adj = Number((result.personal_housing_total + phAdj).toFixed(2));
-    result.company_housing_with_adj = Number((result.company_housing_total + chAdj).toFixed(2));
-    result.social_total_with_adj = Number((result.personal_social_with_adj + result.company_social_with_adj).toFixed(2));
-    result.housing_total_with_adj = Number((result.personal_housing_with_adj + result.company_housing_with_adj).toFixed(2));
-    result.personal_total_with_adj = Number((result.personal_social_with_adj + result.personal_housing_with_adj).toFixed(2));
-    result.company_total_with_adj = Number((result.company_social_with_adj + result.company_housing_with_adj).toFixed(2));
-    result.grand_total_with_adj = Number((result.personal_total_with_adj + result.company_total_with_adj).toFixed(2));
+    result.personal_social_adj = round2(psAdj);
+    result.company_social_adj = round2(csAdj);
+    result.personal_housing_adj = round2(phAdj);
+    result.company_housing_adj = round2(chAdj);
+    result.social_adj_total = round2(psAdj + csAdj);       // 社保调整金额
+    result.housing_adj_total = round2(phAdj + chAdj);      // 公积金调整金额
+    result.personal_social_with_adj = round2(result.personal_social_total + psAdj);
+    result.company_social_with_adj = round2(result.company_social_total + csAdj);
+    result.personal_housing_with_adj = round2(result.personal_housing_total + phAdj);
+    result.company_housing_with_adj = round2(result.company_housing_total + chAdj);
+    result.social_total_with_adj = round2(result.personal_social_with_adj + result.company_social_with_adj);
+    result.housing_total_with_adj = round2(result.personal_housing_with_adj + result.company_housing_with_adj);
+    result.personal_total_with_adj = round2(result.personal_social_with_adj + result.personal_housing_with_adj);
+    result.company_total_with_adj = round2(result.company_social_with_adj + result.company_housing_with_adj);
+    result.grand_total_with_adj = round2(result.personal_total_with_adj + result.company_total_with_adj);
 
     // 状态校验
     let data_status = '正常';
@@ -388,8 +389,8 @@ const EmployeeWelfare: React.FC = () => {
           personal_housing_total: personalHousing,
           company_social_total: companySocial,
           company_housing_total: companyHousing,
-          personal_total: Number((personalSocial + personalHousing).toFixed(2)),
-          company_total: Number((companySocial + companyHousing).toFixed(2)),
+          personal_total: round2(personalSocial + personalHousing),
+          company_total: round2(companySocial + companyHousing),
           data_status,
           last_calc_time: new Date().toISOString(),
         };
@@ -625,7 +626,7 @@ const EmployeeWelfare: React.FC = () => {
       </Card>
 
       <div ref={scrollRef} onWheel={onWheel}>
-        <Table columns={columns} dataSource={filteredRecords} loading={loading} scroll={{ x: 1800, y: 'calc(100vh - 440px)' }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
+        <Table columns={columns} dataSource={filteredRecords} loading={loading} scroll={{ x: 1800, y: 480 }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
       </div>
 
       {/* 编辑抽屉 */}

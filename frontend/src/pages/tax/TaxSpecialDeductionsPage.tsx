@@ -170,7 +170,7 @@ const TaxSpecialDeductionsPage: React.FC = () => {
           <Button icon={<UploadOutlined />}>导入</Button>
         </Upload>
       </Space>
-      <Table columns={columns} dataSource={filteredRecords} loading={loading} scroll={{ x: 1800, y: 'calc(100vh - 280px)' }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
+      <Table columns={columns} dataSource={filteredRecords} loading={loading} scroll={{ x: 1800, y: 480 }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
     </Card>
   );
 };

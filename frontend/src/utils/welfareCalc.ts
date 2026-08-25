@@ -62,7 +62,8 @@ function roundBy(method: RoundMethod, value: number, precision: number): number 
   let result: number;
   switch (method) {
     case 'ROUND':
-      result = Math.round(v) / factor;
+      // 用 1e-9 抵消浮点误差，避免 24.345 被截成 24.34
+      result = Math.round(v + 1e-9) / factor;
       break;
     case 'ROUNDUP':
       result = Math.ceil(v) / factor;
@@ -75,7 +76,7 @@ function roundBy(method: RoundMethod, value: number, precision: number): number 
       result = (Math.trunc(v) + 1) / factor;
       break;
     default:
-      result = Math.round(v) / factor;
+      result = Math.round(v + 1e-9) / factor;
   }
   // 消除浮点误差（如 109.9999999999 → 110.00）
   return Number(result.toFixed(precision));

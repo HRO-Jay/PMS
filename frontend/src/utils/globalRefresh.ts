@@ -14,15 +14,7 @@ import { calcAttendance, parseAttendanceRules, DEFAULT_ATTENDANCE_RULES } from '
 import { calcSocial, calcHousingFund } from './welfareCalc';
 import { calcIncomeTax, calcServiceTax, calcInternTax } from './taxCalc';
 import { isActiveInPeriod } from './employee';
-
-/** 四舍五入保留2位（修正浮点误差，如 24.345 正确进位到 24.35） */
-const round2 = (v: number): number => {
-  const n = Math.round((v + Number.EPSILON) * 100) / 100;
-  return Object.is(n, -0) ? 0 : n;
-};
-
-/** 四舍五入保留2位（字符串版本，用于链式拼接） */
-const round2s = (v: number): number => round2(Number(v));
+import { round2 } from './round';
 
 export interface RefreshStepResult {
   step: string;

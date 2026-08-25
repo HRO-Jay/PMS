@@ -228,7 +228,7 @@ const AccountManagementPage: React.FC = () => {
         </Space>
       </Card>
 
-      <Table columns={columns} dataSource={users} loading={loading} size="small" scroll={{ y: 'calc(100vh - 320px)' }} pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50], showTotal: t => `共 ${t} 条` }} />
+      <Table columns={columns} dataSource={users} loading={loading} size="small" scroll={{ y: 480 }} pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50], showTotal: t => `共 ${t} 条` }} />
 
       <Modal
         title="创建账号"

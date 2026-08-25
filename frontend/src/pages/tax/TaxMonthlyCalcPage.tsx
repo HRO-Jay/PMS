@@ -6,6 +6,7 @@ import { calcIncomeTax } from '../../utils/taxCalc';
 import { exportXlsx, type ExportDef } from '../../utils/importExport';
 import { withSource } from '../../components/SourceTag';
 import { isActiveInPeriod } from '../../utils/employee';
+import { round2 } from '../../utils/round';
 
 /**
  * 个税扣缴 — Tab 3：月度计算（累计预扣法）
@@ -17,12 +18,6 @@ const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth(
 const fmtMoney = (v: any) => {
   if (v === undefined || v === null || v === '' || Number(v) === 0) return '—';
   return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
-
-/** 四舍五入保留2位（修正浮点误差，如 24.345 正确进位到 24.35） */
-const round2 = (v: number): number => {
-  const n = Math.round((v + Number.EPSILON) * 100) / 100;
-  return Object.is(n, -0) ? 0 : n;
 };
 
 // 导出表头（只导出，不支持导入）
@@ -130,13 +125,13 @@ const TaxMonthlyCalcPage: React.FC = () => {
           // 本期专项附加 = 本月累计 - 上月累计
           const specialTotal = (special.cumul_child_edu || 0) + (special.cumul_continuing_edu || 0) + (special.cumul_mortgage || 0) + (special.cumul_rent || 0) + (special.cumul_elder_care || 0) + (special.cumul_infant_care || 0);
           const prevSpecialTotal = (prevSpecial.cumul_child_edu || 0) + (prevSpecial.cumul_continuing_edu || 0) + (prevSpecial.cumul_mortgage || 0) + (prevSpecial.cumul_rent || 0) + (prevSpecial.cumul_elder_care || 0) + (prevSpecial.cumul_infant_care || 0);
-          const currentSpecialDeduct = Math.max(0, Number((specialTotal - prevSpecialTotal).toFixed(2)));
+          const currentSpecialDeduct = Math.max(0, round2(specialTotal - prevSpecialTotal));
           // 本期其他扣除 = 本月累计(其他扣除项合计) - 上月累计
           const otherTotal = (special.cumul_pension || 0) + (special.cumul_annuity || 0) + (special.cumul_health_ins || 0) + (special.cumul_tax_defer_ins || 0) + (special.cumul_donation || 0);
           const prevOtherTotal = (prevSpecial.cumul_pension || 0) + (prevSpecial.cumul_annuity || 0) + (prevSpecial.cumul_health_ins || 0) + (prevSpecial.cumul_tax_defer_ins || 0) + (prevSpecial.cumul_donation || 0);
-          const currentOtherDeduct = Math.max(0, Number((otherTotal - prevOtherTotal).toFixed(2)));
+          const currentOtherDeduct = Math.max(0, round2(otherTotal - prevOtherTotal));
           // 本期减免税额 = 本月累计减免 - 上月累计减免
-          const currentTaxRelief = Math.max(0, Number(((special.tax_relief || 0) - (prevSpecial.tax_relief || 0)).toFixed(2)));
+          const currentTaxRelief = Math.max(0, round2((special.tax_relief || 0) - (prevSpecial.tax_relief || 0)));
 
           return {
             key: calc.id ?? `emp-${e.unique_hash}`,
@@ -324,7 +319,7 @@ const TaxMonthlyCalcPage: React.FC = () => {
         <Button icon={<LinkOutlined />} onClick={handleSync}>同步到薪酬板块</Button>
         <Button icon={<DownloadOutlined />} onClick={() => exportXlsx(EXPORT_DEF, filteredRecords, period)}>导出</Button>
       </Space>
-      <Table columns={columns} dataSource={filteredRecords} loading={loading} scroll={{ x: 2000, y: 'calc(100vh - 280px)' }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
+      <Table columns={columns} dataSource={filteredRecords} loading={loading} scroll={{ x: 2000, y: 480 }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
     </Card>
   );
 };

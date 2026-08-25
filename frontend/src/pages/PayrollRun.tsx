@@ -7,6 +7,7 @@ import { withSource } from '../components/SourceTag';
 import { useHorizontalScroll } from '../utils/useHorizontalScroll';
 import { isActiveInPeriod } from '../utils/employee';
 import { calcServiceTax } from '../utils/taxCalc';
+import { round2 } from '../utils/round';
 
 /**
  * 薪资计算板块（改造版）
@@ -160,12 +161,12 @@ const PayrollPage: React.FC = () => {
         }
 
         // 附加薪酬合计 = 12项之和
-        const additionalTotal = Number((
+        const additionalTotal = round2(
           (add.allowance_supp || 0) + (add.other_adjust || 0) + (add.insurance_amount || 0) +
           (add.kpi_provision || 0) + (add.office_comm || 0) + (add.performance_pay || 0) +
           (add.apartment_comm || 0) + (add.talent_kpi || 0) + (add.heat_allowance || 0) +
           (add.other_allowance || 0) + (add.security_bonus || 0) + (add.cleaning_bonus || 0)
-        ).toFixed(2));
+        );
 
         const basicSalary = Number(e.basic_salary || 0);
         const attendanceAdjust = Number(attMap[e.unique_hash]?.attendance_adjust_total || 0);
@@ -174,21 +175,17 @@ const PayrollPage: React.FC = () => {
         // 个人福利合计(含调整) = personal_total + 个人社保调整 + 个人公积金调整，与社保板块口径一致
         const personalWelfare = notYetEffective
           ? 0
-          : Number(
-              ((Number(welfare.personal_total || 0) + Number(welfare.personal_social_adj || 0) + Number(welfare.personal_housing_adj || 0)).toFixed(2))
-            );
+          : round2(Number(welfare.personal_total || 0) + Number(welfare.personal_social_adj || 0) + Number(welfare.personal_housing_adj || 0));
         // 公司福利合计(含调整) = company_total + 公司社保调整 + 公司公积金调整
         const companyWelfare = notYetEffective
           ? 0
-          : Number(
-              ((Number(welfare.company_total || 0) + Number(welfare.company_social_adj || 0) + Number(welfare.company_housing_adj || 0)).toFixed(2))
-            );
+          : round2(Number(welfare.company_total || 0) + Number(welfare.company_social_adj || 0) + Number(welfare.company_housing_adj || 0));
         const insuranceAmount = Number(add.insurance_amount || 0);
         // 商保调整 = 商保金额的负数
         const insuranceAdjust = -insuranceAmount;
 
         // 薪资小计 = 基本工资 + 考勤调整合计 + 附加薪酬合计（薪资板块以基本工资为基数）
-        const wageSubtotal = Number((basicSalary + attendanceAdjust + additionalTotal).toFixed(2));
+        const wageSubtotal = round2(basicSalary + attendanceAdjust + additionalTotal);
 
         // 当月个税按计税方式分支：
         // - 劳务计税(service)：一般预扣法（三级超额累进），与劳务个税板块一致
@@ -206,9 +203,9 @@ const PayrollPage: React.FC = () => {
         }
 
         // 实收工资 = 薪资小计 - 个人福利合计 - 当月个人所得税 - 商保金额
-        const netPay = Number((wageSubtotal - personalWelfare - monthlyTax - insuranceAmount).toFixed(2));
+        const netPay = round2(wageSubtotal - personalWelfare - monthlyTax - insuranceAmount);
         // 企业人力成本总计 = 薪资小计 + 公司福利合计
-        const totalCost = Number((wageSubtotal + companyWelfare).toFixed(2));
+        const totalCost = round2(wageSubtotal + companyWelfare);
 
         return {
           key: `emp-${e.unique_hash}`,
@@ -539,7 +536,7 @@ const PayrollPage: React.FC = () => {
       </Card>
 
       <div ref={scrollRef} onWheel={onWheel}>
-        <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 2400, y: 'calc(100vh - 360px)' }} size="small" pagination={{ defaultPageSize: 30, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
+        <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 2400, y: 480 }} size="small" pagination={{ defaultPageSize: 30, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
       </div>
 
       {/* 审批弹窗 */}

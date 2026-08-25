@@ -6,6 +6,7 @@ import { calcInternTax } from '../../utils/taxCalc';
 import { exportXlsx, type ExportDef } from '../../utils/importExport';
 import { withSource } from '../../components/SourceTag';
 import { isActiveInPeriod } from '../../utils/employee';
+import { round2 } from '../../utils/round';
 
 /**
  * 个税扣缴 — 实习生个税计算（计税方式为"实习生计税"的人员）
@@ -17,12 +18,6 @@ const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth(
 const fmtMoney = (v: any) => {
   if (v === undefined || v === null || v === '' || Number(v) === 0) return '—';
   return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
-
-/** 四舍五入保留2位（修正浮点误差，如 24.345 正确进位到 24.35） */
-const round2 = (v: number): number => {
-  const n = Math.round((v + Number.EPSILON) * 100) / 100;
-  return Object.is(n, -0) ? 0 : n;
 };
 
 /** 按入职日期计算到指定月份的任职月数（含当月）。入职早于当年1月则从1月起算。 */
@@ -255,7 +250,7 @@ const InternTaxPage: React.FC = () => {
       <div style={{ marginBottom: 12, color: '#888' }}>
         计算口径：本期应预扣预缴税额 =（累计收入额 − 累计减除费用）× 预扣率 − 速算扣除数 − 累计减免税额 − 累计已预扣预缴税额。
       </div>
-      <Table columns={columns} dataSource={filteredRecords} loading={loading} scroll={{ x: 1800, y: 'calc(100vh - 280px)' }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
+      <Table columns={columns} dataSource={filteredRecords} loading={loading} scroll={{ x: 1800, y: 480 }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
     </Card>
   );
 };
