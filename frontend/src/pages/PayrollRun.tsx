@@ -444,7 +444,7 @@ const PayrollPage: React.FC = () => {
       </Card>
 
       <div ref={scrollRef} onWheel={onWheel}>
-        <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 2400, y: 'calc(100vh - 360px)' }} size="small" pagination={{ pageSize: 30, showSizeChanger: true, showTotal: t => `共 ${t} 条` }} />
+        <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 2400, y: 'calc(100vh - 360px)' }} size="small" pagination={{ defaultPageSize: 30, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
       </div>
 
       {/* 审批弹窗 */}
