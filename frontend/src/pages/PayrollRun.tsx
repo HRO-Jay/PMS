@@ -71,12 +71,13 @@ const PayrollPage: React.FC = () => {
 
   // 拉取各模块数据源并按当月口径计算（返回员工映射 + 合并后的所有在职行）
   const fetchAndCompute = async (): Promise<{ empMap: Record<string, any>; merged: any[] }> => {
-    const [empRes, attRes, addRes, welfareRes, taxRes] = await Promise.all([
+    const [empRes, attRes, addRes, welfareRes, taxRes, salaryRes] = await Promise.all([
       api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,leave_date,attendance_type,tax_method,basic_salary'),
       api.get(`/attendance_records?select=unique_hash,attendance_adjust_total,data_status&period=eq.${period}`),
       api.get(`/additional_salary_records?select=*&period=eq.${period}`),
       api.get(`/employee_welfare_records?select=unique_hash,personal_total,company_total,personal_social_adj,personal_housing_adj,company_social_adj,company_housing_adj,effective_month,pension_p_amt,medical_p_amt,unemployment_p_amt,normal_housing_p_amt,supp_housing_p_amt,pension_c_amt,medical_c_amt,unemployment_c_amt,injury_c_amt,maternity_c_amt,normal_housing_c_amt,supp_housing_c_amt&period=eq.${period}`),
       api.get(`/tax_monthly_calcs?select=unique_hash,monthly_tax&period=eq.${period}`),
+      api.get(`/salary_records?select=*&period=eq.${period}`),
     ]);
 
     const empList: any[] = empRes.data;
@@ -91,12 +92,73 @@ const PayrollPage: React.FC = () => {
     welfareRes.data.forEach((r: any) => { welfareMap[r.unique_hash] = r; });
     const taxMap: Record<string, any> = {};
     taxRes.data.forEach((r: any) => { taxMap[r.unique_hash] = r; });
+    // 已保存的薪资快照（含 data_status），用于锁定月份冻结数据
+    const salaryMap: Record<string, any> = {};
+    salaryRes.data.forEach((r: any) => { salaryMap[r.unique_hash] = r; });
 
     const merged = empList
       .filter((e: any) => isActiveInPeriod(e, period))
       .map((e: any) => {
         const add = addMap[e.unique_hash] || {};
         const welfare = welfareMap[e.unique_hash] || {};
+        // 已保存的快照
+        const snap = salaryMap[e.unique_hash];
+        const snapLocked = snap && (snap.data_status === '已锁定' || snap.data_status === '已提交老板查看');
+
+        // 已锁定/已提交的月份：直接用快照数据，不跟随花名册等实时数据变动
+        if (snapLocked) {
+          return {
+            key: `emp-${e.unique_hash}`,
+            unique_hash: e.unique_hash,
+            employee_name: e.name,
+            pay_company: e.pay_company || '',
+            cost_center: e.cost_center || '',
+            department: e.department || '',
+            report_to: e.report_to || '',
+            position: e.position || '',
+            entry_date: e.entry_date || '',
+            attendance_type: e.attendance_type || '',
+            tax_method: e.tax_method || 'normal',
+            basic_salary: snap.base_salary ?? e.basic_salary ?? 0,
+            attendance_adjust_total: snap.attendance_adjust_total ?? 0,
+            additional_total: snap.additional_total ?? 0,
+            personal_welfare_total: snap.personal_welfare_total ?? 0,
+            company_welfare_total: snap.company_welfare_total ?? 0,
+            monthly_tax: snap.monthly_tax ?? 0,
+            insurance_amount: snap.insurance_amount ?? 0,
+            insurance_adjust: snap.insurance_adjust ?? 0,
+            wage_subtotal: snap.wage_subtotal ?? 0,
+            net_pay: snap.net_pay ?? 0,
+            total_cost: snap.total_cost ?? 0,
+            data_status: snap.data_status,
+            // 明细（抽屉用）
+            allowance_supp: snap.allowance_supp ?? 0,
+            other_adjust: snap.other_adjust ?? 0,
+            kpi_provision: snap.kpi_provision ?? 0,
+            office_comm: snap.office_comm ?? 0,
+            performance_pay: snap.performance_pay ?? 0,
+            apartment_comm: snap.apartment_comm ?? 0,
+            talent_kpi: snap.talent_kpi ?? 0,
+            heat_allowance: snap.heat_allowance ?? 0,
+            other_allowance: snap.other_allowance ?? 0,
+            security_bonus: snap.security_bonus ?? 0,
+            cleaning_bonus: snap.cleaning_bonus ?? 0,
+            pension_p: snap.pension_p ?? 0,
+            medical_p: snap.medical_p ?? 0,
+            unemployment_p: snap.unemployment_p ?? 0,
+            housing_fund_p: snap.housing_fund_p ?? 0,
+            supp_housing_p: snap.supp_housing_p ?? 0,
+            pension_c: snap.pension_c ?? 0,
+            medical_c: snap.medical_c ?? 0,
+            unemployment_c: snap.unemployment_c ?? 0,
+            injury_c: snap.injury_c ?? 0,
+            maternity_c: snap.maternity_c ?? 0,
+            housing_fund_c: snap.housing_fund_c ?? 0,
+            supp_housing_c: snap.supp_housing_c ?? 0,
+            _locked: true,
+          };
+        }
+
         // 附加薪酬合计 = 12项之和
         const additionalTotal = Number((
           (add.allowance_supp || 0) + (add.other_adjust || 0) + (add.insurance_amount || 0) +
@@ -230,8 +292,14 @@ const PayrollPage: React.FC = () => {
       setEmployees(empMap);
 
       let success = 0;
+      let skippedLocked = 0;
       for (const r of merged) {
         try {
+          // 已锁定的记录跳过，不覆盖（冻结数据不随刷新变动）
+          if (r._locked) {
+            skippedLocked++;
+            continue;
+          }
           const payload = {
             unique_hash: r.unique_hash,
             period,
@@ -259,7 +327,11 @@ const PayrollPage: React.FC = () => {
       }
 
       setRecords(applyFilters(merged));
-      message.success(`刷新同步完成：已保存 ${success} / ${merged.length} 条计算结果`);
+      if (skippedLocked > 0) {
+        message.success(`刷新同步完成：已保存 ${success} 条，跳过 ${skippedLocked} 条（已锁定，冻结不更新）`);
+      } else {
+        message.success(`刷新同步完成：已保存 ${success} / ${merged.length} 条计算结果`);
+      }
     } catch { message.error('刷新同步数据失败'); }
     finally { setLoading(false); }
   };
