@@ -15,7 +15,14 @@ import { calcSocial, calcHousingFund } from './welfareCalc';
 import { calcIncomeTax, calcServiceTax, calcInternTax } from './taxCalc';
 import { isActiveInPeriod } from './employee';
 
-const round2 = (v: number): number => Number(v.toFixed(2));
+/** 四舍五入保留2位（修正浮点误差，如 24.345 正确进位到 24.35） */
+const round2 = (v: number): number => {
+  const n = Math.round((v + Number.EPSILON) * 100) / 100;
+  return Object.is(n, -0) ? 0 : n;
+};
+
+/** 四舍五入保留2位（字符串版本，用于链式拼接） */
+const round2s = (v: number): number => round2(Number(v));
 
 export interface RefreshStepResult {
   step: string;
@@ -34,7 +41,7 @@ function prevPeriod(p: string): string {
   return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
 }
 
-const isLocked = (r: any) => r.data_status === '已锁定' || r.data_status === '已提交老板查看';
+const isLocked = (r: any) => !!r && (r.data_status === '已锁定' || r.data_status === '已提交老板查看');
 
 /** 1. 考勤自动计算 */
 async function refreshAttendance(period: string): Promise<RefreshStepResult> {
@@ -214,12 +221,12 @@ async function refreshNormalTax(period: string): Promise<RefreshStepResult> {
       const add = addMap[e.unique_hash] || {};
       const welfare = welfareMap[e.unique_hash] || {};
 
-      const additionalTotal = Number((
+      const additionalTotal = round2(
         (add.allowance_supp || 0) + (add.other_adjust || 0) + (add.insurance_amount || 0) +
         (add.kpi_provision || 0) + (add.office_comm || 0) + (add.performance_pay || 0) +
         (add.apartment_comm || 0) + (add.talent_kpi || 0) + (add.heat_allowance || 0) +
         (add.other_allowance || 0) + (add.security_bonus || 0) + (add.cleaning_bonus || 0)
-      ).toFixed(2));
+      );
       const currentTaxableIncome = round2(Number(e.basic_salary || 0) + Number(attMap[e.unique_hash]?.attendance_adjust_total || 0) + additionalTotal);
 
       const notYetEffective = !!(welfare.effective_month && welfare.effective_month > period);
@@ -229,11 +236,11 @@ async function refreshNormalTax(period: string): Promise<RefreshStepResult> {
 
       const specialTotal = (special.cumul_child_edu || 0) + (special.cumul_continuing_edu || 0) + (special.cumul_mortgage || 0) + (special.cumul_rent || 0) + (special.cumul_elder_care || 0) + (special.cumul_infant_care || 0);
       const prevSpecialTotal = (prevSpecial.cumul_child_edu || 0) + (prevSpecial.cumul_continuing_edu || 0) + (prevSpecial.cumul_mortgage || 0) + (prevSpecial.cumul_rent || 0) + (prevSpecial.cumul_elder_care || 0) + (prevSpecial.cumul_infant_care || 0);
-      const currentSpecialDeduct = Math.max(0, Number((specialTotal - prevSpecialTotal).toFixed(2)));
+      const currentSpecialDeduct = Math.max(0, round2(specialTotal - prevSpecialTotal));
       const otherTotal = (special.cumul_pension || 0) + (special.cumul_annuity || 0) + (special.cumul_health_ins || 0) + (special.cumul_tax_defer_ins || 0) + (special.cumul_donation || 0);
       const prevOtherTotal = (prevSpecial.cumul_pension || 0) + (prevSpecial.cumul_annuity || 0) + (prevSpecial.cumul_health_ins || 0) + (prevSpecial.cumul_tax_defer_ins || 0) + (prevSpecial.cumul_donation || 0);
-      const currentOtherDeduct = Math.max(0, Number((otherTotal - prevOtherTotal).toFixed(2)));
-      const currentTaxRelief = Math.max(0, Number(((special.tax_relief || 0) - (prevSpecial.tax_relief || 0)).toFixed(2)));
+      const currentOtherDeduct = Math.max(0, round2(otherTotal - prevOtherTotal));
+      const currentTaxRelief = Math.max(0, round2((special.tax_relief || 0) - (prevSpecial.tax_relief || 0)));
 
       const isFirstMonth = period === '2026-06';
       const monthNum = parseInt(period.split('-')[1]);
@@ -397,12 +404,12 @@ async function refreshPayroll(period: string): Promise<RefreshStepResult> {
     try {
       const add = addMap[e.unique_hash] || {};
       const welfare = welfareMap[e.unique_hash] || {};
-      const additionalTotal = Number((
+      const additionalTotal = round2(
         (add.allowance_supp || 0) + (add.other_adjust || 0) + (add.insurance_amount || 0) +
         (add.kpi_provision || 0) + (add.office_comm || 0) + (add.performance_pay || 0) +
         (add.apartment_comm || 0) + (add.talent_kpi || 0) + (add.heat_allowance || 0) +
         (add.other_allowance || 0) + (add.security_bonus || 0) + (add.cleaning_bonus || 0)
-      ).toFixed(2));
+      );
       const basicSalary = Number(e.basic_salary || 0);
       const attendanceAdjust = Number(att?.attendance_adjust_total || 0);
       const notYetEffective = !!(welfare.effective_month && welfare.effective_month > period);

@@ -19,6 +19,12 @@ const fmtMoney = (v: any) => {
   return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+/** 四舍五入保留2位（修正浮点误差，如 24.345 正确进位到 24.35） */
+const round2 = (v: number): number => {
+  const n = Math.round((v + Number.EPSILON) * 100) / 100;
+  return Object.is(n, -0) ? 0 : n;
+};
+
 /** 按入职日期计算到指定月份的任职月数（含当月）。入职早于当年1月则从1月起算。 */
 function calcMonthsWorked(entryDate: string | undefined, period: string): number {
   if (!entryDate) return 1;
@@ -103,8 +109,8 @@ const InternTaxPage: React.FC = () => {
           //   - 非首次月：上月累计收入额(已税后) + 本月(税前) × 0.8
           const isFirstMonth = period === '2026-06';
           const cumulIncome = isFirstMonth
-            ? Number((((Number(opening.cumul_income || 0) + currentIncome) * (1 - 0.20)).toFixed(2)))
-            : Number(((Number(prev.cumul_taxable_income || 0) + currentIncome * (1 - 0.20)).toFixed(2)));
+            ? round2((Number(opening.cumul_income || 0) + currentIncome) * (1 - 0.20))
+            : round2(Number(prev.cumul_taxable_income || 0) + currentIncome * (1 - 0.20));
           // 累计减除费用 = 5000 × 从开始实习起到本月的月数（按入职日期计算）
           const monthsWorked = calcMonthsWorked(e.entry_date, period);
           const cumulBasicDeduction = 5000 * monthsWorked;

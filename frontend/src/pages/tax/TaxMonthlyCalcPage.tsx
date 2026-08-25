@@ -19,6 +19,12 @@ const fmtMoney = (v: any) => {
   return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+/** 四舍五入保留2位（修正浮点误差，如 24.345 正确进位到 24.35） */
+const round2 = (v: number): number => {
+  const n = Math.round((v + Number.EPSILON) * 100) / 100;
+  return Object.is(n, -0) ? 0 : n;
+};
+
 // 导出表头（只导出，不支持导入）
 const EXPORT_DEF: ExportDef = {
   module: '个税月度计算',
@@ -102,15 +108,15 @@ const TaxMonthlyCalcPage: React.FC = () => {
           const calc = calcMap[e.unique_hash] || {};
           const add = addMap[e.unique_hash] || {};
           // 附加薪酬合计 = 12项之和（与薪资计算板块口径一致）
-          const additionalTotal = Number((
+          const additionalTotal = round2(
             (add.allowance_supp || 0) + (add.other_adjust || 0) + (add.insurance_amount || 0) +
             (add.kpi_provision || 0) + (add.office_comm || 0) + (add.performance_pay || 0) +
             (add.apartment_comm || 0) + (add.talent_kpi || 0) + (add.heat_allowance || 0) +
             (add.other_allowance || 0) + (add.security_bonus || 0) + (add.cleaning_bonus || 0)
-          ).toFixed(2));
+          );
           // 本期应税收入 = 当月薪资小计 = 基本工资 + 考勤调整合计 + 附加薪酬合计（实时计算，与薪酬板块一致）
-          const currentTaxableIncome = Number(
-            (Number(e.basic_salary || 0) + Number(attMap[e.unique_hash]?.attendance_adjust_total || 0) + additionalTotal).toFixed(2)
+          const currentTaxableIncome = round2(
+            Number(e.basic_salary || 0) + Number(attMap[e.unique_hash]?.attendance_adjust_total || 0) + additionalTotal
           );
           // 本期五险一金 = 个人社保合计(含调整) + 个人公积金合计(含调整)，与社保板块口径一致
           const welfare = welfareMap[e.unique_hash] || {};
@@ -118,8 +124,8 @@ const TaxMonthlyCalcPage: React.FC = () => {
           const notYetEffective = !!(welfare.effective_month && welfare.effective_month > period);
           const currentFiveInsurance = notYetEffective
             ? 0
-            : Number(
-                ((Number(welfare.personal_total || 0) + Number(welfare.personal_social_adj || 0) + Number(welfare.personal_housing_adj || 0)).toFixed(2))
+            : round2(
+                Number(welfare.personal_total || 0) + Number(welfare.personal_social_adj || 0) + Number(welfare.personal_housing_adj || 0)
               );
           // 本期专项附加 = 本月累计 - 上月累计
           const specialTotal = (special.cumul_child_edu || 0) + (special.cumul_continuing_edu || 0) + (special.cumul_mortgage || 0) + (special.cumul_rent || 0) + (special.cumul_elder_care || 0) + (special.cumul_infant_care || 0);

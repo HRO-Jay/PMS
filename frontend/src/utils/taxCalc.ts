@@ -22,7 +22,11 @@ export const TAX_BRACKETS: TaxBracket[] = [
   { level: 7, min_income: 960000, max_income: null, rate: 0.45, quick_deduction: 181920 },
 ];
 
-const round2 = (v: number): number => Number(v.toFixed(2));
+/** 四舍五入保留2位（修正浮点误差，如 24.345 正确进位到 24.35） */
+const round2 = (v: number): number => {
+  const n = Math.round((v + Number.EPSILON) * 100) / 100;
+  return Object.is(n, -0) ? 0 : n;
+};
 
 /** 查预扣率表 */
 export function findTaxBracket(cumulTaxableIncome: number): TaxBracket {
