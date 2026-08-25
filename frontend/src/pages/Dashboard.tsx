@@ -104,36 +104,42 @@ function fmtShort(v: number): string {
   return `${v}`;
 }
 
-/** 动态等宽分箱（固定 5 档），返回区间边界与统计 */
+/**
+ * 动态等宽分箱（固定 5 档），返回区间边界与统计。
+ * 规则：2万以上单独一档，0～2万再均分 4 档，共 5 档。
+ */
 function buildBins(values: number[]): { lo: number; hi: number; label: string; count: number; pct: number }[] {
   const v = values.filter(x => Number(x) > 0);
   if (!v.length) return [];
-  const min = Math.min(...v);
-  const max = Math.max(...v);
-  if (min === max) {
-    return [{ lo: min, hi: max, label: `¥${fmtShort(min)}`, count: v.length, pct: 100 }];
-  }
-  // 固定 5 档：步长按范围 /4 取整，保证 5 个区间覆盖 [min, max]
-  const step = niceStep((max - min) / 4);
-  const start = Math.floor(min / step) * step;
-  const bins: { lo: number; hi: number; count: number }[] = [];
-  for (let i = 0; i < 5; i++) {
-    const lo = start + i * step;
-    bins.push({ lo, hi: lo + step, count: 0 });
-  }
-  v.forEach(x => {
-    let idx = Math.floor((x - start) / step);
-    if (idx < 0) idx = 0;
-    if (idx > 4) idx = 4;
-    bins[idx].count++;
-  });
   const total = v.length;
+
+  // 上限固定 2 万，其余 0～2万均分 4 档
+  const TOP = 20000;
+  const step = TOP / 4; // 5000
+  const bounds = [0, 5000, 10000, 15000, 20000]; // 4 档边界 + 2万以上
+
+  // 5 档：0-5千, 5千-1万, 1万-1.5万, 1.5万-2万, 2万以上
+  const bins: { lo: number; hi: number; count: number; isTop: boolean }[] = [];
+  for (let i = 0; i < 4; i++) {
+    bins.push({ lo: bounds[i], hi: bounds[i + 1], count: 0, isTop: false });
+  }
+  bins.push({ lo: TOP, hi: Infinity, count: 0, isTop: true });
+
+  v.forEach(x => {
+    if (x >= TOP) {
+      bins[4].count++;
+    } else {
+      const idx = Math.min(Math.floor(x / step), 3);
+      bins[idx].count++;
+    }
+  });
+
   return bins.map((b, i) => {
     let label: string;
-    if (i === 0) {
-      label = `¥${fmtShort(b.hi)}以下`;
-    } else if (i === 4) {
+    if (b.isTop) {
       label = `¥${fmtShort(b.lo)}以上`;
+    } else if (i === 0) {
+      label = `¥${fmtShort(b.hi)}以下`;
     } else {
       label = `¥${fmtShort(b.lo)}-${fmtShort(b.hi)}`;
     }
@@ -775,7 +781,6 @@ const Dashboard: React.FC = () => {
               {salaryDist.length > 0 && (
                 <div style={{ marginTop: 8, color: INK_SUB, fontSize: 12 }}>
                   中位数 {fmtMoneyInt(salaryMedian)}；区间按当月实发工资动态划分（含下限不含上限），共 {salaryDist.length} 档。
-                  {salaryDist.some(b => b.pct >= 50) && <span style={{ color: RED, marginLeft: 6 }}>⚠️ 某区间人数占比超 50%，薪酬带宽可能过于集中</span>}
                 </div>
               )}
             </Card>
