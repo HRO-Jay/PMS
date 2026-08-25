@@ -32,6 +32,68 @@ export function findTaxBracket(cumulTaxableIncome: number): TaxBracket {
   ) || TAX_BRACKETS[TAX_BRACKETS.length - 1];
 }
 
+/**
+ * ===== 劳务报酬所得预扣预缴（三级超额累进） =====
+ * 适用于普通居民个人劳务报酬的一般预扣法。
+ *
+ * 第一步：算"预扣预缴应纳税所得额"（收入额）
+ *   - 每次收入 ≤ 4000 元：减除费用 800 元 → 应纳税所得额 = 收入 - 800
+ *   - 每次收入 > 4000 元：减除 20% → 应纳税所得额 = 收入 × (1 - 20%)
+ * 第二步：套三级预扣率表
+ * 第三步：应预扣税额 = 应纳税所得额 × 预扣率 - 速算扣除数
+ */
+
+export interface ServiceTaxBracket {
+  level: number;
+  min_income: number;        // 应纳税所得额下限（含）
+  max_income: number | null; // 上限（不含，null 无上限）
+  rate: number;              // 预扣率
+  quick_deduction: number;   // 速算扣除数
+}
+
+/** 三级预扣率表 */
+export const SERVICE_TAX_BRACKETS: ServiceTaxBracket[] = [
+  { level: 1, min_income: 0,     max_income: 20000, rate: 0.20, quick_deduction: 0 },
+  { level: 2, min_income: 20000, max_income: 50000, rate: 0.30, quick_deduction: 2000 },
+  { level: 3, min_income: 50000, max_income: null,   rate: 0.40, quick_deduction: 7000 },
+];
+
+/** 查劳务三级预扣率表 */
+export function findServiceTaxBracket(taxableIncome: number): ServiceTaxBracket {
+  const income = Math.max(0, taxableIncome);
+  return SERVICE_TAX_BRACKETS.find(
+    b => income >= b.min_income && (b.max_income === null || income < b.max_income)
+  ) || SERVICE_TAX_BRACKETS[SERVICE_TAX_BRACKETS.length - 1];
+}
+
+export interface ServiceTaxResult {
+  taxable_income: number;   // 应纳税所得额（收入额）
+  tax_rate: number;         // 适用预扣率
+  quick_deduction: number;  // 速算扣除数
+  monthly_tax: number;      // 应预扣税额
+}
+
+/** 劳务报酬一般预扣法计算 */
+export function calcServiceTax(income: number): ServiceTaxResult {
+  const amount = Math.max(0, income);
+  // 第一步：应纳税所得额
+  const taxableIncome = amount <= 4000
+    ? amount - 800
+    : amount * (1 - 0.20);
+  // 负值按 0（收入不足 800 时无税）
+  const taxable = Math.max(0, taxableIncome);
+  // 第二步：套三级预扣率表
+  const bracket = findServiceTaxBracket(taxable);
+  // 第三步：应预扣税额
+  const monthlyTax = round2(taxable * bracket.rate - bracket.quick_deduction);
+  return {
+    taxable_income: round2(taxable),
+    tax_rate: bracket.rate,
+    quick_deduction: bracket.quick_deduction,
+    monthly_tax: Math.max(0, monthlyTax),
+  };
+}
+
 export interface TaxCalcInput {
   cumul_taxable_income: number;   // 累计应税收入
   cumul_tax_free_income: number;  // 累计免税收入

@@ -5,10 +5,11 @@ import api from '../../api/client';
 import { exportXlsx, type ExportDef } from '../../utils/importExport';
 import { withSource } from '../../components/SourceTag';
 import { isActiveInPeriod } from '../../utils/employee';
+import { calcServiceTax } from '../../utils/taxCalc';
 
 /**
  * 个税扣缴 — 劳务个税计算（计税方式为"劳务计税"的人员）
- * 当月个人所得税 = (薪资小计 - 800) × 20%
+ * 采用普通居民个人劳务报酬的一般预扣法（三级超额累进）。
  */
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
@@ -59,8 +60,9 @@ const ServiceTaxPage: React.FC = () => {
         .map((e: any) => {
           const sal = salaryMap[e.unique_hash] || {};
           const wageSubtotal = Number(sal.wage_subtotal || 0);
-          // 劳务个税 = (薪资小计 - 800) × 20%，最低 0
-          const monthlyTax = wageSubtotal <= 800 ? 0 : Number(((wageSubtotal - 800) * 0.20).toFixed(2));
+          // 劳务个税：一般预扣法（三级超额累进）
+          const tax = calcServiceTax(wageSubtotal);
+          const monthlyTax = tax.monthly_tax;
           return {
             key: `emp-${e.unique_hash}`,
             unique_hash: e.unique_hash,
@@ -69,6 +71,8 @@ const ServiceTaxPage: React.FC = () => {
             department: e.department || '',
             tax_method: e.tax_method || 'service',
             wage_subtotal: wageSubtotal,
+            taxable_income: tax.taxable_income,
+            tax_rate: tax.tax_rate,
             monthly_tax: sal.monthly_tax !== undefined && sal.monthly_tax !== null ? Number(sal.monthly_tax) : monthlyTax,
           };
         });
@@ -92,7 +96,8 @@ const ServiceTaxPage: React.FC = () => {
     for (const r of records) {
       try {
         const wageSubtotal = Number(r.wage_subtotal || 0);
-        const monthlyTax = wageSubtotal <= 800 ? 0 : Number(((wageSubtotal - 800) * 0.20).toFixed(2));
+        const tax = calcServiceTax(wageSubtotal);
+        const monthlyTax = tax.monthly_tax;
         const existing = await api.get(`/salary_records?unique_hash=eq.${r.unique_hash}&period=eq.${period}`);
         if (existing.data.length > 0) {
           await api.patch(`/salary_records?id=eq.${existing.data[0].id}`, { monthly_tax: monthlyTax });
@@ -118,6 +123,8 @@ const ServiceTaxPage: React.FC = () => {
     { title: withSource('计税方式', '花名册同步'), dataIndex: 'tax_method', key: 'tm', width: 90,
       render: (v: string) => <Tag color="orange">{v === 'service' ? '劳务计税' : v}</Tag> },
     { title: withSource('薪资小计', '薪资计算同步'), dataIndex: 'wage_subtotal', key: 'ws', width: 130, render: fmtMoney },
+    { title: withSource('应纳税所得额', '系统计算'), dataIndex: 'taxable_income', key: 'ti', width: 130, render: fmtMoney },
+    { title: withSource('预扣率', '系统计算'), dataIndex: 'tax_rate', key: 'tr', width: 80, render: (v: any) => v ? `${(v * 100).toFixed(0)}%` : '—' },
     { title: withSource('当月个人所得税', '系统计算'), dataIndex: 'monthly_tax', key: 'mt', width: 130,
       render: (v: any) => <strong style={{ color: '#e74c3c' }}>{fmtMoney(v)}</strong> },
   ];
@@ -136,7 +143,10 @@ const ServiceTaxPage: React.FC = () => {
         <Button icon={<DownloadOutlined />} onClick={() => exportXlsx(EXPORT_DEF, filteredRecords, period)}>导出</Button>
       </Space>
       <div style={{ marginBottom: 12, color: '#888' }}>
-        计算口径：当月个人所得税 =（薪资小计 − 800）× 20%，薪资小计不超过 800 元时为 0。
+        计算口径（一般预扣法，三级超额累进）：
+        ① 应纳税所得额 = 收入 ≤ 4000 元时减 800，收入 &gt; 4000 元时按 80%；
+        ② 套三级预扣率：≤2万 20%、2万-5万 30%（速算扣除 2000）、5万以上 40%（速算扣除 7000）；
+        ③ 应预扣税额 = 应纳税所得额 × 预扣率 − 速算扣除数。
       </div>
       <Table columns={columns} dataSource={filteredRecords} loading={loading} scroll={{ x: 800, y: 'calc(100vh - 280px)' }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
     </Card>

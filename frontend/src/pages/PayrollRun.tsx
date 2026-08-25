@@ -6,6 +6,7 @@ import { exportXlsx, type ExportDef } from '../utils/importExport';
 import { withSource } from '../components/SourceTag';
 import { useHorizontalScroll } from '../utils/useHorizontalScroll';
 import { isActiveInPeriod } from '../utils/employee';
+import { calcServiceTax } from '../utils/taxCalc';
 
 /**
  * 薪资计算板块（改造版）
@@ -128,13 +129,13 @@ const PayrollPage: React.FC = () => {
         const wageSubtotal = Number((basicSalary + attendanceAdjust + additionalTotal).toFixed(2));
 
         // 当月个税按计税方式分支：
-        // - 劳务计税(service)：直接按（薪资小计 - 800）× 20% 计算（劳务个税板块后补，这里打通链接）
+        // - 劳务计税(service)：一般预扣法（三级超额累进），与劳务个税板块一致
         // - 不计税(non_taxable)：0
         // - 正常计税(normal)：从个税月度计算表取
         const taxMethod = e.tax_method || 'normal';
         let monthlyTax: number;
         if (taxMethod === 'service') {
-          monthlyTax = wageSubtotal <= 800 ? 0 : Number(((wageSubtotal - 800) * 0.20).toFixed(2));
+          monthlyTax = calcServiceTax(wageSubtotal).monthly_tax;
         } else if (taxMethod === 'non_taxable') {
           monthlyTax = 0;
         } else {
