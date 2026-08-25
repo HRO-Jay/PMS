@@ -74,7 +74,7 @@ const PayrollPage: React.FC = () => {
       api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,leave_date,attendance_type,tax_method,basic_salary'),
       api.get(`/attendance_records?select=unique_hash,attendance_adjust_total,data_status&period=eq.${period}`),
       api.get(`/additional_salary_records?select=*&period=eq.${period}`),
-      api.get(`/employee_welfare_records?select=unique_hash,personal_total,company_total,personal_social_adj,personal_housing_adj,company_social_adj,company_housing_adj,pension_p_amt,medical_p_amt,unemployment_p_amt,normal_housing_p_amt,supp_housing_p_amt,pension_c_amt,medical_c_amt,unemployment_c_amt,injury_c_amt,maternity_c_amt,normal_housing_c_amt,supp_housing_c_amt&period=eq.${period}`),
+      api.get(`/employee_welfare_records?select=unique_hash,personal_total,company_total,personal_social_adj,personal_housing_adj,company_social_adj,company_housing_adj,effective_month,pension_p_amt,medical_p_amt,unemployment_p_amt,normal_housing_p_amt,supp_housing_p_amt,pension_c_amt,medical_c_amt,unemployment_c_amt,injury_c_amt,maternity_c_amt,normal_housing_c_amt,supp_housing_c_amt&period=eq.${period}`),
       api.get(`/tax_monthly_calcs?select=unique_hash,monthly_tax&period=eq.${period}`),
     ]);
 
@@ -106,14 +106,20 @@ const PayrollPage: React.FC = () => {
 
         const basicSalary = Number(e.basic_salary || 0);
         const attendanceAdjust = Number(attMap[e.unique_hash]?.attendance_adjust_total || 0);
+        // 生效日期识别：生效日期 > 当前月份 → 个人/公司福利合计为 0（与社保板块一致）
+        const notYetEffective = !!(welfare.effective_month && welfare.effective_month > period);
         // 个人福利合计(含调整) = personal_total + 个人社保调整 + 个人公积金调整，与社保板块口径一致
-        const personalWelfare = Number(
-          ((Number(welfare.personal_total || 0) + Number(welfare.personal_social_adj || 0) + Number(welfare.personal_housing_adj || 0)).toFixed(2))
-        );
+        const personalWelfare = notYetEffective
+          ? 0
+          : Number(
+              ((Number(welfare.personal_total || 0) + Number(welfare.personal_social_adj || 0) + Number(welfare.personal_housing_adj || 0)).toFixed(2))
+            );
         // 公司福利合计(含调整) = company_total + 公司社保调整 + 公司公积金调整
-        const companyWelfare = Number(
-          ((Number(welfare.company_total || 0) + Number(welfare.company_social_adj || 0) + Number(welfare.company_housing_adj || 0)).toFixed(2))
-        );
+        const companyWelfare = notYetEffective
+          ? 0
+          : Number(
+              ((Number(welfare.company_total || 0) + Number(welfare.company_social_adj || 0) + Number(welfare.company_housing_adj || 0)).toFixed(2))
+            );
         const insuranceAmount = Number(add.insurance_amount || 0);
         // 商保调整 = 商保金额的负数
         const insuranceAdjust = -insuranceAmount;
