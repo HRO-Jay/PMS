@@ -65,7 +65,7 @@ const TaxMonthlyCalcPage: React.FC = () => {
         api.get(`/tax_special_deductions?select=*&period=eq.${prevPeriod(period)}`),
         api.get(`/tax_monthly_calcs?select=*&period=eq.${prevPeriod(period)}`),
         api.get(`/tax_monthly_calcs?select=*&period=eq.${period}`),
-        api.get(`/employee_welfare_records?select=unique_hash,personal_total&period=eq.${period}`),
+        api.get(`/employee_welfare_records?select=unique_hash,personal_total,personal_social_adj,personal_housing_adj&period=eq.${period}`),
         api.get(`/attendance_records?select=unique_hash,attendance_adjust_total&period=eq.${period}`),
         api.get(`/additional_salary_records?select=*&period=eq.${period}`),
       ]);
@@ -108,7 +108,11 @@ const TaxMonthlyCalcPage: React.FC = () => {
           const currentTaxableIncome = Number(
             (Number(e.basic_salary || 0) + Number(attMap[e.unique_hash]?.attendance_adjust_total || 0) + additionalTotal).toFixed(2)
           );
-          const currentFiveInsurance = Number(welfareMap[e.unique_hash]?.personal_total || 0);
+          // 本期五险一金 = 个人社保合计(含调整) + 个人公积金合计(含调整)，与社保板块口径一致
+          const welfare = welfareMap[e.unique_hash] || {};
+          const currentFiveInsurance = Number(
+            ((Number(welfare.personal_total || 0) + Number(welfare.personal_social_adj || 0) + Number(welfare.personal_housing_adj || 0)).toFixed(2))
+          );
           // 本期专项附加 = 本月累计 - 上月累计
           const specialTotal = (special.cumul_child_edu || 0) + (special.cumul_continuing_edu || 0) + (special.cumul_mortgage || 0) + (special.cumul_rent || 0) + (special.cumul_elder_care || 0) + (special.cumul_infant_care || 0);
           const prevSpecialTotal = (prevSpecial.cumul_child_edu || 0) + (prevSpecial.cumul_continuing_edu || 0) + (prevSpecial.cumul_mortgage || 0) + (prevSpecial.cumul_rent || 0) + (prevSpecial.cumul_elder_care || 0) + (prevSpecial.cumul_infant_care || 0);
