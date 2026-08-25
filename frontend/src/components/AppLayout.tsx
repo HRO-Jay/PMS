@@ -1,11 +1,12 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { Layout, Menu, Typography, Avatar, Dropdown } from 'antd';
+import { Layout, Menu, Typography, Avatar, Dropdown, Button, message, Modal } from 'antd';
 import {
   TeamOutlined, DollarOutlined, CalculatorOutlined,
-  LogoutOutlined, ScheduleOutlined,
+  LogoutOutlined, ScheduleOutlined, SyncOutlined,
   UserOutlined, SettingOutlined, SafetyCertificateOutlined, PercentageOutlined, PlusCircleOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { globalRefresh } from '../utils/globalRefresh';
 
 const { Header, Sider, Content } = Layout;
 
@@ -34,6 +35,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [siderWidth, setSiderWidth] = useState(DEFAULT_WIDTH);
   const [dragging, setDragging] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const dragStartRef = useRef<{ x: number; width: number } | null>(null);
 
   // 社保管理有两个子页面，需要高亮父菜单
@@ -44,6 +46,27 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const handleLogout = () => {
     localStorage.removeItem('supabase_token');
     navigate('/login');
+  };
+
+  // 全局刷新：任何页面点击，按 考勤→社保→个税→实习生→薪资 重算所有模块
+  const handleGlobalRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      const result = await globalRefresh();
+      const lines = result.steps
+        .map(s => `${s.step}：成功 ${s.success}${s.skipped > 0 ? `，跳过 ${s.skipped}` : ''}`)
+        .join('\n');
+      Modal.success({
+        title: '全局刷新完成',
+        content: <pre style={{ whiteSpace: 'pre-wrap', margin: 0, fontSize: 13 }}>{lines}</pre>,
+        okText: '知道了',
+      });
+    } catch (e: any) {
+      message.error(e?.message || '全局刷新失败');
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   // 拖动分隔条调整菜单栏宽度
@@ -125,11 +148,19 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       <Layout style={{ height: '100%', overflow: 'hidden' }}>
         <Header style={{
           background: '#fff', padding: '0 24px', display: 'flex',
-          justifyContent: 'flex-end', alignItems: 'center',
+          justifyContent: 'flex-end', alignItems: 'center', gap: 16,
           borderBottom: '1px solid #f0f0f0',
           height: 56,
           flexShrink: 0,
         }}>
+          <Button
+            type="primary"
+            icon={<SyncOutlined />}
+            onClick={handleGlobalRefresh}
+            loading={refreshing}
+          >
+            全局刷新
+          </Button>
           <Dropdown menu={{
             items: [
               { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', danger: true },
