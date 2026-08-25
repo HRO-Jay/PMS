@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Card, Button, Space, message, Upload } from 'antd';
-import { DownloadOutlined, UploadOutlined } from '@ant-design/icons';
+import { Table, Card, Button, Space, message, Upload, Input, Select } from 'antd';
+import { DownloadOutlined, UploadOutlined, SearchOutlined } from '@ant-design/icons';
 import api from '../../api/client';
 import { exportXlsx, importXlsx, type ExportDef } from '../../utils/importExport';
 import { withSource } from '../../components/SourceTag';
@@ -32,8 +32,12 @@ const fmtMoney = (v: any) => {
 
 const TaxOpeningPage: React.FC = () => {
   const [records, setRecords] = useState<any[]>([]);
+  const [allRecords, setAllRecords] = useState<any[]>([]);
   const [employees, setEmployees] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(false);
+  const [fKeyword, setFKeyword] = useState('');
+  const [fPayCompany, setFPayCompany] = useState<string>();
+  const [fDepartment, setFDepartment] = useState<string>();
 
   useEffect(() => { loadData(); }, []);
 
@@ -70,10 +74,19 @@ const TaxOpeningPage: React.FC = () => {
           };
         });
       setEmployees(empMap);
+      setAllRecords(merged);
       setRecords(merged);
     } catch { message.error('加载期初累计数失败'); }
     finally { setLoading(false); }
   };
+
+  // 筛选
+  const filteredRecords = allRecords.filter((r: any) => {
+    if (fKeyword && !(r.employee_name || '').includes(fKeyword)) return false;
+    if (fPayCompany && r.pay_company !== fPayCompany) return false;
+    if (fDepartment && r.department !== fDepartment) return false;
+    return true;
+  });
 
   // 导出
   const handleExport = () => exportXlsx(EXPORT_DEF, records);
@@ -145,13 +158,18 @@ const TaxOpeningPage: React.FC = () => {
 
   return (
     <Card size="small" title="期初累计数（2026年1-5月，一次性录入后锁定）">
-      <Space style={{ marginBottom: 12 }}>
+      <Space style={{ marginBottom: 12 }} wrap>
+        <Input placeholder="搜索姓名" prefix={<SearchOutlined />} value={fKeyword} onChange={e => setFKeyword(e.target.value)} style={{ width: 140 }} allowClear />
+        <Select placeholder="发薪公司" allowClear showSearch optionFilterProp="label" value={fPayCompany} onChange={setFPayCompany} style={{ width: 150 }}
+          options={Object.values(employees).map((e: any) => ({ value: e.pay_company, label: e.pay_company })).filter((v, i, a) => a.findIndex(x => x.value === v.value) === i)} />
+        <Select placeholder="部门" allowClear showSearch optionFilterProp="label" value={fDepartment} onChange={setFDepartment} style={{ width: 130 }}
+          options={Object.values(employees).map((e: any) => ({ value: e.department, label: e.department })).filter((v, i, a) => v.value && a.findIndex(x => x.value === v.value) === i)} />
         <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
         <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
           <Button icon={<UploadOutlined />}>导入</Button>
         </Upload>
       </Space>
-      <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 1400, y: 'calc(100vh - 280px)' }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
+      <Table columns={columns} dataSource={filteredRecords} loading={loading} scroll={{ x: 1400, y: 'calc(100vh - 280px)' }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
     </Card>
   );
 };

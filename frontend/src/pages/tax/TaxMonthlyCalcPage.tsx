@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Card, Button, Space, message, Input, Tag } from 'antd';
-import { CalculatorOutlined, LinkOutlined, DownloadOutlined } from '@ant-design/icons';
+import { Table, Card, Button, Space, message, Input, Tag, Select } from 'antd';
+import { CalculatorOutlined, LinkOutlined, DownloadOutlined, SearchOutlined } from '@ant-design/icons';
 import api from '../../api/client';
 import { calcIncomeTax } from '../../utils/taxCalc';
 import { exportXlsx, type ExportDef } from '../../utils/importExport';
@@ -49,8 +49,12 @@ const EXPORT_DEF: ExportDef = {
 
 const TaxMonthlyCalcPage: React.FC = () => {
   const [records, setRecords] = useState<any[]>([]);
+  const [allRecords, setAllRecords] = useState<any[]>([]);
   const [period, setPeriod] = useState(defaultPeriod);
   const [loading, setLoading] = useState(false);
+  const [fKeyword, setFKeyword] = useState('');
+  const [fPayCompany, setFPayCompany] = useState<string>();
+  const [fDepartment, setFDepartment] = useState<string>();
 
   useEffect(() => { loadData(); }, [period]);
 
@@ -153,10 +157,18 @@ const TaxMonthlyCalcPage: React.FC = () => {
           };
         });
 
+      setAllRecords(merged);
       setRecords(merged);
     } catch { message.error('加载个税计算数据失败'); }
     finally { setLoading(false); }
   };
+
+  const filteredRecords = allRecords.filter((r: any) => {
+    if (fKeyword && !(r.employee_name || '').includes(fKeyword)) return false;
+    if (fPayCompany && r.pay_company !== fPayCompany) return false;
+    if (fDepartment && r.department !== fDepartment) return false;
+    return true;
+  });
 
   // 计算上一个月
   function prevPeriod(p: string): string {
@@ -290,14 +302,19 @@ const TaxMonthlyCalcPage: React.FC = () => {
 
   return (
     <Card size="small" title="个税月度计算（累计预扣法，正常计税人员）">
-      <Space style={{ marginBottom: 12 }}>
+      <Space style={{ marginBottom: 12 }} wrap>
         <span>所得期间：</span>
         <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 180 }} />
+        <Input placeholder="搜索姓名" prefix={<SearchOutlined />} value={fKeyword} onChange={e => setFKeyword(e.target.value)} style={{ width: 140 }} allowClear />
+        <Select placeholder="发薪公司" allowClear showSearch optionFilterProp="label" value={fPayCompany} onChange={setFPayCompany} style={{ width: 150 }}
+          options={records.map((e: any) => ({ value: e.pay_company, label: e.pay_company })).filter((v, i, a) => a.findIndex(x => x.value === v.value) === i)} />
+        <Select placeholder="部门" allowClear showSearch optionFilterProp="label" value={fDepartment} onChange={setFDepartment} style={{ width: 130 }}
+          options={records.map((e: any) => ({ value: e.department, label: e.department })).filter((v, i, a) => v.value && a.findIndex(x => x.value === v.value) === i)} />
         <Button type="primary" icon={<CalculatorOutlined />} onClick={handleCalc}>计算当月个税</Button>
         <Button icon={<LinkOutlined />} onClick={handleSync}>同步到薪酬板块</Button>
-        <Button icon={<DownloadOutlined />} onClick={() => exportXlsx(EXPORT_DEF, records, period)}>导出</Button>
+        <Button icon={<DownloadOutlined />} onClick={() => exportXlsx(EXPORT_DEF, filteredRecords, period)}>导出</Button>
       </Space>
-      <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 2000, y: 'calc(100vh - 280px)' }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
+      <Table columns={columns} dataSource={filteredRecords} loading={loading} scroll={{ x: 2000, y: 'calc(100vh - 280px)' }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
     </Card>
   );
 };

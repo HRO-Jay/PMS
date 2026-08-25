@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Card, Button, Space, message, Upload, Input, Tag } from 'antd';
-import { DownloadOutlined, UploadOutlined } from '@ant-design/icons';
+import { Table, Card, Button, Space, message, Upload, Input, Tag, Select } from 'antd';
+import { DownloadOutlined, UploadOutlined, SearchOutlined } from '@ant-design/icons';
 import api from '../../api/client';
 import { exportXlsx, importXlsx, type ExportDef } from '../../utils/importExport';
 import { withSource } from '../../components/SourceTag';
@@ -41,9 +41,13 @@ const fmtMoney = (v: any) => {
 
 const TaxSpecialDeductionsPage: React.FC = () => {
   const [records, setRecords] = useState<any[]>([]);
+  const [allRecords, setAllRecords] = useState<any[]>([]);
   const [employees, setEmployees] = useState<Record<string, any>>({});
   const [period, setPeriod] = useState(defaultPeriod);
   const [loading, setLoading] = useState(false);
+  const [fKeyword, setFKeyword] = useState('');
+  const [fPayCompany, setFPayCompany] = useState<string>();
+  const [fDepartment, setFDepartment] = useState<string>();
 
   useEffect(() => { loadData(); }, [period]);
 
@@ -51,7 +55,7 @@ const TaxSpecialDeductionsPage: React.FC = () => {
     setLoading(true);
     try {
       const [empRes, recRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,pay_company'),
+        api.get('/employees?select=unique_hash,name,pay_company,department'),
         api.get(`/tax_special_deductions?select=*&period=eq.${period}`),
       ]);
       const empMap: Record<string, any> = {};
@@ -70,13 +74,22 @@ const TaxSpecialDeductionsPage: React.FC = () => {
           unique_hash: e.unique_hash,
           employee_name: e.name,
           pay_company: e.pay_company || '',
+          department: e.department || '',
           special_total: cumulSpecial,
         };
       });
+      setAllRecords(merged);
       setRecords(merged);
     } catch { message.error('加载专项附加扣除失败'); }
     finally { setLoading(false); }
   };
+
+  const filteredRecords = allRecords.filter((r: any) => {
+    if (fKeyword && !(r.employee_name || '').includes(fKeyword)) return false;
+    if (fPayCompany && r.pay_company !== fPayCompany) return false;
+    if (fDepartment && r.department !== fDepartment) return false;
+    return true;
+  });
 
   const handleExport = () => exportXlsx(EXPORT_DEF, records, period);
 
@@ -144,15 +157,20 @@ const TaxSpecialDeductionsPage: React.FC = () => {
 
   return (
     <Card size="small" title="专项附加扣除维护（报税系统数据，按月导入覆盖）">
-      <Space style={{ marginBottom: 12 }}>
+      <Space style={{ marginBottom: 12 }} wrap>
         <span>所得期间：</span>
         <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 180 }} />
+        <Input placeholder="搜索姓名" prefix={<SearchOutlined />} value={fKeyword} onChange={e => setFKeyword(e.target.value)} style={{ width: 140 }} allowClear />
+        <Select placeholder="发薪公司" allowClear showSearch optionFilterProp="label" value={fPayCompany} onChange={setFPayCompany} style={{ width: 150 }}
+          options={Object.values(employees).map((e: any) => ({ value: e.pay_company, label: e.pay_company })).filter((v, i, a) => a.findIndex(x => x.value === v.value) === i)} />
+        <Select placeholder="部门" allowClear showSearch optionFilterProp="label" value={fDepartment} onChange={setFDepartment} style={{ width: 130 }}
+          options={Object.values(employees).map((e: any) => ({ value: e.department, label: e.department })).filter((v, i, a) => v.value && a.findIndex(x => x.value === v.value) === i)} />
         <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
         <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
           <Button icon={<UploadOutlined />}>导入</Button>
         </Upload>
       </Space>
-      <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 1800, y: 'calc(100vh - 280px)' }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
+      <Table columns={columns} dataSource={filteredRecords} loading={loading} scroll={{ x: 1800, y: 'calc(100vh - 280px)' }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
     </Card>
   );
 };
