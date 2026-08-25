@@ -40,7 +40,7 @@ const EXPORT_DEF: ExportDef = {
     { key: 'pay_company', label: '发薪公司' },
     { key: 'department', label: '部门' },
     { key: 'current_taxable_income', label: '本期收入额' },
-    { key: 'cumul_income', label: '累计收入额' },
+    { key: 'cumul_taxable_income', label: '累计收入额' },
     { key: 'cumul_basic_deduction', label: '累计减除费用' },
     { key: 'cumul_taxable_income_net', label: '累计应纳税所得额' },
     { key: 'tax_rate', label: '预扣率' },
@@ -97,12 +97,15 @@ const InternTaxPage: React.FC = () => {
           const calc = calcMap[e.unique_hash] || {};
           const currentIncome = Number(salaryMap[e.unique_hash]?.wage_subtotal || 0);
 
-          // 累计收入额 = 期初累计 + 本期（首次月份用期初，否则用上月累计+本期）
+          // 实习生个税（实习劳务报酬，一般累计预扣法）
+          // 累计收入额 = 实习以来劳务报酬总和 × (1 − 20%)
+          //   - 首次月：期初累计(税前) + 本月(税前)，再整体 × 0.8
+          //   - 非首次月：上月累计收入额(已税后) + 本月(税前) × 0.8
           const isFirstMonth = period === '2026-06';
           const cumulIncome = isFirstMonth
-            ? Number(opening.cumul_income || 0) + currentIncome
-            : Number(prev.cumul_income || 0) + currentIncome;
-          // 累计减除费用 = 5000 × 实际任职月数（按入职日期计算）
+            ? Number((((Number(opening.cumul_income || 0) + currentIncome) * (1 - 0.20)).toFixed(2)))
+            : Number(((Number(prev.cumul_taxable_income || 0) + currentIncome * (1 - 0.20)).toFixed(2)));
+          // 累计减除费用 = 5000 × 从开始实习起到本月的月数（按入职日期计算）
           const monthsWorked = calcMonthsWorked(e.entry_date, period);
           const cumulBasicDeduction = 5000 * monthsWorked;
           // 累计减免税额
@@ -129,7 +132,7 @@ const InternTaxPage: React.FC = () => {
             department: e.department || '',
             current_taxable_income: currentIncome,
             ...calc,
-            cumul_income: cumulIncome,
+            cumul_taxable_income: cumulIncome,
             cumul_basic_deduction: cumulBasicDeduction,
             cumul_taxable_income_net: result.cumul_taxable_income_net,
             tax_rate: result.tax_rate,
@@ -175,7 +178,7 @@ const InternTaxPage: React.FC = () => {
           unique_hash: r.unique_hash,
           period,
           current_taxable_income: r.current_taxable_income,
-          cumul_income: r._cumul_income,
+          cumul_taxable_income: r._cumul_income,
           cumul_basic_deduction: r._cumul_basic_deduction,
           cumul_taxable_income_net: result.cumul_taxable_income_net,
           tax_rate: result.tax_rate,
@@ -218,7 +221,7 @@ const InternTaxPage: React.FC = () => {
     { title: withSource('发薪公司', '花名册同步'), dataIndex: 'pay_company', key: 'co', width: 130, ellipsis: true, fixed: 'left' },
     { title: withSource('部门', '花名册同步'), dataIndex: 'department', key: 'dept', width: 100 },
     { title: withSource('本期收入额', '系统计算'), dataIndex: 'current_taxable_income', key: 'cti', width: 110, render: fmtMoney },
-    { title: withSource('累计收入额', '系统计算'), dataIndex: 'cumul_income', key: 'ci', width: 110, render: fmtMoney },
+    { title: withSource('累计收入额', '系统计算'), dataIndex: 'cumul_taxable_income', key: 'ci', width: 110, render: fmtMoney },
     { title: withSource('累计减除费用', '系统计算'), dataIndex: 'cumul_basic_deduction', key: 'cbd', width: 120, render: fmtMoney },
     { title: withSource('累计应纳税所得额', '系统计算'), dataIndex: 'cumul_taxable_income_net', key: 'ctin', width: 140, render: fmtMoney },
     { title: withSource('预扣率', '系统计算'), dataIndex: 'tax_rate', key: 'tr', width: 80, render: (v: any) => v ? `${(v * 100).toFixed(0)}%` : '—' },
