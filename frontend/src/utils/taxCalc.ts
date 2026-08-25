@@ -82,12 +82,14 @@ export function calcServiceTax(income: number): ServiceTaxResult {
     : amount * (1 - 0.20);
   // 负值按 0（收入不足 800 时无税）
   const taxable = Math.max(0, taxableIncome);
+  // 应税所得额先四舍五入（保留2位），再查表和算税
+  const taxableRounded = round2(taxable);
   // 第二步：套三级预扣率表
-  const bracket = findServiceTaxBracket(taxable);
+  const bracket = findServiceTaxBracket(taxableRounded);
   // 第三步：应预扣税额
-  const monthlyTax = round2(taxable * bracket.rate - bracket.quick_deduction);
+  const monthlyTax = round2(taxableRounded * bracket.rate - bracket.quick_deduction);
   return {
-    taxable_income: round2(taxable),
+    taxable_income: round2(taxableRounded),
     tax_rate: bracket.rate,
     quick_deduction: bracket.quick_deduction,
     monthly_tax: Math.max(0, monthlyTax),
@@ -115,14 +117,16 @@ export interface InternTaxResult {
 export function calcInternTax(input: InternTaxInput): InternTaxResult {
   // 累计应纳税所得额 = 累计收入额 − 累计减除费用
   const cumulTaxable = Math.max(0, input.cumul_income - input.cumul_basic_deduction);
+  // 应税所得额先四舍五入（保留2位），再查表和算税
+  const taxableRounded = round2(cumulTaxable);
   // 套七级累进预扣率表
-  const bracket = findTaxBracket(cumulTaxable);
+  const bracket = findTaxBracket(taxableRounded);
   // 本期应预扣预缴税额
   const monthlyTax = round2(
-    cumulTaxable * bracket.rate - bracket.quick_deduction - input.cumul_tax_relief - input.cumul_tax_paid
+    taxableRounded * bracket.rate - bracket.quick_deduction - input.cumul_tax_relief - input.cumul_tax_paid
   );
   return {
-    cumul_taxable_income_net: round2(cumulTaxable),
+    cumul_taxable_income_net: round2(taxableRounded),
     tax_rate: bracket.rate,
     quick_deduction: bracket.quick_deduction,
     monthly_tax: Math.max(0, monthlyTax),
@@ -161,12 +165,15 @@ export function calcIncomeTax(input: TaxCalcInput): TaxCalcResult {
   // 负值按 0
   cumulTaxableIncomeNet = Math.max(0, cumulTaxableIncomeNet);
 
+  // 应税所得额先四舍五入（保留2位），再查表和算税
+  const taxableRounded = round2(cumulTaxableIncomeNet);
+
   // 查表
-  const bracket = findTaxBracket(cumulTaxableIncomeNet);
+  const bracket = findTaxBracket(taxableRounded);
 
   // 当月个税 = 累计应纳税所得额 × 预扣率 - 速算扣除数 - 累计减免税额 - 累计已预扣税额
   let monthlyTax =
-    cumulTaxableIncomeNet * bracket.rate
+    taxableRounded * bracket.rate
     - bracket.quick_deduction
     - input.cumul_tax_relief
     - input.cumul_tax_paid;
@@ -175,7 +182,7 @@ export function calcIncomeTax(input: TaxCalcInput): TaxCalcResult {
   monthlyTax = Math.max(0, monthlyTax);
 
   return {
-    cumul_taxable_income_net: round2(cumulTaxableIncomeNet),
+    cumul_taxable_income_net: round2(taxableRounded),
     tax_rate: bracket.rate,
     quick_deduction: bracket.quick_deduction,
     monthly_tax: round2(monthlyTax),
