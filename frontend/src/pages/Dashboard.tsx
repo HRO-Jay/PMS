@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Card, Col, Row, Statistic, Space, Input, message, Table, Tabs, Tag, Badge, Button, Segmented } from 'antd';
+import { Card, Col, Row, Statistic, Space, Input, message, Table, Tabs, Tag, Badge, Button, Segmented, Dropdown } from 'antd';
 import {
   TeamOutlined, DollarOutlined, SafetyCertificateOutlined, CalculatorOutlined,
-  BankOutlined, AccountBookOutlined, UserOutlined, DownloadOutlined, ReloadOutlined, FilePdfOutlined,
+  BankOutlined, AccountBookOutlined, UserOutlined, DownloadOutlined, ReloadOutlined,
 } from '@ant-design/icons';
 import * as echarts from 'echarts';
 import api from '../api/client';
@@ -200,7 +200,7 @@ const Dashboard: React.FC = () => {
     setLoading(true);
     try {
       const prev = prevPeriod(period);
-      const empRes = await api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,entry_date,leave_date,basic_salary');
+      const empRes = await api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,entry_date,leave_date,basic_salary,provision_welfare');
       const empList: any[] = empRes.data;
       const activeEmps = empList.filter((e: any) => isActiveInPeriod(e, period));
       const empMap: Record<string, any> = {};
@@ -399,7 +399,7 @@ const Dashboard: React.FC = () => {
       byGroup[g].perf_comm += perfCommLocal(add);
       byGroup[g].attendance_adjust += Number(attMap[r.unique_hash]?.attendance_adjust_total || 0);
       byGroup[g].insurance += Number(add.insurance_amount || 0);
-      byGroup[g].provision += Number(r.provision_welfare || 0);
+      byGroup[g].provision += Number(emp.provision_welfare || 0);
       byGroup[g].total_cost += Number(r.total_cost || 0);
     });
     return Object.values(byGroup).map((g: any) => ({ ...g, key: g.group }));
@@ -830,15 +830,27 @@ const Dashboard: React.FC = () => {
 
       {/* 数据统计 Summary */}
       <Card size="small" title="数据统计 Summary" style={cardStyle}
-        extra={<Button icon={<FilePdfOutlined />} onClick={async () => {
-          const companyRows = buildSummaryByGroup('pay_company');
-          const deptRows = buildSummaryByGroup('department');
-          try {
-            await exportSummaryPdf(companyRows, deptRows, period);
-          } catch (e: any) {
-            message.error(e?.message || 'PDF 导出失败');
-          }
-        }}>导出PDF</Button>}>
+        extra={<Dropdown menu={{
+          items: [
+            { key: 'excel', label: '导出 Excel' },
+            { key: 'pdf', label: '导出 PDF' },
+          ],
+          onClick: async ({ key }) => {
+            if (key === 'pdf') {
+              const companyRows = buildSummaryByGroup('pay_company');
+              const deptRows = buildSummaryByGroup('department');
+              try {
+                await exportSummaryPdf(companyRows, deptRows, period);
+              } catch (e: any) {
+                message.error(e?.message || 'PDF 导出失败');
+              }
+            } else {
+              exportXlsx(SUMMARY_EXPORT_DEF, displaySummaryRows, period);
+            }
+          },
+        }}>
+          <Button icon={<DownloadOutlined />}>导出</Button>
+        </Dropdown>}>
         <Tabs activeKey={summaryTab} onChange={(k) => { setSummaryTab(k as 'dept' | 'company'); }}
           items={[
             { key: 'company', label: '按公司' },

@@ -27,6 +27,7 @@ export interface Employee {
   job_level: string;            // 职级 Ⅰ-Ⅶ
   attendance_type: string;      // 考勤制：全日制/非全日制/代收代付残疾人/不定时工作制
   basic_salary?: number;        // 基本工资（后续板块数据来源）
+  provision_welfare?: number;   // 预提福利费（花名册导入，链接到数据总览 summary）
   entry_date: string;           // 入职日期
   leave_date?: string;          // 离职日期
   is_disabled: boolean;

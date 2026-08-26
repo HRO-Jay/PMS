@@ -49,6 +49,7 @@ const EXPORT_DEF: ExportDef = {
     { key: 'job_level', label: '职级' },
     { key: 'attendance_type', label: '考勤制' },
     { key: 'basic_salary', label: '基本工资' },
+    { key: 'provision_welfare', label: '预提福利费' },
     { key: 'entry_date', label: '入职日期', required: true },
     { key: 'leave_date', label: '离职日期' },
   ],
@@ -291,6 +292,7 @@ const EmployeesPage: React.FC = () => {
             job_level: jobLevel,
             attendance_type: attType,
             basic_salary: row.basic_salary !== undefined && row.basic_salary !== '' ? Number(row.basic_salary) : undefined,
+            provision_welfare: row.provision_welfare !== undefined && row.provision_welfare !== '' ? Number(row.provision_welfare) : undefined,
             entry_date: entryDate,
             leave_date: leaveDate,
             unique_hash: uniqueHash,
@@ -341,6 +343,7 @@ const EmployeesPage: React.FC = () => {
     { title: withSource('职级', '导入'), dataIndex: 'job_level', key: 'job_level', width: 70 },
     { title: withSource('考勤制', '导入'), dataIndex: 'attendance_type', key: 'attendance_type', width: 110 },
     { title: withSource('基本工资', '导入'), dataIndex: 'basic_salary', key: 'basic_salary', width: 110, render: (v: any) => v ? `¥${Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—' },
+    { title: withSource('预提福利费', '导入'), dataIndex: 'provision_welfare', key: 'provision_welfare', width: 110, render: (v: any) => v ? `¥${Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—' },
     { title: withSource('入职日期', '导入'), dataIndex: 'entry_date', key: 'entry_date', width: 110 },
     {
       title: withSource('离职日期', '导入'), dataIndex: 'leave_date', key: 'leave_date', width: 110,
@@ -457,6 +460,9 @@ const EmployeesPage: React.FC = () => {
           </Form.Item>
           <Form.Item name="basic_salary" label="基本工资">
             <InputNumber style={{ width: '100%' }} min={0} placeholder="后续板块基本工资来源" />
+          </Form.Item>
+          <Form.Item name="provision_welfare" label="预提福利费">
+            <InputNumber style={{ width: '100%' }} min={0} placeholder="可留空，链接到数据总览 summary" />
           </Form.Item>
           <Form.Item name="entry_date" label="入职日期" rules={[{ required: true, message: '请选择入职日期' }]}
             extra={editingEmployee?.entry_date ? '入职日期不可修改' : undefined}>
