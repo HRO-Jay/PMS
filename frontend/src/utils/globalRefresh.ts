@@ -423,8 +423,8 @@ async function refreshPayroll(period: string): Promise<RefreshStepResult> {
       } else if (taxMethod === 'non_taxable') {
         monthlyTax = 0;
       } else if (taxMethod === 'flexible') {
-        // 灵工计税：（考勤调整合计 − 6250）× 2.4%
-        monthlyTax = round2(Math.max(0, (attendanceAdjust - 6250) * 0.024));
+        // 灵工计税：（基本工资 + 考勤调整合计 − 6250）× 2.4%
+        monthlyTax = round2(Math.max(0, (basicSalary + attendanceAdjust - 6250) * 0.024));
       } else {
         monthlyTax = Number(taxMap[e.unique_hash]?.monthly_tax || 0);
       }

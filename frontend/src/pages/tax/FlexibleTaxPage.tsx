@@ -9,8 +9,8 @@ import { round2 } from '../../utils/round';
 
 /**
  * 个税扣缴 — 灵工个税计算（计税方式为"灵工计税"的人员）
- * 特殊应用「考勤调整合计」而非薪资小计。
- * 个税 =（考勤调整合计 − 6250）× 2.4%
+ * 特殊应用「基本工资 + 考勤调整合计」而非薪资小计。
+ * 个税 =（基本工资 + 考勤调整合计 − 6250）× 2.4%
  */
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
@@ -29,6 +29,7 @@ const EXPORT_DEF: ExportDef = {
     { key: 'pay_company', label: '发薪公司' },
     { key: 'department', label: '部门' },
     { key: 'tax_method', label: '计税方式' },
+    { key: 'basic_salary', label: '基本工资' },
     { key: 'attendance_adjust_total', label: '考勤调整合计' },
     { key: 'monthly_tax', label: '当月个人所得税' },
   ],
@@ -50,7 +51,7 @@ const FlexibleTaxPage: React.FC = () => {
     try {
       // 只取计税方式为"灵工计税"(flexible)的人员
       const [empRes, attRes, salaryRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,status,pay_company,department,tax_method,leave_date&tax_method=eq.flexible'),
+        api.get('/employees?select=unique_hash,name,status,pay_company,department,tax_method,basic_salary,leave_date&tax_method=eq.flexible'),
         api.get(`/attendance_records?select=unique_hash,attendance_adjust_total&period=eq.${period}`),
         api.get(`/salary_records?select=unique_hash,monthly_tax&period=eq.${period}`),
       ]);
@@ -64,9 +65,10 @@ const FlexibleTaxPage: React.FC = () => {
         .filter((e: any) => isActiveInPeriod(e, period) || attMap[e.unique_hash])
         .map((e: any) => {
           const att = attMap[e.unique_hash] || {};
+          const basicSalary = Number(e.basic_salary || 0);
           const attendanceAdjustTotal = Number(att.attendance_adjust_total || 0);
-          // 灵工个税 =（考勤调整合计 − 6250）× 2.4%，最低 0
-          const monthlyTax = round2(Math.max(0, (attendanceAdjustTotal - 6250) * 0.024));
+          // 灵工个税 =（基本工资 + 考勤调整合计 − 6250）× 2.4%，最低 0
+          const monthlyTax = round2(Math.max(0, (basicSalary + attendanceAdjustTotal - 6250) * 0.024));
           const sal = salaryMap[e.unique_hash] || {};
           return {
             key: `emp-${e.unique_hash}`,
@@ -75,6 +77,7 @@ const FlexibleTaxPage: React.FC = () => {
             pay_company: e.pay_company || '',
             department: e.department || '',
             tax_method: e.tax_method || 'flexible',
+            basic_salary: basicSalary,
             attendance_adjust_total: attendanceAdjustTotal,
             monthly_tax: sal.monthly_tax !== undefined && sal.monthly_tax !== null ? Number(sal.monthly_tax) : monthlyTax,
           };
@@ -98,8 +101,9 @@ const FlexibleTaxPage: React.FC = () => {
     let success = 0;
     for (const r of records) {
       try {
+        const basicSalary = Number(r.basic_salary || 0);
         const attendanceAdjustTotal = Number(r.attendance_adjust_total || 0);
-        const monthlyTax = round2(Math.max(0, (attendanceAdjustTotal - 6250) * 0.024));
+        const monthlyTax = round2(Math.max(0, (basicSalary + attendanceAdjustTotal - 6250) * 0.024));
         const existing = await api.get(`/salary_records?unique_hash=eq.${r.unique_hash}&period=eq.${period}`);
         if (existing.data.length > 0) {
           await api.patch(`/salary_records?id=eq.${existing.data[0].id}`, { monthly_tax: monthlyTax });
@@ -124,6 +128,7 @@ const FlexibleTaxPage: React.FC = () => {
     { title: withSource('部门', '花名册同步'), dataIndex: 'department', key: 'dept', width: 100 },
     { title: withSource('计税方式', '花名册同步'), dataIndex: 'tax_method', key: 'tm', width: 90,
       render: (v: string) => <Tag color="cyan">{v === 'flexible' ? '灵工计税' : v}</Tag> },
+    { title: withSource('基本工资', '花名册同步'), dataIndex: 'basic_salary', key: 'bs', width: 110, render: fmtMoney },
     { title: withSource('考勤调整合计', '考勤同步'), dataIndex: 'attendance_adjust_total', key: 'aat', width: 130, render: fmtMoney },
     { title: withSource('当月个人所得税', '系统计算'), dataIndex: 'monthly_tax', key: 'mt', width: 130,
       render: (v: any) => <strong style={{ color: '#e74c3c' }}>{fmtMoney(v)}</strong> },
@@ -143,7 +148,7 @@ const FlexibleTaxPage: React.FC = () => {
         <Button icon={<DownloadOutlined />} onClick={() => exportXlsx(EXPORT_DEF, filteredRecords, period)}>导出</Button>
       </Space>
       <div style={{ marginBottom: 12, color: '#888' }}>
-        计算口径：当月个人所得税 =（考勤调整合计 − 6250）× 2.4%，不足 6250 时为 0。本板块特殊应用「考勤调整合计」，而非薪资小计。
+        计算口径：当月个人所得税 =（基本工资 + 考勤调整合计 − 6250）× 2.4%，不足 6250 时为 0。
       </div>
       <Table columns={columns} dataSource={filteredRecords} loading={loading} scroll={{ x: 800, y: 480 }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
     </Card>
