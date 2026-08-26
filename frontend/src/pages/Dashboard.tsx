@@ -237,15 +237,17 @@ const Dashboard: React.FC = () => {
       const attPrevMap: Record<string, any> = {};
       attPrevRes.data.forEach((r: any) => { attPrevMap[r.unique_hash] = r; });
 
-      // ===== 核心指标（口径严格） =====
+      // ===== 核心指标（口径严格，与 Summary 一致：只统计花名册能匹配到的员工） =====
       const sum = (arr: any[], key: string) => arr.reduce((s, r) => s + (Number(r[key]) || 0), 0);
-      const totalWageSubtotal = round2(sum(salList, 'wage_subtotal'));   // 应发工资总计
-      const totalPersonalWelfare = round2(sum(salList, 'personal_welfare_total')); // 社保公积金扣除
-      const totalTax = round2(sum(salList, 'monthly_tax'));               // 个税总计
-      const totalNetPay = round2(sum(salList, 'net_pay'));                // 实发工资总计
-      const totalCompanyWelfare = round2(sum(salList, 'company_welfare_total'));
+      // 过滤掉花名册里找不到的孤儿薪资记录，与 Summary 分公司汇总保持一致
+      const matchedSalList = salList.filter((r: any) => empMap[r.unique_hash]);
+      const totalWageSubtotal = round2(sum(matchedSalList, 'wage_subtotal'));   // 应发工资总计
+      const totalPersonalWelfare = round2(sum(matchedSalList, 'personal_welfare_total')); // 社保公积金扣除
+      const totalTax = round2(sum(matchedSalList, 'monthly_tax'));               // 个税总计
+      const totalNetPay = round2(sum(matchedSalList, 'net_pay'));                // 实发工资总计
+      const totalCompanyWelfare = round2(sum(matchedSalList, 'company_welfare_total'));
       const totalCost = round2(totalWageSubtotal + totalCompanyWelfare); // 当月人力成本
-      const salEmpCount = salList.filter((r: any) => empMap[r.unique_hash]).length || 1;
+      const salEmpCount = matchedSalList.length || 1;
       const avgNet = round2(totalNetPay / salEmpCount);                 // 人均实发
 
       setStats({
@@ -259,12 +261,13 @@ const Dashboard: React.FC = () => {
       });
 
       // 上月核心指标（环比用）
-      const prevWageSubtotal = round2(sum(salPrevList, 'wage_subtotal'));
-      const prevPersonalWelfare = round2(sum(salPrevList, 'personal_welfare_total'));
-      const prevTax = round2(sum(salPrevList, 'monthly_tax'));
-      const prevNetPay = round2(sum(salPrevList, 'net_pay'));
-      const prevCost = round2(prevWageSubtotal + round2(sum(salPrevList, 'company_welfare_total')));
-      const prevSalCount = salPrevList.filter((r: any) => empMap[r.unique_hash]).length || 1;
+      const matchedPrevSalList = salPrevList.filter((r: any) => empMap[r.unique_hash]);
+      const prevWageSubtotal = round2(sum(matchedPrevSalList, 'wage_subtotal'));
+      const prevPersonalWelfare = round2(sum(matchedPrevSalList, 'personal_welfare_total'));
+      const prevTax = round2(sum(matchedPrevSalList, 'monthly_tax'));
+      const prevNetPay = round2(sum(matchedPrevSalList, 'net_pay'));
+      const prevCost = round2(prevWageSubtotal + round2(sum(matchedPrevSalList, 'company_welfare_total')));
+      const prevSalCount = matchedPrevSalList.length || 1;
       const prevAvgNet = round2(prevNetPay / prevSalCount);
       setPrevStats({
         employee_count: activeEmps.length,
