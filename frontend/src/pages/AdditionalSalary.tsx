@@ -45,6 +45,7 @@ const EXPORT_DEF: ExportDef = {
     { key: 'other_allowance', label: '津贴' },
     { key: 'security_bonus', label: '保安奖金' },
     { key: 'cleaning_bonus', label: '保洁奖金' },
+    { key: 'service_fee', label: '服务费' },
   ],
 };
 
@@ -82,11 +83,13 @@ const AdditionalSalaryPage: React.FC = () => {
         .filter((e: any) => isActiveInPeriod(e, period) || recMap[e.unique_hash])
         .map((e: any) => {
           const r = recMap[e.unique_hash];
+          // 附加薪酬合计 = 13项之和（含服务费）
           const additionalTotal = round2(
             (r?.allowance_supp || 0) + (r?.other_adjust || 0) + (r?.insurance_amount || 0) +
             (r?.kpi_provision || 0) + (r?.office_comm || 0) + (r?.performance_pay || 0) +
             (r?.apartment_comm || 0) + (r?.talent_kpi || 0) + (r?.heat_allowance || 0) +
-            (r?.other_allowance || 0) + (r?.security_bonus || 0) + (r?.cleaning_bonus || 0)
+            (r?.other_allowance || 0) + (r?.security_bonus || 0) + (r?.cleaning_bonus || 0) +
+            (r?.service_fee || 0)
           );
           // 绩效&佣金合计 = 商办佣金 + 绩效 + 公寓佣金 + 人才系KPI + 防暑降温费 + 津贴 + 保安奖金 + 保洁奖金
           const perfCommTotal = round2(
@@ -182,6 +185,7 @@ const AdditionalSalaryPage: React.FC = () => {
     { title: withSource('津贴', '导入'), dataIndex: 'other_allowance', key: 'oal', width: 80, render: fmtMoney },
     { title: withSource('保安奖金', '导入'), dataIndex: 'security_bonus', key: 'sb', width: 90, render: fmtMoney },
     { title: withSource('保洁奖金', '导入'), dataIndex: 'cleaning_bonus', key: 'cb', width: 90, render: fmtMoney },
+    { title: withSource('服务费', '导入'), dataIndex: 'service_fee', key: 'sf', width: 90, render: fmtMoney },
     { title: withSource('绩效&佣金合计', '系统计算'), dataIndex: 'perf_comm_total', key: 'pct', width: 120, fixed: 'right', render: fmtMoney },
     { title: withSource('附加薪酬合计', '系统计算'), dataIndex: 'additional_total', key: 'at', width: 120, fixed: 'right',
       render: (v: any) => <strong>{fmtMoney(v)}</strong> },

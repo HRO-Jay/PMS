@@ -217,7 +217,8 @@ async function refreshNormalTax(period: string): Promise<RefreshStepResult> {
         (add.allowance_supp || 0) + (add.other_adjust || 0) + (add.insurance_amount || 0) +
         (add.kpi_provision || 0) + (add.office_comm || 0) + (add.performance_pay || 0) +
         (add.apartment_comm || 0) + (add.talent_kpi || 0) + (add.heat_allowance || 0) +
-        (add.other_allowance || 0) + (add.security_bonus || 0) + (add.cleaning_bonus || 0)
+        (add.other_allowance || 0) + (add.security_bonus || 0) + (add.cleaning_bonus || 0) +
+        (add.service_fee || 0)
       );
       const currentTaxableIncome = round2(Number(e.basic_salary || 0) + Number(attMap[e.unique_hash]?.attendance_adjust_total || 0) + additionalTotal);
 
@@ -400,7 +401,8 @@ async function refreshPayroll(period: string): Promise<RefreshStepResult> {
         (add.allowance_supp || 0) + (add.other_adjust || 0) + (add.insurance_amount || 0) +
         (add.kpi_provision || 0) + (add.office_comm || 0) + (add.performance_pay || 0) +
         (add.apartment_comm || 0) + (add.talent_kpi || 0) + (add.heat_allowance || 0) +
-        (add.other_allowance || 0) + (add.security_bonus || 0) + (add.cleaning_bonus || 0)
+        (add.other_allowance || 0) + (add.security_bonus || 0) + (add.cleaning_bonus || 0) +
+        (add.service_fee || 0)
       );
       const basicSalary = Number(e.basic_salary || 0);
       const attendanceAdjust = Number(att?.attendance_adjust_total || 0);
@@ -408,6 +410,9 @@ async function refreshPayroll(period: string): Promise<RefreshStepResult> {
       const personalWelfare = notYetEffective ? 0 : round2(Number(welfare.personal_total || 0) + Number(welfare.personal_social_adj || 0) + Number(welfare.personal_housing_adj || 0));
       const companyWelfare = notYetEffective ? 0 : round2(Number(welfare.company_total || 0) + Number(welfare.company_social_adj || 0) + Number(welfare.company_housing_adj || 0));
       const insuranceAmount = Number(add.insurance_amount || 0);
+      // 服务费（来自附加薪酬），服务费调整 = -服务费
+      const serviceFee = Number(add.service_fee || 0);
+      const serviceFeeAdjust = -serviceFee;
 
       const wageSubtotal = round2(basicSalary + attendanceAdjust + additionalTotal);
 
@@ -421,7 +426,7 @@ async function refreshPayroll(period: string): Promise<RefreshStepResult> {
         monthlyTax = Number(taxMap[e.unique_hash]?.monthly_tax || 0);
       }
 
-      const netPay = round2(wageSubtotal - personalWelfare - monthlyTax - insuranceAmount);
+      const netPay = round2(wageSubtotal - personalWelfare - monthlyTax - insuranceAmount - serviceFee);
       const totalCost = round2(wageSubtotal + companyWelfare);
 
       const payload = {
@@ -435,6 +440,8 @@ async function refreshPayroll(period: string): Promise<RefreshStepResult> {
         company_welfare_total: companyWelfare,
         monthly_tax: monthlyTax,
         insurance_amount: insuranceAmount,
+        service_fee: serviceFee,
+        service_fee_adjust: serviceFeeAdjust,
         wage_subtotal: wageSubtotal,
         net_pay: netPay,
         total_cost: totalCost,

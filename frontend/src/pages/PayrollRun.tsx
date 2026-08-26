@@ -41,6 +41,8 @@ const EXPORT_DEF: ExportDef = {
     { key: 'company_welfare_total', label: '公司福利合计' },
     { key: 'monthly_tax', label: '当月个人所得税' },
     { key: 'insurance_amount', label: '商保金额' },
+    { key: 'service_fee', label: '服务费' },
+    { key: 'service_fee_adjust', label: '服务费调整' },
     { key: 'wage_subtotal', label: '薪资小计' },
     { key: 'net_pay', label: '实收工资' },
     { key: 'total_cost', label: '企业人力成本总计' },
@@ -128,6 +130,8 @@ const PayrollPage: React.FC = () => {
             monthly_tax: snap.monthly_tax ?? 0,
             insurance_amount: snap.insurance_amount ?? 0,
             insurance_adjust: snap.insurance_adjust ?? 0,
+            service_fee: snap.service_fee ?? 0,
+            service_fee_adjust: snap.service_fee_adjust ?? 0,
             wage_subtotal: snap.wage_subtotal ?? 0,
             net_pay: snap.net_pay ?? 0,
             total_cost: snap.total_cost ?? 0,
@@ -160,12 +164,13 @@ const PayrollPage: React.FC = () => {
           };
         }
 
-        // 附加薪酬合计 = 12项之和
+        // 附加薪酬合计 = 13项之和（含服务费，服务费进入薪资小计，与商保同理）
         const additionalTotal = round2(
           (add.allowance_supp || 0) + (add.other_adjust || 0) + (add.insurance_amount || 0) +
           (add.kpi_provision || 0) + (add.office_comm || 0) + (add.performance_pay || 0) +
           (add.apartment_comm || 0) + (add.talent_kpi || 0) + (add.heat_allowance || 0) +
-          (add.other_allowance || 0) + (add.security_bonus || 0) + (add.cleaning_bonus || 0)
+          (add.other_allowance || 0) + (add.security_bonus || 0) + (add.cleaning_bonus || 0) +
+          (add.service_fee || 0)
         );
 
         const basicSalary = Number(e.basic_salary || 0);
@@ -183,6 +188,9 @@ const PayrollPage: React.FC = () => {
         const insuranceAmount = Number(add.insurance_amount || 0);
         // 商保调整 = 商保金额的负数
         const insuranceAdjust = -insuranceAmount;
+        // 服务费（来自附加薪酬），服务费调整 = -服务费
+        const serviceFee = Number(add.service_fee || 0);
+        const serviceFeeAdjust = -serviceFee;
 
         // 薪资小计 = 基本工资 + 考勤调整合计 + 附加薪酬合计（薪资板块以基本工资为基数）
         const wageSubtotal = round2(basicSalary + attendanceAdjust + additionalTotal);
@@ -202,8 +210,8 @@ const PayrollPage: React.FC = () => {
           monthlyTax = Number(taxMap[e.unique_hash]?.monthly_tax || 0);
         }
 
-        // 实收工资 = 薪资小计 - 个人福利合计 - 当月个人所得税 - 商保金额
-        const netPay = round2(wageSubtotal - personalWelfare - monthlyTax - insuranceAmount);
+        // 实收工资 = 薪资小计 - 个人福利合计 - 当月个人所得税 - 商保金额 - 服务费
+        const netPay = round2(wageSubtotal - personalWelfare - monthlyTax - insuranceAmount - serviceFee);
         // 企业人力成本总计 = 薪资小计 + 公司福利合计
         const totalCost = round2(wageSubtotal + companyWelfare);
 
@@ -227,6 +235,8 @@ const PayrollPage: React.FC = () => {
           monthly_tax: monthlyTax,
           insurance_amount: insuranceAmount,
           insurance_adjust: insuranceAdjust,
+          service_fee: serviceFee,
+          service_fee_adjust: serviceFeeAdjust,
           wage_subtotal: wageSubtotal,
           net_pay: netPay,
           total_cost: totalCost,
@@ -308,6 +318,8 @@ const PayrollPage: React.FC = () => {
             company_welfare_total: r.company_welfare_total,
             monthly_tax: r.monthly_tax,
             insurance_amount: r.insurance_amount,
+            service_fee: r.service_fee,
+            service_fee_adjust: r.service_fee_adjust,
             wage_subtotal: r.wage_subtotal,
             net_pay: r.net_pay,
             total_cost: r.total_cost,
@@ -356,6 +368,7 @@ const PayrollPage: React.FC = () => {
       { key: 'other_allowance', label: '津贴' },
       { key: 'security_bonus', label: '保安奖金' },
       { key: 'cleaning_bonus', label: '保洁奖金' },
+      { key: 'service_fee', label: '服务费' },
       { key: 'wage_subtotal', label: '薪资小计' },
       { key: 'pension_p', label: '个人养老' },
       { key: 'medical_p', label: '个人医疗' },
@@ -365,6 +378,7 @@ const PayrollPage: React.FC = () => {
       { key: 'personal_welfare_total', label: '个人福利合计' },
       { key: 'monthly_tax', label: '当月个人所得税' },
       { key: 'insurance_adjust', label: '商保调整' },
+      { key: 'service_fee_adjust', label: '服务费调整' },
     ],
   };
 
@@ -391,6 +405,8 @@ const PayrollPage: React.FC = () => {
           company_welfare_total: r.company_welfare_total,
           monthly_tax: r.monthly_tax,
           insurance_amount: r.insurance_amount,
+          service_fee: r.service_fee,
+          service_fee_adjust: r.service_fee_adjust,
           wage_subtotal: r.wage_subtotal,
           net_pay: r.net_pay,
           total_cost: r.total_cost,
@@ -490,6 +506,7 @@ const PayrollPage: React.FC = () => {
     { title: withSource('公司福利合计', '社保同步'), dataIndex: 'company_welfare_total', key: 'cwt', width: 120, render: fmtMoney },
     { title: withSource('当月个人所得税', '个税同步'), dataIndex: 'monthly_tax', key: 'mt', width: 130, render: (v: any) => <span style={{ color: '#e74c3c' }}>{fmtMoney(v)}</span> },
     { title: withSource('商保金额', '附加薪酬同步'), dataIndex: 'insurance_amount', key: 'ia', width: 100, render: fmtMoney },
+    { title: withSource('服务费', '附加薪酬同步'), dataIndex: 'service_fee', key: 'sf', width: 100, render: fmtMoney },
     { title: withSource('薪资小计', '系统计算'), dataIndex: 'wage_subtotal', key: 'wst', width: 110, render: (v: any) => <strong>{fmtMoney(v)}</strong> },
     { title: withSource('实收工资', '系统计算'), dataIndex: 'net_pay', key: 'np', width: 110, render: (v: any) => <strong style={{ color: '#27ae60' }}>{fmtMoney(v)}</strong> },
     { title: withSource('企业人力成本总计', '系统计算'), dataIndex: 'total_cost', key: 'tc', width: 140, render: (v: any) => <strong>{fmtMoney(v)}</strong> },
@@ -578,6 +595,7 @@ const PayrollPage: React.FC = () => {
             <Descriptions.Item label="津贴">{fmtMoney(detailRecord.other_allowance)}</Descriptions.Item>
             <Descriptions.Item label="保安奖金">{fmtMoney(detailRecord.security_bonus)}</Descriptions.Item>
             <Descriptions.Item label="保洁奖金">{fmtMoney(detailRecord.cleaning_bonus)}</Descriptions.Item>
+            <Descriptions.Item label="服务费">{fmtMoney(detailRecord.service_fee)}</Descriptions.Item>
             <Descriptions.Item label="薪资小计"><strong>{fmtMoney(detailRecord.wage_subtotal)}</strong></Descriptions.Item>
             <Descriptions.Item label="个人养老">{fmtMoney(detailRecord.pension_p)}</Descriptions.Item>
             <Descriptions.Item label="个人医疗">{fmtMoney(detailRecord.medical_p)}</Descriptions.Item>
@@ -587,6 +605,7 @@ const PayrollPage: React.FC = () => {
             <Descriptions.Item label="个人福利合计"><strong>{fmtMoney(detailRecord.personal_welfare_total)}</strong></Descriptions.Item>
             <Descriptions.Item label="当月个人所得税"><span style={{ color: '#e74c3c' }}>{fmtMoney(detailRecord.monthly_tax)}</span></Descriptions.Item>
             <Descriptions.Item label="商保调整"><span style={{ color: detailRecord.insurance_adjust < 0 ? '#e74c3c' : undefined }}>{fmtMoney(detailRecord.insurance_adjust)}</span></Descriptions.Item>
+            <Descriptions.Item label="服务费调整"><span style={{ color: detailRecord.service_fee_adjust < 0 ? '#e74c3c' : undefined }}>{fmtMoney(detailRecord.service_fee_adjust)}</span></Descriptions.Item>
           </Descriptions>
         )}
       </Drawer>

@@ -442,7 +442,13 @@ const Dashboard: React.FC = () => {
         data: showData.map(d => truncateLabel(d.name, 8)),
         axisLine: { lineStyle: { color: BORDER } },
         axisTick: { show: false },
-        axisLabel: { ...horizontalAxisLabel, formatter: (v: string) => truncateLabel(v, 8) },
+        // 部门多时标签倾斜，避免重叠
+        axisLabel: {
+          ...horizontalAxisLabel,
+          formatter: (v: string) => truncateLabel(v, 8),
+          rotate: data.length > 6 ? 30 : 0,
+          interval: 0,
+        },
       },
       yAxis: {
         type: 'value',
@@ -552,7 +558,13 @@ const Dashboard: React.FC = () => {
       xAxis: {
         type: 'category', data: showData.map(d => truncateLabel(d.name, 8)),
         axisLine: { lineStyle: { color: BORDER } }, axisTick: { show: false },
-        axisLabel: { ...horizontalAxisLabel, formatter: (v: string) => truncateLabel(v, 8) },
+        // 部门多时标签倾斜，避免重叠
+        axisLabel: {
+          ...horizontalAxisLabel,
+          formatter: (v: string) => truncateLabel(v, 8),
+          rotate: avgPayList.length > 6 ? 30 : 0,
+          interval: 0,
+        },
       },
       yAxis: {
         type: 'value', min: 0, splitLine: gridLine,
