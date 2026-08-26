@@ -198,6 +198,7 @@ const PayrollPage: React.FC = () => {
         // 当月个税按计税方式分支：
         // - 劳务计税(service)：一般预扣法（三级超额累进），与劳务个税板块一致
         // - 不计税(non_taxable)：0
+        // - 灵工计税(flexible)：（考勤调整合计 − 6250）× 2.4%，特殊应用考勤调整合计
         // - 实习生计税(intern)：从个税月度计算表取（实习生个税板块也写这张表）
         // - 正常计税(normal)：从个税月度计算表取
         const taxMethod = e.tax_method || 'normal';
@@ -206,6 +207,8 @@ const PayrollPage: React.FC = () => {
           monthlyTax = calcServiceTax(wageSubtotal).monthly_tax;
         } else if (taxMethod === 'non_taxable') {
           monthlyTax = 0;
+        } else if (taxMethod === 'flexible') {
+          monthlyTax = round2(Math.max(0, (attendanceAdjust - 6250) * 0.024));
         } else {
           monthlyTax = Number(taxMap[e.unique_hash]?.monthly_tax || 0);
         }
@@ -494,6 +497,7 @@ const PayrollPage: React.FC = () => {
           normal: { label: '正常计税', color: 'blue' },
           service: { label: '劳务计税', color: 'orange' },
           intern: { label: '实习生计税', color: 'purple' },
+          flexible: { label: '灵工计税', color: 'cyan' },
           non_taxable: { label: '不计税', color: 'green' },
         };
         const m = map[v] || { label: v, color: 'default' };
