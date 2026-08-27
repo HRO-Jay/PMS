@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Table, Card, Button, Space, Input, message, InputNumber, Upload, Popconfirm, Drawer, Tag, Descriptions, Select, DatePicker, Form, Dropdown,
 } from 'antd';
-import { SaveOutlined, DownloadOutlined, UploadOutlined, CalculatorOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons';
+import { SaveOutlined, DownloadOutlined, UploadOutlined, CalculatorOutlined, PlusOutlined, SettingOutlined, SendOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
@@ -12,6 +12,8 @@ import { withSource } from '../components/SourceTag';
 import { useHorizontalScroll } from '../utils/useHorizontalScroll';
 import { useStore } from '../stores/appStore';
 import { ensureRoster } from '../utils/roster';
+import { canSubmit, canApprove } from '../utils/permissions';
+import { fetchApprovalStatus, getAttendanceGate } from '../utils/approvalStatus';
 import dayjs from 'dayjs';
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
@@ -94,6 +96,9 @@ const AttendancePage: React.FC = () => {
   // 列设置：可选列（默认隐藏，勾选后显示）
   const [visibleOptionalCols, setVisibleOptionalCols] = useState<string[]>([]);
   const [colSettingOpen, setColSettingOpen] = useState(false);
+  const [attendanceLocked, setAttendanceLocked] = useState(false);
+  const [attendanceSubmitted, setAttendanceSubmitted] = useState(false);
+  const [rosterLocked, setRosterLocked] = useState(false);
 
   useEffect(() => { loadData(); }, [period, fPayCompany, fCostCenter, fDepartment, fReportTo, fAttType, fPayDays, fStatus, fAbnormal, keyword]);
 
@@ -191,6 +196,16 @@ const AttendancePage: React.FC = () => {
       if (keyword) filtered = filtered.filter((r: any) => (r.employee_name || '').includes(keyword));
 
       setRecords(filtered);
+
+      // 当月考勤锁定/提交状态
+      const hasLocked = merged.some((r: any) => r.data_status === '已锁定' || r.data_status === '已提交老板查看');
+      const hasSubmitted = merged.some((r: any) => r.data_status === '已提交审批' || r.data_status === '已锁定' || r.data_status === '已提交老板查看');
+      setAttendanceLocked(hasLocked);
+      setAttendanceSubmitted(hasSubmitted);
+
+      // 前置：花名册是否已审批锁定（提交考勤审批的前提）
+      const gateStatus = await fetchApprovalStatus(period);
+      setRosterLocked(gateStatus.rosterLocked);
     } catch { message.error('加载考勤数据失败'); }
     finally { setLoading(false); }
   };
@@ -612,8 +627,52 @@ const AttendancePage: React.FC = () => {
     }
   };
 
-  // 是否锁定（已锁定或已提交老板查看，均不可编辑）
-  const isLocked = (r: any) => r.data_status === '已锁定' || r.data_status === '已提交老板查看';
+  // 是否锁定（已锁定或已提交老板查看或已提交审批，均不可编辑）
+  const isLocked = (r: any) => r.data_status === '已锁定' || r.data_status === '已提交老板查看' || r.data_status === '已提交审批';
+
+  // ====== 提交审批（人事专员）：当月考勤 data_status 置为 已提交审批 ======
+  const handleSubmitApproval = async () => {
+    try {
+      const res = await api.get(`/attendance_records?select=id&period=eq.${period}`);
+      const ids = res.data.map((r: any) => r.id);
+      if (ids.length === 0) { message.warning('该月暂无考勤数据'); return; }
+      const updated = ids.map((id: number) => api.patch(`/attendance_records?id=eq.${id}`, { data_status: '已提交审批' }));
+      await Promise.all(updated);
+      message.success('考勤已提交审批');
+      loadData();
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || '提交失败');
+    }
+  };
+
+  // ====== 审批通过（考勤审批人）：当月考勤置为 已锁定（冻结） ======
+  const handleApprove = async () => {
+    try {
+      const res = await api.get(`/attendance_records?select=id&period=eq.${period}`);
+      const ids = res.data.map((r: any) => r.id);
+      if (ids.length === 0) { message.warning('该月暂无考勤数据'); return; }
+      const updated = ids.map((id: number) => api.patch(`/attendance_records?id=eq.${id}`, { data_status: '已锁定' }));
+      await Promise.all(updated);
+      message.success('考勤审批通过，当月考勤已冻结');
+      loadData();
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || '审批失败');
+    }
+  };
+
+  // ====== 退回修改（考勤审批人）：恢复为 已计算 ======
+  const handleReject = async () => {
+    try {
+      const res = await api.get(`/attendance_records?select=id&period=eq.${period}`);
+      const ids = res.data.map((r: any) => r.id);
+      const updated = ids.map((id: number) => api.patch(`/attendance_records?id=eq.${id}`, { data_status: '已计算' }));
+      await Promise.all(updated);
+      message.success('已退回修改');
+      loadData();
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || '退回失败');
+    }
+  };
 
   // 可选展示列（默认隐藏）
   const optionalColumns: { key: string; title: string; source: any; dataIndex: string; render?: (v: any, r: any) => any }[] = [
@@ -702,8 +761,9 @@ const AttendancePage: React.FC = () => {
     <div>
       <Card size="small" style={{ marginBottom: 12 }}>
         <Space wrap>
-          <Button type="primary" icon={<CalculatorOutlined />} onClick={handleAutoCalc}>自动计算</Button>
-          <Button icon={<PlusOutlined />} onClick={openAdd}>添加记录</Button>
+          <span style={{ color: '#666' }}>{period} 考勤{attendanceLocked ? '（已锁定）' : attendanceSubmitted ? '（已提交审批）' : ''}</span>
+          <Button type="primary" icon={<CalculatorOutlined />} onClick={handleAutoCalc} disabled={attendanceLocked || attendanceSubmitted}>自动计算</Button>
+          <Button icon={<PlusOutlined />} onClick={openAdd} disabled={attendanceLocked || attendanceSubmitted}>添加记录</Button>
           <Dropdown menu={{
             items: [
               { key: 'full', label: '导出报表' },
@@ -721,6 +781,22 @@ const AttendancePage: React.FC = () => {
           <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
             <Button icon={<UploadOutlined />}>导入考勤</Button>
           </Upload>
+          {canSubmit('attendance') && !attendanceSubmitted && (
+            <Button type="primary" ghost icon={<SendOutlined />}
+              disabled={attendanceLocked || !rosterLocked}
+              onClick={() => {
+                if (!rosterLocked) { message.warning('请先完成花名册的审批（花名册未审批通过前不能提交考勤审批）'); return; }
+                handleSubmitApproval();
+              }}>
+              提交审批
+            </Button>
+          )}
+          {canApprove('attendance') && attendanceSubmitted && !attendanceLocked && (
+            <>
+              <Button type="primary" onClick={handleApprove}>审批通过</Button>
+              <Button danger onClick={handleReject}>退回</Button>
+            </>
+          )}
         </Space>
       </Card>
 

@@ -24,8 +24,6 @@ export const TAX_BRACKETS: TaxBracket[] = [
   { level: 7, min_income: 960000, max_income: null, rate: 0.45, quick_deduction: 181920 },
 ];
 
-import { round2 } from './round';
-
 /** 查预扣率表 */
 export function findTaxBracket(cumulTaxableIncome: number): TaxBracket {
   const income = Math.max(0, cumulTaxableIncome);

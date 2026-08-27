@@ -2,13 +2,14 @@ import React, { useEffect, useState } from 'react';
 import {
   Table, Button, Drawer, Form, Input, Select, Space, message, Tag, Card, DatePicker, Upload, Dropdown, Popconfirm, InputNumber,
 } from 'antd';
-import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
+import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, SendOutlined } from '@ant-design/icons';
 import type { Employee, CompanyMapping } from '../types';
 import dayjs, { Dayjs } from 'dayjs';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
 import { genUniqueHash } from '../utils/hash';
 import { withSource } from '../components/SourceTag';
 import { useStore } from '../stores/appStore';
+import { canSubmit, canApprove } from '../utils/permissions';
 import { ensureRoster } from '../utils/roster';
 import api from '../api/client';
 
@@ -66,6 +67,7 @@ const EmployeesPage: React.FC = () => {
   // 全局月份花名册
   const period = useStore(s => s.currentPeriod);
   const [rosterLocked, setRosterLocked] = useState(false);
+  const [rosterSubmitted, setRosterSubmitted] = useState(false);
 
   // 筛选器状态
   const [fStatus, setFStatus] = useState<string>();
@@ -102,8 +104,11 @@ const EmployeesPage: React.FC = () => {
       await ensureRoster(period);
       const res = await api.get(`/employees?select=*&period=eq.${period}&order=id`);
       let data: Employee[] = res.data;
-      // 该月是否已锁定（冻结）
-      setRosterLocked(data.length > 0 && data.some((e: any) => e.data_status === '已锁定'));
+      // 该月状态：已锁定（彻底冻结，审批通过后）；已提交审批（冻结等待审批人处理）
+      const hasLocked = data.some((e: any) => e.data_status === '已锁定');
+      const hasSubmitted = data.some((e: any) => e.data_status === '已提交审批');
+      setRosterLocked(hasLocked);
+      setRosterSubmitted(hasSubmitted);
       // 收集可选的成本中心和部门（用于筛选下拉）
       const ccOptions = Array.from(new Set(data.map(e => e.cost_center).filter(Boolean))).sort();
       const deptOptions = Array.from(new Set(data.map(e => e.department).filter(Boolean))).sort();
@@ -156,9 +161,9 @@ const EmployeesPage: React.FC = () => {
 
   // 保存
   const handleSave = async () => {
-    // 冻结月禁止新增/编辑
-    if (rosterLocked) {
-      message.warning('该月花名册已锁定，不能修改');
+    // 冻结月禁止新增/编辑（已锁定 或 已提交审批）
+    if (rosterLocked || rosterSubmitted) {
+      message.warning('该月花名册已锁定/已提交审批，不能修改');
       return;
     }
     const values = await form.validateFields();
@@ -345,6 +350,51 @@ const EmployeesPage: React.FC = () => {
     }
   };
 
+  // ====== 提交审批（人事专员）：把当月所有花名册 data_status 置为 已提交审批 ======
+  const handleSubmitApproval = async () => {
+    try {
+      const recs = await api.get(`/employees?select=id&period=eq.${period}`);
+      const ids = recs.data.map((r: any) => r.id);
+      if (ids.length === 0) { message.warning('该月暂无花名册数据'); return; }
+      // 逐条更新（POSTGREST 不支持批量 patch 任意字段，用 in 逐条）
+      const updated = ids.map((id: number) => api.patch(`/employees?id=eq.${id}`, { data_status: '已提交审批' }));
+      await Promise.all(updated);
+      message.success('花名册已提交审批');
+      loadEmployees();
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || '提交失败');
+    }
+  };
+
+  // ====== 审批通过（花名册审批人）：当月花名册置为 已锁定（冻结） ======
+  const handleApprove = async () => {
+    try {
+      const recs = await api.get(`/employees?select=id&period=eq.${period}`);
+      const ids = recs.data.map((r: any) => r.id);
+      if (ids.length === 0) { message.warning('该月暂无花名册数据'); return; }
+      const updated = ids.map((id: number) => api.patch(`/employees?id=eq.${id}`, { data_status: '已锁定' }));
+      await Promise.all(updated);
+      message.success('花名册审批通过，当月花名册已冻结');
+      loadEmployees();
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || '审批失败');
+    }
+  };
+
+  // ====== 退回修改（花名册审批人）：恢复为 草稿 状态 ======
+  const handleReject = async () => {
+    try {
+      const recs = await api.get(`/employees?select=id&period=eq.${period}`);
+      const ids = recs.data.map((r: any) => r.id);
+      const updated = ids.map((id: number) => api.patch(`/employees?id=eq.${id}`, { data_status: '草稿' }));
+      await Promise.all(updated);
+      message.success('已退回修改');
+      loadEmployees();
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || '退回失败');
+    }
+  };
+
   // ====== 表格列（固定顺序） ======
   const columns: any[] = [
     { title: withSource('姓名', '导入'), dataIndex: 'name', key: 'name', width: 100, fixed: 'left' },
@@ -375,7 +425,7 @@ const EmployeesPage: React.FC = () => {
     {
       title: '操作', key: 'actions', width: 80, fixed: 'right',
       render: (_: any, r: Employee) => (
-        <Button size="small" onClick={() => openEdit(r)} disabled={rosterLocked}>编辑</Button>
+        <Button size="small" onClick={() => openEdit(r)} disabled={rosterLocked || rosterSubmitted}>编辑</Button>
       ),
     },
   ];
@@ -385,8 +435,8 @@ const EmployeesPage: React.FC = () => {
       {/* 顶部工具栏 */}
       <Card size="small" style={{ marginBottom: 12 }}>
         <Space wrap>
-          <span style={{ color: '#666' }}>{period} 花名册{rosterLocked ? '（已锁定）' : ''}</span>
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate} disabled={rosterLocked}>添加员工</Button>
+          <span style={{ color: '#666' }}>{period} 花名册{rosterLocked ? '（已锁定）' : rosterSubmitted ? '（已提交审批）' : ''}</span>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate} disabled={rosterLocked || rosterSubmitted}>添加员工</Button>
           <Dropdown menu={{
             items: [
               { key: 'template', label: '导出空白模板' },
@@ -396,8 +446,8 @@ const EmployeesPage: React.FC = () => {
           }}>
             <Button icon={<DownloadOutlined />}>导出</Button>
           </Dropdown>
-          <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { if (rosterLocked) { message.warning('该月花名册已锁定，不能导入'); return false; } handleImport(file); return false; }}>
-            <Button icon={<UploadOutlined />} disabled={rosterLocked}>导入</Button>
+          <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { if (rosterLocked || rosterSubmitted) { message.warning('该月花名册已锁定/已提交审批，不能导入'); return false; } handleImport(file); return false; }}>
+            <Button icon={<UploadOutlined />} disabled={rosterLocked || rosterSubmitted}>导入</Button>
           </Upload>
           <Input
             prefix={<SearchOutlined />}
@@ -407,6 +457,17 @@ const EmployeesPage: React.FC = () => {
             style={{ width: 160 }}
             allowClear
           />
+          {canSubmit('roster') && !rosterSubmitted && (
+            <Button type="primary" ghost icon={<SendOutlined />} onClick={handleSubmitApproval} disabled={rosterLocked}>
+              提交审批
+            </Button>
+          )}
+          {canApprove('roster') && rosterSubmitted && !rosterLocked && (
+            <>
+              <Button type="primary" onClick={handleApprove}>审批通过</Button>
+              <Button danger onClick={handleReject}>退回</Button>
+            </>
+          )}
         </Space>
       </Card>
 

@@ -8,7 +8,10 @@ import { useHorizontalScroll } from '../utils/useHorizontalScroll';
 import { isActiveInPeriod } from '../utils/employee';
 import { calcServiceTax } from '../utils/taxCalc';
 import { round2 } from '../utils/round';
+import { exportSummaryPdf, type SummaryRow } from '../utils/pdfExport';
 import { useStore } from '../stores/appStore';
+import { canSubmit, canApprove } from '../utils/permissions';
+import { fetchApprovalStatus } from '../utils/approvalStatus';
 
 /**
  * 薪资计算板块（改造版）
@@ -68,6 +71,12 @@ const PayrollPage: React.FC = () => {
   // 审批弹窗
   const [approveModal, setApproveModal] = useState<{ type: 'submit' | 'approve' | 'reject' } | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  // 前置审批状态（提交薪资需花名册+考勤都已锁定）
+  const [rosterLocked, setRosterLocked] = useState(false);
+  const [attendanceLocked, setAttendanceLocked] = useState(false);
+  const [payrollSubmitted, setPayrollSubmitted] = useState(false);
+  // 薪资审批通过后询问是否下载 summary PDF 的弹窗
+  const [summaryModal, setSummaryModal] = useState(false);
   // 详情抽屉
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRecord, setDetailRecord] = useState<any>(null);
@@ -108,7 +117,7 @@ const PayrollPage: React.FC = () => {
         const welfare = welfareMap[e.unique_hash] || {};
         // 已保存的快照
         const snap = salaryMap[e.unique_hash];
-        const snapLocked = snap && (snap.data_status === '已锁定' || snap.data_status === '已提交老板查看');
+        const snapLocked = snap && (snap.data_status === '已锁定' || snap.data_status === '已提交老板查看' || snap.data_status === '已提交审批');
 
         // 已锁定/已提交的月份：直接用快照数据，不跟随花名册等实时数据变动
         if (snapLocked) {
@@ -292,6 +301,12 @@ const PayrollPage: React.FC = () => {
       const { empMap, merged } = await fetchAndCompute();
       setEmployees(empMap);
       setRecords(applyFilters(merged));
+
+      // 前置审批状态（提交薪资需花名册+考勤已锁定）
+      const gateStatus = await fetchApprovalStatus(period);
+      setRosterLocked(gateStatus.rosterLocked);
+      setAttendanceLocked(gateStatus.attendanceLocked);
+      setPayrollSubmitted(gateStatus.payrollSubmitted);
     } catch { message.error('加载薪资数据失败'); }
     finally { setLoading(false); }
   };
@@ -429,10 +444,12 @@ const PayrollPage: React.FC = () => {
     message.success(`已保存 ${success} / ${records.length} 条计算结果到数据库`);
   };
 
-  // 审批流
-  const role = localStorage.getItem('user_role') || 'hr_staff';
-  const isApprover = role === 'approver' || role === 'admin';
-  const isOperator = role === 'hr_lead' || role === 'hr_staff' || role === 'it_staff' || role === 'admin';
+  // 审批流（薪资模块，遵循新权限体系）
+  const isOperator = canSubmit('payroll');
+  const isApprover = canApprove('payroll');
+
+  // 提交薪资的前置关卡：花名册+考勤都已审批锁定
+  const payrollGatePass = rosterLocked && attendanceLocked;
 
   const updateTableStatus = async (table: string, status: string) => {
     try {
@@ -452,24 +469,84 @@ const PayrollPage: React.FC = () => {
   };
 
   const confirmSubmit = async () => {
-    await updateTableStatus('salary_records', '已提交老板查看');
-    await updateTableStatus('attendance_records', '已提交老板查看');
-    await updateTableStatus('additional_salary_records', '已提交老板查看');
-    await updateTableStatus('employees', '已提交老板查看');
-    message.success('已提交审批');
+    // 只提交薪资模块的审批（花名册/考勤各自独立审批，不连带改状态）
+    await updateTableStatus('salary_records', '已提交审批');
+    message.success('已提交薪资审批');
     setApproveModal(null);
     loadData();
   };
 
   const confirmApprove = async () => {
+    // 薪资审批通过：锁薪资及薪资计算直接依赖的表（考勤/花名册由各自审批人锁定）
     await updateTableStatus('salary_records', '已锁定');
-    await updateTableStatus('attendance_records', '已锁定');
     await updateTableStatus('employee_welfare_records', '已锁定');
     await updateTableStatus('additional_salary_records', '已锁定');
-    await updateTableStatus('employees', '已锁定');
-    message.success('审批通过，当月数据已冻结');
+    message.success('审批通过，当月薪资已冻结');
     setApproveModal(null);
+    // 审批通过后弹窗询问是否下载 summary PDF
+    setSummaryModal(true);
     loadData();
+  };
+
+  // 薪资审批通过后，直接从当前月份数据组装并按公司/部门导出 summary PDF
+  const handleDownloadSummaryPdf = async () => {
+    try {
+      const empRes = await api.get(`/employees?select=unique_hash,name,pay_company,cost_center,department,status,entry_date,leave_date,provision_welfare&period=eq.${period}`);
+      const empList: any[] = empRes.data;
+      const empMap: Record<string, any> = {};
+      empList.forEach((e: any) => { empMap[e.unique_hash] = e; });
+      const activeEmps = empList.filter((e: any) => isActiveInPeriod(e, period));
+
+      const salRes = await api.get(`/salary_records?select=*&period=eq.${period}`);
+      const salList: any[] = salRes.data;
+
+      const [addRes, welfareRes, attRes] = await Promise.all([
+        api.get(`/additional_salary_records?select=*&period=eq.${period}`),
+        api.get(`/employee_welfare_records?select=unique_hash,personal_total,company_total&period=eq.${period}`),
+        api.get(`/attendance_records?select=unique_hash,attendance_adjust_total&period=eq.${period}`),
+      ]);
+      const addMap: Record<string, any> = {};
+      addRes.data.forEach((r: any) => { addMap[r.unique_hash] = r; });
+      const welfareMap: Record<string, any> = {};
+      welfareRes.data.forEach((r: any) => { welfareMap[r.unique_hash] = r; });
+      const attMap: Record<string, any> = {};
+      attRes.data.forEach((r: any) => { attMap[r.unique_hash] = r; });
+
+      const perfComm = (add: any) => (add.performance_pay || 0) + (add.kpi_provision || 0) + (add.office_comm || 0) + (add.apartment_comm || 0) + (add.talent_kpi || 0);
+
+      const buildRows = (key: 'pay_company' | 'department'): SummaryRow[] => {
+        const by: Record<string, SummaryRow> = {};
+        activeEmps.forEach((e: any) => {
+          const g = e[key] || '未知';
+          if (!by[g]) by[g] = { group: g, count: 0, net: 0, company_welfare: 0, personal_welfare: 0, perf_comm: 0, attendance_adjust: 0, insurance: 0, provision: 0, total_cost: 0 };
+          by[g].count++;
+        });
+        salList.forEach((r: any) => {
+          const emp = empMap[r.unique_hash];
+          if (!emp) return;
+          const g = emp[key] || '未知';
+          if (!by[g]) by[g] = { group: g, count: 0, net: 0, company_welfare: 0, personal_welfare: 0, perf_comm: 0, attendance_adjust: 0, insurance: 0, provision: 0, total_cost: 0 };
+          const add = addMap[r.unique_hash] || {};
+          by[g].net += Number(r.net_pay || 0);
+          by[g].company_welfare += Number(welfareMap[r.unique_hash]?.company_total || 0);
+          by[g].personal_welfare += Number(welfareMap[r.unique_hash]?.personal_total || 0);
+          by[g].perf_comm += perfComm(add);
+          by[g].attendance_adjust += Number(attMap[r.unique_hash]?.attendance_adjust_total || 0);
+          by[g].insurance += Number(add.insurance_amount || 0);
+          by[g].provision += Number(emp.provision_welfare || 0);
+          by[g].total_cost += Number(r.total_cost || 0);
+        });
+        return Object.values(by);
+      };
+
+      const companyRows = buildRows('pay_company');
+      const deptRows = buildRows('department');
+      await exportSummaryPdf(companyRows, deptRows, period);
+      setSummaryModal(false);
+      message.success('Summary PDF 已下载');
+    } catch (e: any) {
+      message.error(e?.message || 'PDF 导出失败');
+    }
   };
 
   const confirmReject = async () => {
@@ -477,10 +554,8 @@ const PayrollPage: React.FC = () => {
       message.warning('请填写退回理由');
       return;
     }
+    // 只退回薪资模块（花名册/考勤由各自审批人处理）
     await updateTableStatus('salary_records', '退回修改');
-    await updateTableStatus('attendance_records', '退回修改');
-    await updateTableStatus('additional_salary_records', '退回修改');
-    await updateTableStatus('employees', '退回修改');
     message.success('已退回修改');
     setApproveModal(null);
     setRejectReason('');
@@ -538,9 +613,13 @@ const PayrollPage: React.FC = () => {
           <Button icon={<DownloadOutlined />} onClick={handleExportPayslip}>导出工资条</Button>
           <Button type="primary" onClick={handleSaveResult}>保存计算结果</Button>
           {isOperator && (
-            <Button type="primary" icon={<SendOutlined />} onClick={handleSubmit}>提交审批</Button>
+            <Button type="primary" icon={<SendOutlined />} disabled={!payrollGatePass || payrollSubmitted} onClick={() => {
+              if (!rosterLocked) { message.warning('请先完成花名册的审批'); return; }
+              if (!attendanceLocked) { message.warning('请先完成考勤的审批'); return; }
+              handleSubmit();
+            }}>提交审批</Button>
           )}
-          {isApprover && (
+          {isApprover && payrollSubmitted && (
             <>
               <Button type="primary" style={{ background: '#27ae60', borderColor: '#27ae60' }} icon={<CheckCircleOutlined />} onClick={handleApprove}>通过审批</Button>
               <Button danger icon={<RollbackOutlined />} onClick={handleReject}>退回修改</Button>
@@ -580,6 +659,18 @@ const PayrollPage: React.FC = () => {
             <AntInput.TextArea rows={3} value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="退回理由将发送至人事专员" />
           </div>
         )}
+      </Modal>
+
+      {/* 薪资审批通过后：询问是否下载 summary PDF */}
+      <Modal
+        title="审批已通过"
+        open={summaryModal}
+        onOk={handleDownloadSummaryPdf}
+        onCancel={() => setSummaryModal(false)}
+        okText="下载 Summary PDF"
+        cancelText="暂不下载"
+      >
+        <div>薪资审批已通过，当月数据已冻结。是否下载「数据统计 Summary」PDF（含按公司、按部门汇总）？</div>
       </Modal>
 
       {/* 工资条详情抽屉 */}

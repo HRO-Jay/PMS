@@ -1,25 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Modal, Form, Input, Select, Space, message, Tag, Popconfirm, Card } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
+import { ROLE_LABELS, ROLE_COLORS, ROLE_OPTIONS, type Role } from '../../utils/permissions';
 
 const SUPABASE_URL = 'https://avuldnywmiflbmmlgmas.supabase.co';
 const SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2dWxkbnl3bWlmbGJtbWxnbWFzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NjMzNjQ0OCwiZXhwIjoyMTAxOTEyNDQ4fQ.S7e1lJxysz9v0MoXaizgMy-wbSMHxmZUBFTj_tVABnQ';
-
-const ROLE_LABELS: Record<string, string> = {
-  admin: '管理员',
-  approver: '终审人',
-  hr_lead: '人事负责人',
-  hr_staff: '人事专员',
-  it_staff: '技术部',
-};
-
-const ROLE_COLORS: Record<string, string> = {
-  admin: 'red',
-  approver: 'gold',
-  hr_lead: 'blue',
-  hr_staff: 'cyan',
-  it_staff: 'geekblue',
-};
 
 const AccountManagementPage: React.FC = () => {
   const [users, setUsers] = useState<any[]>([]);
@@ -44,7 +29,7 @@ const AccountManagementPage: React.FC = () => {
       setUsers(list.map((u: any) => ({
         ...u,
         key: u.id,
-        role: u.user_metadata?.role || 'hr_staff',
+        role: (u.user_metadata?.role in ROLE_LABELS ? u.user_metadata?.role : 'hr_staff'),
       })));
     } catch {
       message.error('加载账号列表失败');
@@ -187,7 +172,7 @@ const AccountManagementPage: React.FC = () => {
     { title: '邮箱', dataIndex: 'email', key: 'email', width: 240 },
     {
       title: '角色', dataIndex: 'role', key: 'role', width: 100,
-      render: (v: string) => <Tag color={ROLE_COLORS[v] || 'default'}>{ROLE_LABELS[v] || v}</Tag>,
+      render: (v: string) => <Tag color={ROLE_COLORS[v as Role] || 'default'}>{ROLE_LABELS[v as Role] || v}</Tag>,
     },
     {
       title: '状态', dataIndex: 'banned_until', key: 'status', width: 90,
@@ -203,13 +188,7 @@ const AccountManagementPage: React.FC = () => {
             value={u.role}
             style={{ width: 110 }}
             onChange={(val) => handleChangeRole(u.id, val)}
-            options={[
-              { value: 'admin', label: '管理员' },
-              { value: 'approver', label: '终审人' },
-              { value: 'hr_lead', label: '人事负责人' },
-              { value: 'hr_staff', label: '人事专员' },
-              { value: 'it_staff', label: '技术部' },
-            ]}
+            options={ROLE_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
           />
           <Button size="small" onClick={() => handleResetPassword(u.id)}>重置密码</Button>
           <Popconfirm title={u.banned_until ? '确认启用该账号？' : '确认停用该账号？'} onConfirm={() => handleToggleBan(u)}>
@@ -246,13 +225,7 @@ const AccountManagementPage: React.FC = () => {
             <Input.Password />
           </Form.Item>
           <Form.Item name="role" label="角色" rules={[{ required: true }]}>
-            <Select options={[
-              { value: 'admin', label: '管理员（全部权限）' },
-              { value: 'approver', label: '终审人（审批）' },
-              { value: 'hr_lead', label: '人事负责人（工资制作）' },
-              { value: 'hr_staff', label: '人事专员（工资制作）' },
-              { value: 'it_staff', label: '技术部（工资制作）' },
-            ]} />
+            <Select options={ROLE_OPTIONS} />
           </Form.Item>
         </Form>
       </Modal>

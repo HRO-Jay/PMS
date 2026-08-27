@@ -34,7 +34,7 @@ function prevPeriod(p: string): string {
   return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
 }
 
-const isLocked = (r: any) => !!r && (r.data_status === '已锁定' || r.data_status === '已提交老板查看');
+const isLocked = (r: any) => !!r && (r.data_status === '已锁定' || r.data_status === '已提交老板查看' || r.data_status === '已提交审批');
 
 /** 1. 考勤自动计算 */
 async function refreshAttendance(period: string): Promise<RefreshStepResult> {

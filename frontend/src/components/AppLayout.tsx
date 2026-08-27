@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useRef } from 'react';
-import { Layout, Menu, Typography, Avatar, Dropdown, Button, message, Input } from 'antd';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { Layout, Menu, Typography, Avatar, Dropdown, Button, message, Tag, Input, Modal } from 'antd';
 import {
   TeamOutlined, DollarOutlined, CalculatorOutlined,
   LogoutOutlined, ScheduleOutlined, SyncOutlined,
@@ -8,10 +8,14 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import { globalRefresh } from '../utils/globalRefresh';
 import { useStore } from '../stores/appStore';
+import { getRole, ROLE_LABELS, ROLE_COLORS, type Role, isRosterApprover, isAttendanceApprover, isPayrollApprover } from '../utils/permissions';
+import { fetchApprovalStatus } from '../utils/approvalStatus';
+import { ensureRoster } from '../utils/roster';
+import api from '../api/client';
 
 const { Header, Sider, Content } = Layout;
 
-const menuItems = [
+const ALL_MENU = [
   { key: '/', icon: <CalculatorOutlined />, label: '数据总览' },
   { key: '/employees', icon: <TeamOutlined />, label: '员工花名册' },
   { key: '/social', icon: <SafetyCertificateOutlined />, label: '社保管理' },
@@ -21,6 +25,24 @@ const menuItems = [
   { key: '/payroll', icon: <DollarOutlined />, label: '薪资计算' },
   { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
 ];
+
+// 各角色可见菜单（key 列表）
+// 三类审批人只是"负责审批的动作不同"，但都能查看所有页面；人事专员/管理员同样全量可见。
+const ALL_KEYS = ALL_MENU.map(m => m.key);
+const ROLE_MENU: Record<Role, string[]> = {
+  admin: ALL_KEYS,
+  hr_staff: ALL_KEYS,
+  roster_approver: ALL_KEYS,
+  attendance_approver: ALL_KEYS,
+  payroll_approver: ALL_KEYS,
+};
+
+// 根据角色过滤菜单
+const getMenuItems = () => {
+  const role = getRole();
+  const allowed = ROLE_MENU[role] || ROLE_MENU.hr_staff;
+  return ALL_MENU.filter(m => allowed.includes(m.key));
+};
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -38,9 +60,39 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const [dragging, setDragging] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const dragStartRef = useRef<{ x: number; width: number } | null>(null);
+  // 审批提醒弹窗
+  const [approvalAlert, setApprovalAlert] = useState<{ title: string; content: string } | null>(null);
   // 全局月份：所有模块共用，切换不重置
   const currentPeriod = useStore(s => s.currentPeriod);
   const setCurrentPeriod = useStore(s => s.setCurrentPeriod);
+  // 当前用户角色
+  const role = getRole();
+  const roleLabel = ROLE_LABELS[role];
+
+  // 审批提醒：审批人登录/切月时，检测对应模块是否有"已提交审批"，若有则弹醒目提示
+  useEffect(() => {
+    const checkApprovalAlert = async () => {
+      try {
+        // 确保花名册已生成，避免拉空
+        await ensureRoster(currentPeriod);
+        const status = await fetchApprovalStatus(currentPeriod);
+        const alerts: string[] = [];
+        if (isRosterApprover() && status.rosterSubmitted && !status.rosterLocked) {
+          alerts.push('人事专员已提交【员工花名册】的审批，请前往「员工花名册」页面进行审批。');
+        }
+        if (isAttendanceApprover() && status.attendanceSubmitted && !status.attendanceLocked) {
+          alerts.push('人事专员已提交【考勤管理】的审批，请前往「考勤管理」页面进行审批。');
+        }
+        if (isPayrollApprover() && status.payrollSubmitted && !status.payrollLocked) {
+          alerts.push('人事专员已提交【薪资计算】的审批，请前往「薪资计算」页面进行审批。');
+        }
+        if (alerts.length > 0) {
+          setApprovalAlert({ title: '待审批提醒', content: alerts.join('\n') });
+        }
+      } catch { /* 忽略，不影响使用 */ }
+    };
+    checkApprovalAlert();
+  }, [currentPeriod, role]);
 
   // 社保管理有两个子页面，需要高亮父菜单
   const selectedKey = location.pathname.startsWith('/social')
@@ -122,7 +174,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           theme="dark"
           mode="inline"
           selectedKeys={[selectedKey]}
-          items={menuItems}
+          items={getMenuItems()}
           onClick={({ key }) => navigate(key)}
         />
 
@@ -172,7 +224,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           }}>
             <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
               <Avatar size="small" icon={<UserOutlined />} />
-              <span>HR 管理员</span>
+              <span>HR</span>
+              <Tag color={ROLE_COLORS[role]} style={{ marginInlineEnd: 0 }}>{roleLabel}</Tag>
             </div>
           </Dropdown>
         </Header>
@@ -181,6 +234,20 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           {children}
         </Content>
       </Layout>
+
+      {/* 审批提醒弹窗 */}
+      <Modal
+        title={approvalAlert?.title}
+        open={!!approvalAlert}
+        onOk={() => setApprovalAlert(null)}
+        onCancel={() => setApprovalAlert(null)}
+        okText="知道了"
+        cancelText="稍后处理"
+      >
+        <div style={{ whiteSpace: 'pre-line', fontSize: 15, color: '#cf1322', fontWeight: 500 }}>
+          {approvalAlert?.content}
+        </div>
+      </Modal>
     </Layout>
   );
 };
