@@ -8,6 +8,7 @@ import { useHorizontalScroll } from '../utils/useHorizontalScroll';
 import { isActiveInPeriod } from '../utils/employee';
 import { calcServiceTax } from '../utils/taxCalc';
 import { round2 } from '../utils/round';
+import { useStore } from '../stores/appStore';
 
 /**
  * 薪资计算板块（改造版）
@@ -54,7 +55,8 @@ const PayrollPage: React.FC = () => {
   const { ref: scrollRef, onWheel } = useHorizontalScroll<HTMLDivElement>();
   const [records, setRecords] = useState<any[]>([]);
   const [employees, setEmployees] = useState<Record<string, any>>({});
-  const [period, setPeriod] = useState(defaultPeriod);
+  // 全局月份：来自顶部月份选择器
+  const period = useStore(s => s.currentPeriod);
   const [loading, setLoading] = useState(false);
 
   // 筛选
@@ -75,7 +77,7 @@ const PayrollPage: React.FC = () => {
   // 拉取各模块数据源并按当月口径计算（返回员工映射 + 合并后的所有在职行）
   const fetchAndCompute = async (): Promise<{ empMap: Record<string, any>; merged: any[] }> => {
     const [empRes, attRes, addRes, welfareRes, taxRes, salaryRes] = await Promise.all([
-      api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,leave_date,attendance_type,tax_method,basic_salary'),
+      api.get(`/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,leave_date,attendance_type,tax_method,basic_salary&period=eq.${period}`),
       api.get(`/attendance_records?select=unique_hash,attendance_adjust_total,data_status&period=eq.${period}`),
       api.get(`/additional_salary_records?select=*&period=eq.${period}`),
       api.get(`/employee_welfare_records?select=unique_hash,personal_total,company_total,personal_social_adj,personal_housing_adj,company_social_adj,company_housing_adj,effective_month,pension_p_amt,medical_p_amt,unemployment_p_amt,normal_housing_p_amt,supp_housing_p_amt,pension_c_amt,medical_c_amt,unemployment_c_amt,injury_c_amt,maternity_c_amt,normal_housing_c_amt,supp_housing_c_amt&period=eq.${period}`),
@@ -453,6 +455,7 @@ const PayrollPage: React.FC = () => {
     await updateTableStatus('salary_records', '已提交老板查看');
     await updateTableStatus('attendance_records', '已提交老板查看');
     await updateTableStatus('additional_salary_records', '已提交老板查看');
+    await updateTableStatus('employees', '已提交老板查看');
     message.success('已提交审批');
     setApproveModal(null);
     loadData();
@@ -463,6 +466,7 @@ const PayrollPage: React.FC = () => {
     await updateTableStatus('attendance_records', '已锁定');
     await updateTableStatus('employee_welfare_records', '已锁定');
     await updateTableStatus('additional_salary_records', '已锁定');
+    await updateTableStatus('employees', '已锁定');
     message.success('审批通过，当月数据已冻结');
     setApproveModal(null);
     loadData();
@@ -476,6 +480,7 @@ const PayrollPage: React.FC = () => {
     await updateTableStatus('salary_records', '退回修改');
     await updateTableStatus('attendance_records', '退回修改');
     await updateTableStatus('additional_salary_records', '退回修改');
+    await updateTableStatus('employees', '退回修改');
     message.success('已退回修改');
     setApproveModal(null);
     setRejectReason('');
@@ -528,8 +533,6 @@ const PayrollPage: React.FC = () => {
     <div>
       <Card size="small" style={{ marginBottom: 12 }}>
         <Space wrap>
-          <span>月份：</span>
-          <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 180 }} />
           <Button type="primary" icon={<SyncOutlined />} onClick={handleRefreshSync} loading={loading}>刷新同步数据</Button>
           <Button icon={<DownloadOutlined />} onClick={handleExport}>导出工资报表</Button>
           <Button icon={<DownloadOutlined />} onClick={handleExportPayslip}>导出工资条</Button>

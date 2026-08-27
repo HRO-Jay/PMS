@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { Layout, Menu, Typography, Avatar, Dropdown, Button, message } from 'antd';
+import { Layout, Menu, Typography, Avatar, Dropdown, Button, message, Input } from 'antd';
 import {
   TeamOutlined, DollarOutlined, CalculatorOutlined,
   LogoutOutlined, ScheduleOutlined, SyncOutlined,
@@ -7,6 +7,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { globalRefresh } from '../utils/globalRefresh';
+import { useStore } from '../stores/appStore';
 
 const { Header, Sider, Content } = Layout;
 
@@ -37,6 +38,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const [dragging, setDragging] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const dragStartRef = useRef<{ x: number; width: number } | null>(null);
+  // 全局月份：所有模块共用，切换不重置
+  const currentPeriod = useStore(s => s.currentPeriod);
+  const setCurrentPeriod = useStore(s => s.setCurrentPeriod);
 
   // 社保管理有两个子页面，需要高亮父菜单
   const selectedKey = location.pathname.startsWith('/social')
@@ -149,6 +153,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           height: 56,
           flexShrink: 0,
         }}>
+          {/* 全局月份选择器：切换后所有模块共用该月份，切模块不重置 */}
+          <span style={{ color: '#666' }}>月份：</span>
+          <Input type="month" value={currentPeriod} onChange={e => setCurrentPeriod(e.target.value)} style={{ width: 150 }} />
           <Button
             type="primary"
             icon={<SyncOutlined />}

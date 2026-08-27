@@ -10,6 +10,8 @@ import { calcAttendance, parseAttendanceRules, type AttendanceRules, DEFAULT_ATT
 import { isActiveInPeriod } from '../utils/employee';
 import { withSource } from '../components/SourceTag';
 import { useHorizontalScroll } from '../utils/useHorizontalScroll';
+import { useStore } from '../stores/appStore';
+import { ensureRoster } from '../utils/roster';
 import dayjs from 'dayjs';
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
@@ -70,7 +72,8 @@ const AttendancePage: React.FC = () => {
   const [records, setRecords] = useState<any[]>([]);
   const [employees, setEmployees] = useState<Record<string, any>>({});
   const [attRules, setAttRules] = useState<AttendanceRules>(DEFAULT_ATTENDANCE_RULES);
-  const [period, setPeriod] = useState(defaultPeriod);
+  // 全局月份：来自顶部月份选择器
+  const period = useStore(s => s.currentPeriod);
   const [loading, setLoading] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRecord, setDetailRecord] = useState<any>(null);
@@ -97,8 +100,10 @@ const AttendancePage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
+      // 确保该月花名册已生成
+      await ensureRoster(period);
       const [empRes, recRes, rulesRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,status,cost_center,pay_company,tax_method,department,report_to,position,job_level,attendance_type,entry_date,leave_date,basic_salary'),
+        api.get(`/employees?select=unique_hash,name,status,cost_center,pay_company,tax_method,department,report_to,position,job_level,attendance_type,entry_date,leave_date,basic_salary&period=eq.${period}`),
         api.get(`/attendance_records?select=*&period=eq.${period}&order=unique_hash`),
         api.get('/attendance_rules?select=*'),
       ]);
@@ -697,8 +702,6 @@ const AttendancePage: React.FC = () => {
     <div>
       <Card size="small" style={{ marginBottom: 12 }}>
         <Space wrap>
-          <span>月份：</span>
-          <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 180 }} />
           <Button type="primary" icon={<CalculatorOutlined />} onClick={handleAutoCalc}>自动计算</Button>
           <Button icon={<PlusOutlined />} onClick={openAdd}>添加记录</Button>
           <Dropdown menu={{

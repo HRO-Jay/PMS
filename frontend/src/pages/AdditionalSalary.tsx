@@ -7,6 +7,8 @@ import { withSource } from '../components/SourceTag';
 import { useHorizontalScroll } from '../utils/useHorizontalScroll';
 import { isActiveInPeriod } from '../utils/employee';
 import { round2 } from '../utils/round';
+import { useStore } from '../stores/appStore';
+import { ensureRoster } from '../utils/roster';
 
 /**
  * 附加薪酬板块
@@ -53,7 +55,7 @@ const AdditionalSalaryPage: React.FC = () => {
   const { ref: scrollRef, onWheel } = useHorizontalScroll<HTMLDivElement>();
   const [records, setRecords] = useState<any[]>([]);
   const [employees, setEmployees] = useState<Record<string, any>>({});
-  const [period, setPeriod] = useState(defaultPeriod);
+  const period = useStore(s => s.currentPeriod);
   const [loading, setLoading] = useState(false);
 
   // 筛选
@@ -67,8 +69,9 @@ const AdditionalSalaryPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
+      await ensureRoster(period);
       const [empRes, recRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,leave_date,attendance_type'),
+        api.get(`/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,leave_date,attendance_type&period=eq.${period}`),
         api.get(`/additional_salary_records?select=*&period=eq.${period}`),
       ]);
       const empList: any[] = empRes.data;
@@ -195,8 +198,6 @@ const AdditionalSalaryPage: React.FC = () => {
     <div>
       <Card size="small" style={{ marginBottom: 12 }}>
         <Space wrap>
-          <span>月份：</span>
-          <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 180 }} />
           <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
           <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
             <Button icon={<UploadOutlined />}>导入</Button>

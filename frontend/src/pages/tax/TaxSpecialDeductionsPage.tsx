@@ -4,6 +4,8 @@ import { DownloadOutlined, UploadOutlined, SearchOutlined } from '@ant-design/ic
 import api from '../../api/client';
 import { exportXlsx, importXlsx, type ExportDef } from '../../utils/importExport';
 import { withSource } from '../../components/SourceTag';
+import { useStore } from '../../stores/appStore';
+import { ensureRoster } from '../../utils/roster';
 
 /**
  * 个税扣缴 — Tab 2：专项附加扣除维护（报税系统导入，按月覆盖）
@@ -43,7 +45,7 @@ const TaxSpecialDeductionsPage: React.FC = () => {
   const [records, setRecords] = useState<any[]>([]);
   const [allRecords, setAllRecords] = useState<any[]>([]);
   const [employees, setEmployees] = useState<Record<string, any>>({});
-  const [period, setPeriod] = useState(defaultPeriod);
+  const period = useStore(s => s.currentPeriod);
   const [loading, setLoading] = useState(false);
   const [fKeyword, setFKeyword] = useState('');
   const [fPayCompany, setFPayCompany] = useState<string>();
@@ -54,8 +56,9 @@ const TaxSpecialDeductionsPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
+      await ensureRoster(period);
       const [empRes, recRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,pay_company,department'),
+        api.get(`/employees?select=unique_hash,name,pay_company,department&period=eq.${period}`),
         api.get(`/tax_special_deductions?select=*&period=eq.${period}`),
       ]);
       const empMap: Record<string, any> = {};
@@ -158,8 +161,6 @@ const TaxSpecialDeductionsPage: React.FC = () => {
   return (
     <Card size="small" title="专项附加扣除维护（报税系统数据，按月导入覆盖）">
       <Space style={{ marginBottom: 12 }} wrap>
-        <span>所得期间：</span>
-        <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 180 }} />
         <Input placeholder="搜索姓名" prefix={<SearchOutlined />} value={fKeyword} onChange={e => setFKeyword(e.target.value)} style={{ width: 140 }} allowClear />
         <Select placeholder="发薪公司" allowClear showSearch optionFilterProp="label" value={fPayCompany} onChange={setFPayCompany} style={{ width: 150 }}
           options={Object.values(employees).map((e: any) => ({ value: e.pay_company, label: e.pay_company })).filter((v, i, a) => a.findIndex(x => x.value === v.value) === i)} />

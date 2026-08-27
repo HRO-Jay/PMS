@@ -8,6 +8,8 @@ import dayjs, { Dayjs } from 'dayjs';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
 import { genUniqueHash } from '../utils/hash';
 import { withSource } from '../components/SourceTag';
+import { useStore } from '../stores/appStore';
+import { ensureRoster } from '../utils/roster';
 import api from '../api/client';
 
 const { RangePicker } = DatePicker;
@@ -61,6 +63,9 @@ const EmployeesPage: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [companyList, setCompanyList] = useState<CompanyMapping[]>([]);
   const [loading, setLoading] = useState(false);
+  // 全局月份花名册
+  const period = useStore(s => s.currentPeriod);
+  const [rosterLocked, setRosterLocked] = useState(false);
 
   // 筛选器状态
   const [fStatus, setFStatus] = useState<string>();
@@ -81,7 +86,7 @@ const EmployeesPage: React.FC = () => {
   const [deptOptions, setDeptOptions] = useState<string[]>([]);
 
   useEffect(() => { loadCompanyMapping(); }, []);
-  useEffect(() => { loadEmployees(); }, [fStatus, fCostCenter, fPayCompany, fDepartment, fTaxMethod, fEntryRange, fLeaveRange, search]);
+  useEffect(() => { loadEmployees(); }, [period, fStatus, fCostCenter, fPayCompany, fDepartment, fTaxMethod, fEntryRange, fLeaveRange, search]);
 
   const loadCompanyMapping = async () => {
     try {
@@ -93,8 +98,12 @@ const EmployeesPage: React.FC = () => {
   const loadEmployees = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/employees?select=*&order=id');
+      // 确保该月花名册已生成（未生成自动按需生成）
+      await ensureRoster(period);
+      const res = await api.get(`/employees?select=*&period=eq.${period}&order=id`);
       let data: Employee[] = res.data;
+      // 该月是否已锁定（冻结）
+      setRosterLocked(data.length > 0 && data.some((e: any) => e.data_status === '已锁定'));
       // 收集可选的成本中心和部门（用于筛选下拉）
       const ccOptions = Array.from(new Set(data.map(e => e.cost_center).filter(Boolean))).sort();
       const deptOptions = Array.from(new Set(data.map(e => e.department).filter(Boolean))).sort();
@@ -147,6 +156,11 @@ const EmployeesPage: React.FC = () => {
 
   // 保存
   const handleSave = async () => {
+    // 冻结月禁止新增/编辑
+    if (rosterLocked) {
+      message.warning('该月花名册已锁定，不能修改');
+      return;
+    }
     const values = await form.validateFields();
     const entryDateStr = values.entry_date ? values.entry_date.format('YYYY-MM-DD') : '';
     const leaveDateStr = values.leave_date ? values.leave_date.format('YYYY-MM-DD') : undefined;
@@ -154,7 +168,7 @@ const EmployeesPage: React.FC = () => {
     // 填了离职日期 → 自动设为离职
     const autoStatus = leaveDateStr ? '离职' : values.status;
 
-    // 唯一值 = 姓名 + 发薪公司简称 + 入职日期
+    // 唯一值 = 姓名 + 发薪公司简称 + 入职日期（不含月份，跨月组件一致）
     const unique_hash = await genUniqueHash(values.name, values.pay_company, entryDateStr);
 
     const payload = {
@@ -163,6 +177,7 @@ const EmployeesPage: React.FC = () => {
       entry_date: entryDateStr,
       leave_date: leaveDateStr,
       status: autoStatus,
+      period,                        // 写入当前月
     };
 
     try {
@@ -176,10 +191,10 @@ const EmployeesPage: React.FC = () => {
         await api.patch(`/employees?id=eq.${editingEmployee.id}`, payload);
         message.success('更新成功');
       } else {
-        // 查重：唯一值已存在则拒绝
-        const dup = await api.get(`/employees?unique_hash=eq.${unique_hash}`);
+        // 查重：当前月该员工已存在则拒绝（unique_hash 跨月一致，需加 period）
+        const dup = await api.get(`/employees?unique_hash=eq.${unique_hash}&period=eq.${period}`);
         if (dup.data.length > 0) {
-          message.error('该员工已存在（姓名+发薪公司+入职日期重复）');
+          message.error('该员工该月已存在（姓名+发薪公司+入职日期重复）');
           return;
         }
         await api.post('/employees', payload);
@@ -280,8 +295,8 @@ const EmployeesPage: React.FC = () => {
             uniqueHash = await genUniqueHash(row.name, shortName, entryDate);
           }
 
-          // 8. 查重
-          const existing = await api.get(`/employees?unique_hash=eq.${uniqueHash}`);
+          // 8. 查重（按 unique_hash + 当月 period）
+          const existing = await api.get(`/employees?unique_hash=eq.${uniqueHash}&period=eq.${period}`);
           const payload = {
             name: row.name,
             status,
@@ -298,6 +313,7 @@ const EmployeesPage: React.FC = () => {
             entry_date: entryDate,
             leave_date: leaveDate,
             unique_hash: uniqueHash,
+            period,   // 写入当前月
           };
 
           if (existing.data.length > 0) {
@@ -354,7 +370,7 @@ const EmployeesPage: React.FC = () => {
     {
       title: '操作', key: 'actions', width: 80, fixed: 'right',
       render: (_: any, r: Employee) => (
-        <Button size="small" onClick={() => openEdit(r)}>编辑</Button>
+        <Button size="small" onClick={() => openEdit(r)} disabled={rosterLocked}>编辑</Button>
       ),
     },
   ];
@@ -364,7 +380,8 @@ const EmployeesPage: React.FC = () => {
       {/* 顶部工具栏 */}
       <Card size="small" style={{ marginBottom: 12 }}>
         <Space wrap>
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>添加员工</Button>
+          <span style={{ color: '#666' }}>{period} 花名册{rosterLocked ? '（已锁定）' : ''}</span>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate} disabled={rosterLocked}>添加员工</Button>
           <Dropdown menu={{
             items: [
               { key: 'template', label: '导出空白模板' },
@@ -374,8 +391,8 @@ const EmployeesPage: React.FC = () => {
           }}>
             <Button icon={<DownloadOutlined />}>导出</Button>
           </Dropdown>
-          <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
-            <Button icon={<UploadOutlined />}>导入</Button>
+          <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { if (rosterLocked) { message.warning('该月花名册已锁定，不能导入'); return false; } handleImport(file); return false; }}>
+            <Button icon={<UploadOutlined />} disabled={rosterLocked}>导入</Button>
           </Upload>
           <Input
             prefix={<SearchOutlined />}

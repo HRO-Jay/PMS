@@ -45,7 +45,7 @@ const TaxOpeningPage: React.FC = () => {
     setLoading(true);
     try {
       const [empRes, recRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,attendance_type'),
+        api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,attendance_type&period=eq.2026-06'),
         api.get('/tax_opening_balances?select=*'),
       ]);
       const empMap: Record<string, any> = {};

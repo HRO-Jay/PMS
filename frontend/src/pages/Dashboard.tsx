@@ -10,6 +10,8 @@ import { exportXlsx, type ExportDef } from '../utils/importExport';
 import { isActiveInPeriod } from '../utils/employee';
 import { exportSummaryPdf } from '../utils/pdfExport';
 import { round2 } from '../utils/round';
+import { useStore } from '../stores/appStore';
+import { ensureRoster } from '../utils/roster';
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
@@ -157,7 +159,8 @@ function chgPct(cur: number, prev: number): number | null {
 }
 
 const Dashboard: React.FC = () => {
-  const [period, setPeriod] = useState(defaultPeriod);
+  // 全局月份：来自顶部月份选择器
+  const period = useStore(s => s.currentPeriod);
   const [loading, setLoading] = useState(false);
   const [summaryTab, setSummaryTab] = useState<'dept' | 'company'>('company');
   const [stats, setStats] = useState<any>(null);
@@ -200,7 +203,9 @@ const Dashboard: React.FC = () => {
     setLoading(true);
     try {
       const prev = prevPeriod(period);
-      const empRes = await api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,entry_date,leave_date,basic_salary,provision_welfare');
+      // 确保该月花名册已生成
+      await ensureRoster(period);
+      const empRes = await api.get(`/employees?select=unique_hash,name,status,pay_company,cost_center,department,entry_date,leave_date,basic_salary,provision_welfare&period=eq.${period}`);
       const empList: any[] = empRes.data;
       const activeEmps = empList.filter((e: any) => isActiveInPeriod(e, period));
       const empMap: Record<string, any> = {};
@@ -719,7 +724,6 @@ const Dashboard: React.FC = () => {
             {ready ? '数据已就绪' : '本月薪资计算中'}
           </span>
           <Space>
-            <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 150 }} />
             <Button icon={<ReloadOutlined />} onClick={loadData}>刷新</Button>
             <Button icon={<DownloadOutlined />} onClick={() => exportXlsx(SUMMARY_EXPORT_DEF, displaySummaryRows, period)}>导出</Button>
           </Space>

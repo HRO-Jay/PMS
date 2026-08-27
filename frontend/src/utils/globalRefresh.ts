@@ -15,6 +15,7 @@ import { calcSocial, calcHousingFund } from './welfareCalc';
 import { calcIncomeTax, calcServiceTax, calcInternTax } from './taxCalc';
 import { isActiveInPeriod } from './employee';
 import { round2 } from './round';
+import { ensureRoster } from './roster';
 
 export interface RefreshStepResult {
   step: string;
@@ -38,7 +39,7 @@ const isLocked = (r: any) => !!r && (r.data_status === '已锁定' || r.data_sta
 /** 1. 考勤自动计算 */
 async function refreshAttendance(period: string): Promise<RefreshStepResult> {
   const [empRes, recRes, rulesRes] = await Promise.all([
-    api.get('/employees?select=unique_hash,name,status,position,entry_date'),
+    api.get(`/employees?select=unique_hash,name,status,position,entry_date&period=eq.${period}`),
     api.get(`/attendance_records?select=*&period=eq.${period}`),
     api.get('/attendance_rules?select=*'),
   ]);
@@ -175,7 +176,7 @@ async function refreshSocial(period: string): Promise<RefreshStepResult> {
 async function refreshNormalTax(period: string): Promise<RefreshStepResult> {
   const prev = prevPeriod(period);
   const [empRes, openingRes, specialRes, prevSpecialRes, prevCalcRes, welfareRes, attRes, addRes] = await Promise.all([
-    api.get('/employees?select=unique_hash,name,status,pay_company,department,entry_date,leave_date,basic_salary&tax_method=eq.normal'),
+    api.get(`/employees?select=unique_hash,name,status,pay_company,department,entry_date,leave_date,basic_salary&period=eq.${period}&tax_method=eq.normal`),
     api.get('/tax_opening_balances?select=*'),
     api.get(`/tax_special_deductions?select=*&period=eq.${period}`),
     api.get(`/tax_special_deductions?select=*&period=eq.${prev}`),
@@ -305,7 +306,7 @@ async function refreshNormalTax(period: string): Promise<RefreshStepResult> {
 async function refreshInternTax(period: string): Promise<RefreshStepResult> {
   const prev = prevPeriod(period);
   const [empRes, openingRes, prevCalcRes, salaryRes] = await Promise.all([
-    api.get('/employees?select=unique_hash,name,status,entry_date,leave_date&tax_method=eq.intern'),
+    api.get(`/employees?select=unique_hash,name,status,entry_date,leave_date&period=eq.${period}&tax_method=eq.intern`),
     api.get('/tax_opening_balances?select=*'),
     api.get(`/tax_monthly_calcs?select=*&period=eq.${prev}`),
     api.get(`/salary_records?select=unique_hash,wage_subtotal&period=eq.${period}`),
@@ -373,7 +374,7 @@ async function refreshInternTax(period: string): Promise<RefreshStepResult> {
 /** 5. 薪资刷新同步 */
 async function refreshPayroll(period: string): Promise<RefreshStepResult> {
   const [empRes, attRes, addRes, welfareRes, taxRes] = await Promise.all([
-    api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,leave_date,attendance_type,tax_method,basic_salary'),
+    api.get(`/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,leave_date,attendance_type,tax_method,basic_salary&period=eq.${period}`),
     api.get(`/attendance_records?select=unique_hash,attendance_adjust_total,data_status&period=eq.${period}`),
     api.get(`/additional_salary_records?select=*&period=eq.${period}`),
     api.get(`/employee_welfare_records?select=unique_hash,personal_total,company_total,personal_social_adj,personal_housing_adj,company_social_adj,company_housing_adj,effective_month&period=eq.${period}`),
@@ -466,6 +467,8 @@ async function refreshPayroll(period: string): Promise<RefreshStepResult> {
 export async function globalRefresh(period?: string): Promise<GlobalRefreshResult> {
   const p = period || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
   const steps: RefreshStepResult[] = [];
+  // 先确保该月花名册已生成（未生成自动按需生成）
+  await ensureRoster(p);
   steps.push(await refreshAttendance(p));
   steps.push(await refreshSocial(p));
   steps.push(await refreshNormalTax(p));

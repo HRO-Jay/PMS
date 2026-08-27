@@ -12,6 +12,8 @@ import { useHorizontalScroll } from '../../utils/useHorizontalScroll';
 import { isActiveInPeriod } from '../../utils/employee';
 import { round2 } from '../../utils/round';
 import dayjs from 'dayjs';
+import { useStore } from '../../stores/appStore';
+import { ensureRoster } from '../../utils/roster';
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
@@ -100,7 +102,7 @@ const EmployeeWelfare: React.FC = () => {
   const [employees, setEmployees] = useState<any[]>([]);
   const [socialSets, setSocialSets] = useState<SocialWelfareSet[]>([]);
   const [housingSets, setHousingSets] = useState<HousingFundSet[]>([]);
-  const [period, setPeriod] = useState(defaultPeriod);
+  const period = useStore(s => s.currentPeriod);
   const [loading, setLoading] = useState(false);
 
   const [editOpen, setEditOpen] = useState(false);
@@ -124,8 +126,9 @@ const EmployeeWelfare: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
+      await ensureRoster(period);
       const [empRes, sRes, hRes, recRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,leave_date,attendance_type'),
+        api.get(`/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,leave_date,attendance_type&period=eq.${period}`),
         api.get('/social_welfare_sets?select=*&order=code'),
         api.get('/housing_fund_sets?select=*&order=code'),
         api.get(`/employee_welfare_records?select=*&period=eq.${period}`),
@@ -588,8 +591,6 @@ const EmployeeWelfare: React.FC = () => {
     <div>
       <Card size="small" style={{ marginBottom: 12 }}>
         <Space>
-          <span>薪酬月份：</span>
-          <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 180 }} />
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>添加记录</Button>
           <Button type="primary" icon={<CalculatorOutlined />} onClick={handleBatchCalc}>一键计算</Button>
           <Dropdown menu={{

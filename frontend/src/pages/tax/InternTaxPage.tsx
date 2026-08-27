@@ -7,6 +7,8 @@ import { exportXlsx, type ExportDef } from '../../utils/importExport';
 import { withSource } from '../../components/SourceTag';
 import { isActiveInPeriod } from '../../utils/employee';
 import { round2 } from '../../utils/round';
+import { useStore } from '../../stores/appStore';
+import { ensureRoster } from '../../utils/roster';
 
 /**
  * 个税扣缴 — 实习生个税计算（计税方式为"实习生计税"的人员）
@@ -55,7 +57,7 @@ const EXPORT_DEF: ExportDef = {
 const InternTaxPage: React.FC = () => {
   const [records, setRecords] = useState<any[]>([]);
   const [allRecords, setAllRecords] = useState<any[]>([]);
-  const [period, setPeriod] = useState(defaultPeriod);
+  const period = useStore(s => s.currentPeriod);
   const [loading, setLoading] = useState(false);
   const [fKeyword, setFKeyword] = useState('');
   const [fPayCompany, setFPayCompany] = useState<string>();
@@ -72,8 +74,9 @@ const InternTaxPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
+      await ensureRoster(period);
       const [empRes, openingRes, prevCalcRes, calcRes, salaryRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,status,pay_company,department,entry_date,leave_date&tax_method=eq.intern'),
+        api.get(`/employees?select=unique_hash,name,status,pay_company,department,entry_date,leave_date&tax_method=eq.intern&period=eq.${period}`),
         api.get('/tax_opening_balances?select=*'),
         api.get(`/tax_monthly_calcs?select=*&period=eq.${prevPeriod(period)}`),
         api.get(`/tax_monthly_calcs?select=*&period=eq.${period}`),
@@ -236,8 +239,6 @@ const InternTaxPage: React.FC = () => {
   return (
     <Card size="small" title="实习生个税计算（实习劳务报酬，一般累计预扣法）">
       <Space style={{ marginBottom: 12 }} wrap>
-        <span>所得期间：</span>
-        <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 180 }} />
         <Input placeholder="搜索姓名" prefix={<SearchOutlined />} value={fKeyword} onChange={e => setFKeyword(e.target.value)} style={{ width: 140 }} allowClear />
         <Select placeholder="发薪公司" allowClear showSearch optionFilterProp="label" value={fPayCompany} onChange={setFPayCompany} style={{ width: 150 }}
           options={allRecords.map((e: any) => ({ value: e.pay_company, label: e.pay_company })).filter((v, i, a) => a.findIndex(x => x.value === v.value) === i)} />

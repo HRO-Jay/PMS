@@ -7,6 +7,8 @@ import { exportXlsx, type ExportDef } from '../../utils/importExport';
 import { withSource } from '../../components/SourceTag';
 import { isActiveInPeriod } from '../../utils/employee';
 import { round2 } from '../../utils/round';
+import { useStore } from '../../stores/appStore';
+import { ensureRoster } from '../../utils/roster';
 
 /**
  * 个税扣缴 — Tab 3：月度计算（累计预扣法）
@@ -51,7 +53,7 @@ const EXPORT_DEF: ExportDef = {
 const TaxMonthlyCalcPage: React.FC = () => {
   const [records, setRecords] = useState<any[]>([]);
   const [allRecords, setAllRecords] = useState<any[]>([]);
-  const [period, setPeriod] = useState(defaultPeriod);
+  const period = useStore(s => s.currentPeriod);
   const [loading, setLoading] = useState(false);
   const [fKeyword, setFKeyword] = useState('');
   const [fPayCompany, setFPayCompany] = useState<string>();
@@ -62,9 +64,10 @@ const TaxMonthlyCalcPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
+      await ensureRoster(period);
       // 并行加载：员工、期初累计数、专项附加、上月专项附加、上月计算、当月计算、社保个人福利、考勤调整、附加薪酬
       const [empRes, openingRes, specialRes, prevSpecialRes, prevCalcRes, calcRes, welfareRes, attRes, addRes] = await Promise.all([
-        api.get('/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,leave_date,attendance_type,basic_salary&tax_method=eq.normal'),
+        api.get(`/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,leave_date,attendance_type,basic_salary&tax_method=eq.normal&period=eq.${period}`),
         api.get('/tax_opening_balances?select=*'),
         api.get(`/tax_special_deductions?select=*&period=eq.${period}`),
         api.get(`/tax_special_deductions?select=*&period=eq.${prevPeriod(period)}`),
@@ -308,8 +311,6 @@ const TaxMonthlyCalcPage: React.FC = () => {
   return (
     <Card size="small" title="个税月度计算（累计预扣法，正常计税人员）">
       <Space style={{ marginBottom: 12 }} wrap>
-        <span>所得期间：</span>
-        <Input type="month" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 180 }} />
         <Input placeholder="搜索姓名" prefix={<SearchOutlined />} value={fKeyword} onChange={e => setFKeyword(e.target.value)} style={{ width: 140 }} allowClear />
         <Select placeholder="发薪公司" allowClear showSearch optionFilterProp="label" value={fPayCompany} onChange={setFPayCompany} style={{ width: 150 }}
           options={records.map((e: any) => ({ value: e.pay_company, label: e.pay_company })).filter((v, i, a) => a.findIndex(x => x.value === v.value) === i)} />
