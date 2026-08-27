@@ -289,11 +289,16 @@ const EmployeesPage: React.FC = () => {
             continue;
           }
 
-          // 7. 判断唯一值：优先用导出的，否则现算
-          let uniqueHash = row.unique_hash;
-          if (!uniqueHash) {
-            uniqueHash = await genUniqueHash(row.name, shortName, entryDate);
+          // 7. 唯一值：以公式算出的为准。Excel里那一格要么为空（交给系统现算），
+          //    要么等于公式算出的值；只要不一致（手填了旧值/错值）→ 拒绝导入。
+          const calculatedHash = await genUniqueHash(row.name, shortName, entryDate);
+          const importHash = row.unique_hash ? String(row.unique_hash).trim() : '';
+          if (importHash !== '' && importHash !== calculatedHash) {
+            failed++;
+            failReasons.push(`${row.name || '?'}（唯一值与姓名+发薪公司+入职日期不符，请勿手动填写）`);
+            continue;
           }
+          const uniqueHash = calculatedHash;
 
           // 8. 查重（按 unique_hash + 当月 period）
           const existing = await api.get(`/employees?unique_hash=eq.${uniqueHash}&period=eq.${period}`);
