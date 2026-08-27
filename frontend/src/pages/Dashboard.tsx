@@ -463,12 +463,12 @@ const Dashboard: React.FC = () => {
         {
           name: '应发工资', type: 'bar', barWidth: 16,
           data: showData.map(d => ({ value: d.gross, itemStyle: empty ? { color: PLACEHOLDER } : { color: paletteColor(0), borderRadius: [4, 4, 0, 0] } })),
-          label: showLabel ? { show: true, position: 'top', color: INK_SUB, fontSize: 11, formatter: (p: any) => empty ? '' : fmtMoneyInt(p.value) } : { show: false },
+          label: showLabel ? { show: true, position: 'top', color: INK_SUB, fontSize: 11, rotate: data.length > 6 ? 45 : 0, formatter: (p: any) => empty ? '' : fmtMoneyInt(p.value) } : { show: false },
         },
         {
           name: '实发工资', type: 'bar', barWidth: 16,
           data: showData.map(d => ({ value: d.net, itemStyle: empty ? { color: PLACEHOLDER } : { color: paletteColor(1), borderRadius: [4, 4, 0, 0], opacity: 0.85 } })),
-          label: showLabel ? { show: true, position: 'top', color: '#9aa4b2', fontSize: 11, formatter: (p: any) => empty ? '' : fmtMoneyInt(p.value) } : { show: false },
+          label: showLabel ? { show: true, position: 'top', color: '#9aa4b2', fontSize: 11, rotate: data.length > 6 ? 45 : 0, formatter: (p: any) => empty ? '' : fmtMoneyInt(p.value) } : { show: false },
         },
       ],
       graphic: empty ? [{ type: 'text', left: 'center', top: 'middle', style: { text: '暂无数据', fill: '#999', fontSize: 14 } }] : [],
@@ -587,6 +587,7 @@ const Dashboard: React.FC = () => {
         })),
         label: {
           show: true, position: 'top', color: INK, fontSize: 11, fontWeight: 600,
+          rotate: avgPayList.length > 6 ? 45 : 0,
           formatter: (p: any) => empty ? '' : `${fmtMoneyInt(p.data.value)}${p.data.count === 1 ? '（仅1人）' : ''}`,
         },
         emphasis: { itemStyle: { color: paletteColor(1) } },
