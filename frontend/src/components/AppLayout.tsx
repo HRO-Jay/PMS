@@ -61,7 +61,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const [refreshing, setRefreshing] = useState(false);
   const dragStartRef = useRef<{ x: number; width: number } | null>(null);
   // 审批提醒弹窗
-  const [approvalAlert, setApprovalAlert] = useState<{ title: string; content: string } | null>(null);
+  const [approvalAlert, setApprovalAlert] = useState<{ title: string; alerts: { text: string; path: string }[] } | null>(null);
   // 全局月份：所有模块共用，切换不重置
   const currentPeriod = useStore(s => s.currentPeriod);
   const setCurrentPeriod = useStore(s => s.setCurrentPeriod);
@@ -76,18 +76,18 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         // 确保花名册已生成，避免拉空
         await ensureRoster(currentPeriod);
         const status = await fetchApprovalStatus(currentPeriod);
-        const alerts: string[] = [];
+        const alerts: { text: string; path: string }[] = [];
         if (isRosterApprover() && status.rosterSubmitted && !status.rosterLocked) {
-          alerts.push('人事专员已提交【员工花名册】的审批，请前往「员工花名册」页面进行审批。');
+          alerts.push({ text: '人事专员已提交【员工花名册】的审批', path: '/employees' });
         }
         if (isAttendanceApprover() && status.attendanceSubmitted && !status.attendanceLocked) {
-          alerts.push('人事专员已提交【考勤管理】的审批，请前往「考勤管理」页面进行审批。');
+          alerts.push({ text: '人事专员已提交【考勤管理】的审批', path: '/attendance' });
         }
         if (isPayrollApprover() && status.payrollSubmitted && !status.payrollLocked) {
-          alerts.push('人事专员已提交【薪资计算】的审批，请前往「薪资计算」页面进行审批。');
+          alerts.push({ text: '人事专员已提交【薪资计算】的审批', path: '/payroll' });
         }
         if (alerts.length > 0) {
-          setApprovalAlert({ title: '待审批提醒', content: alerts.join('\n') });
+          setApprovalAlert({ title: '待审批提醒', alerts });
         }
       } catch { /* 忽略，不影响使用 */ }
     };
@@ -241,11 +241,22 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         open={!!approvalAlert}
         onOk={() => setApprovalAlert(null)}
         onCancel={() => setApprovalAlert(null)}
-        okText="知道了"
-        cancelText="稍后处理"
+        footer={[
+          <Button key="later" onClick={() => setApprovalAlert(null)}>稍后处理</Button>,
+        ]}
       >
-        <div style={{ whiteSpace: 'pre-line', fontSize: 15, color: '#cf1322', fontWeight: 500 }}>
-          {approvalAlert?.content}
+        <div style={{ fontSize: 14, color: '#cf1322', fontWeight: 500, marginBottom: 8 }}>
+          有 {approvalAlert?.alerts.length} 个模块等待审批：
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {approvalAlert?.alerts.map((a, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #ffccc7', borderRadius: 8, padding: '10px 12px', background: '#fff7f6', gap: 12 }}>
+              <span style={{ fontSize: 15 }}>{a.text}</span>
+              <Button type="primary" size="small" onClick={() => { setApprovalAlert(null); navigate(a.path); }}>
+                现在处理
+              </Button>
+            </div>
+          ))}
         </div>
       </Modal>
     </Layout>

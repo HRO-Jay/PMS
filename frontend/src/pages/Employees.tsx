@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Table, Button, Drawer, Form, Input, Select, Space, message, Tag, Card, DatePicker, Upload, Dropdown, Popconfirm, InputNumber,
+  Table, Button, Drawer, Form, Input, Select, Space, message, Tag, Card, DatePicker, Upload, Dropdown, Popconfirm, InputNumber, Modal,
 } from 'antd';
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, SendOutlined } from '@ant-design/icons';
 import type { Employee, CompanyMapping } from '../types';
@@ -83,6 +83,8 @@ const EmployeesPage: React.FC = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [form] = Form.useForm();
+  // 审批确认弹窗
+  const [approveConfirm, setApproveConfirm] = useState<{ type: 'submit' | 'approve' | 'reject' } | null>(null);
   // 筛选下拉选项
   const [costCenterOptions, setCostCenterOptions] = useState<string[]>([]);
   const [deptOptions, setDeptOptions] = useState<string[]>([]);
@@ -187,10 +189,18 @@ const EmployeesPage: React.FC = () => {
 
     try {
       if (editingEmployee) {
-        // 入职日期不可改（唯一值绑定）
+        // 姓名 / 发薪公司 / 入职日期 都不可改（唯一值绑定）
         const origEntry = editingEmployee.entry_date ? String(editingEmployee.entry_date).slice(0, 10) : '';
         if (origEntry && origEntry !== entryDateStr) {
           message.error('入职日期不可修改（会影响关联数据）');
+          return;
+        }
+        if (editingEmployee.name !== values.name) {
+          message.error('姓名不可修改（会影响关联数据）');
+          return;
+        }
+        if (editingEmployee.pay_company !== values.pay_company) {
+          message.error('发薪公司不可修改（会影响关联数据）');
           return;
         }
         await api.patch(`/employees?id=eq.${editingEmployee.id}`, payload);
@@ -351,7 +361,7 @@ const EmployeesPage: React.FC = () => {
   };
 
   // ====== 提交审批（人事专员）：把当月所有花名册 data_status 置为 已提交审批 ======
-  const handleSubmitApproval = async () => {
+  const doSubmitApproval = async () => {
     try {
       const recs = await api.get(`/employees?select=id&period=eq.${period}`);
       const ids = recs.data.map((r: any) => r.id);
@@ -365,9 +375,10 @@ const EmployeesPage: React.FC = () => {
       message.error(e?.response?.data?.message || '提交失败');
     }
   };
+  const handleSubmitApproval = () => setApproveConfirm({ type: 'submit' });
 
   // ====== 审批通过（花名册审批人）：当月花名册置为 已锁定（冻结） ======
-  const handleApprove = async () => {
+  const doApprove = async () => {
     try {
       const recs = await api.get(`/employees?select=id&period=eq.${period}`);
       const ids = recs.data.map((r: any) => r.id);
@@ -380,9 +391,10 @@ const EmployeesPage: React.FC = () => {
       message.error(e?.response?.data?.message || '审批失败');
     }
   };
+  const handleApprove = () => setApproveConfirm({ type: 'approve' });
 
   // ====== 退回修改（花名册审批人）：恢复为 草稿 状态 ======
-  const handleReject = async () => {
+  const doReject = async () => {
     try {
       const recs = await api.get(`/employees?select=id&period=eq.${period}`);
       const ids = recs.data.map((r: any) => r.id);
@@ -394,6 +406,7 @@ const EmployeesPage: React.FC = () => {
       message.error(e?.response?.data?.message || '退回失败');
     }
   };
+  const handleReject = () => setApproveConfirm({ type: 'reject' });
 
   // ====== 表格列（固定顺序） ======
   const columns: any[] = [
@@ -512,8 +525,9 @@ const EmployeesPage: React.FC = () => {
         }
       >
         <Form form={form} layout="vertical">
-          <Form.Item name="name" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}>
-            <Input />
+          <Form.Item name="name" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}
+            extra={editingEmployee ? '姓名不可修改（唯一值绑定）' : undefined}>
+            <Input disabled={!!editingEmployee} />
           </Form.Item>
           <Form.Item name="status" label="状态" rules={[{ required: true }]}>
             <Select options={STATUS_OPTIONS.map(s => ({ value: s, label: s }))} />
@@ -521,8 +535,9 @@ const EmployeesPage: React.FC = () => {
           <Form.Item name="cost_center" label="成本中心">
             <Input />
           </Form.Item>
-          <Form.Item name="pay_company" label="发薪公司" rules={[{ required: true, message: '请选择发薪公司' }]}>
-            <Select showSearch optionFilterProp="label" placeholder="选择发薪公司"
+          <Form.Item name="pay_company" label="发薪公司" rules={[{ required: true, message: '请选择发薪公司' }]}
+            extra={editingEmployee ? '发薪公司不可修改（唯一值绑定）' : undefined}>
+            <Select showSearch optionFilterProp="label" placeholder="选择发薪公司" disabled={!!editingEmployee}
               options={companyList.map(c => ({ value: c.display_value, label: c.display_value }))} />
           </Form.Item>
           <Form.Item name="tax_method" label="计税方式" rules={[{ required: true }]}>
@@ -572,6 +587,25 @@ const EmployeesPage: React.FC = () => {
           </div>
         )}
       </Drawer>
+
+      {/* 审批确认弹窗 */}
+      <Modal
+        title={approveConfirm?.type === 'submit' ? '提交审批' : approveConfirm?.type === 'approve' ? '通过审批' : '退回修改'}
+        open={!!approveConfirm}
+        onOk={async () => {
+          if (approveConfirm?.type === 'submit') await doSubmitApproval();
+          else if (approveConfirm?.type === 'approve') await doApprove();
+          else await doReject();
+          setApproveConfirm(null);
+        }}
+        onCancel={() => setApproveConfirm(null)}
+        okText="确认"
+        cancelText="取消"
+      >
+        {approveConfirm?.type === 'submit' && <div>是否确认提交本月员工花名册的审批？提交后当月花名册将冻结，等待审批人处理。</div>}
+        {approveConfirm?.type === 'approve' && <div>是否确认通过？通过后当月员工花名册将冻结，仅可查看。</div>}
+        {approveConfirm?.type === 'reject' && <div>是否确认退回？退回后当月花名册恢复为可修改状态。</div>}
+      </Modal>
     </div>
   );
 };

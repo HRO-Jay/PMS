@@ -480,11 +480,17 @@ const PayrollPage: React.FC = () => {
   };
 
   const confirmApprove = async () => {
-    // 薪资审批通过：锁薪资及薪资计算直接依赖的表（考勤/花名册由各自审批人锁定）
-    await updateTableStatus('salary_records', '已锁定');
-    await updateTableStatus('employee_welfare_records', '已锁定');
-    await updateTableStatus('additional_salary_records', '已锁定');
-    message.success('审批通过，当月薪资已冻结');
+    // 薪资是最终审批：通过后冻结当月所有模块数据，之后都不能再改
+    const tables = [
+      'employees',              // 花名册
+      'attendance_records',     // 考勤
+      'employee_welfare_records', // 社保/福利
+      'additional_salary_records', // 附加薪酬
+      'tax_monthly_calcs',      // 个税
+      'salary_records',         // 薪资
+    ];
+    await Promise.all(tables.map(t => updateTableStatus(t, '已锁定')));
+    message.success('审批通过，当月所有数据已冻结');
     setApproveModal(null);
     // 审批通过后弹窗询问是否下载 summary PDF
     setSummaryModal(true);

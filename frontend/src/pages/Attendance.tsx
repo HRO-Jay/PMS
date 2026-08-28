@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Table, Card, Button, Space, Input, message, InputNumber, Upload, Popconfirm, Drawer, Tag, Descriptions, Select, DatePicker, Form, Dropdown,
+  Table, Card, Button, Space, Input, message, InputNumber, Upload, Popconfirm, Drawer, Tag, Descriptions, Select, DatePicker, Form, Dropdown, Modal,
 } from 'antd';
 import { SaveOutlined, DownloadOutlined, UploadOutlined, CalculatorOutlined, PlusOutlined, SettingOutlined, SendOutlined, FileExcelOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -101,6 +101,8 @@ const AttendancePage: React.FC = () => {
   const [attendanceSubmitted, setAttendanceSubmitted] = useState(false);
   const [rosterLocked, setRosterLocked] = useState(false);
   const [rawModalOpen, setRawModalOpen] = useState(false);
+  // 审批确认弹窗
+  const [approveConfirm, setApproveConfirm] = useState<{ type: 'submit' | 'approve' | 'reject' } | null>(null);
 
   useEffect(() => { loadData(); }, [period, fPayCompany, fCostCenter, fDepartment, fReportTo, fAttType, fPayDays, fStatus, fAbnormal, keyword]);
 
@@ -633,7 +635,7 @@ const AttendancePage: React.FC = () => {
   const isLocked = (r: any) => r.data_status === '已锁定' || r.data_status === '已提交老板查看' || r.data_status === '已提交审批';
 
   // ====== 提交审批（人事专员）：当月考勤 data_status 置为 已提交审批 ======
-  const handleSubmitApproval = async () => {
+  const doSubmitApproval = async () => {
     try {
       const res = await api.get(`/attendance_records?select=id&period=eq.${period}`);
       const ids = res.data.map((r: any) => r.id);
@@ -646,9 +648,10 @@ const AttendancePage: React.FC = () => {
       message.error(e?.response?.data?.message || '提交失败');
     }
   };
+  const handleSubmitApproval = () => setApproveConfirm({ type: 'submit' });
 
   // ====== 审批通过（考勤审批人）：当月考勤置为 已锁定（冻结） ======
-  const handleApprove = async () => {
+  const doApprove = async () => {
     try {
       const res = await api.get(`/attendance_records?select=id&period=eq.${period}`);
       const ids = res.data.map((r: any) => r.id);
@@ -661,9 +664,10 @@ const AttendancePage: React.FC = () => {
       message.error(e?.response?.data?.message || '审批失败');
     }
   };
+  const handleApprove = () => setApproveConfirm({ type: 'approve' });
 
   // ====== 退回修改（考勤审批人）：恢复为 已计算 ======
-  const handleReject = async () => {
+  const doReject = async () => {
     try {
       const res = await api.get(`/attendance_records?select=id&period=eq.${period}`);
       const ids = res.data.map((r: any) => r.id);
@@ -675,6 +679,7 @@ const AttendancePage: React.FC = () => {
       message.error(e?.response?.data?.message || '退回失败');
     }
   };
+  const handleReject = () => setApproveConfirm({ type: 'reject' });
 
   // 可选展示列（默认隐藏）
   const optionalColumns: { key: string; title: string; source: any; dataIndex: string; render?: (v: any, r: any) => any }[] = [
@@ -1063,6 +1068,25 @@ const AttendancePage: React.FC = () => {
 
       {/* 原始表格弹窗 */}
       <RawExcelModal open={rawModalOpen} module="attendance" moduleLabel="考勤管理" onClose={() => setRawModalOpen(false)} />
+
+      {/* 审批确认弹窗 */}
+      <Modal
+        title={approveConfirm?.type === 'submit' ? '提交审批' : approveConfirm?.type === 'approve' ? '通过审批' : '退回修改'}
+        open={!!approveConfirm}
+        onOk={async () => {
+          if (approveConfirm?.type === 'submit') await doSubmitApproval();
+          else if (approveConfirm?.type === 'approve') await doApprove();
+          else await doReject();
+          setApproveConfirm(null);
+        }}
+        onCancel={() => setApproveConfirm(null)}
+        okText="确认"
+        cancelText="取消"
+      >
+        {approveConfirm?.type === 'submit' && <div>是否确认提交本月考勤管理的审批？提交后当月考勤将冻结，等待审批人处理。</div>}
+        {approveConfirm?.type === 'approve' && <div>是否确认通过？通过后当月考勤将冻结，仅可查看。</div>}
+        {approveConfirm?.type === 'reject' && <div>是否确认退回？退回后当月考勤恢复为可修改状态。</div>}
+      </Modal>
     </div>
   );
 };
