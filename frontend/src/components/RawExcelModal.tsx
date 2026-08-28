@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Button, Upload, Space, Table, message, Empty, Typography } from 'antd';
-import { UploadOutlined, DownloadOutlined, FileExcelOutlined, ReloadOutlined } from '@ant-design/icons';
-import * as XLSX from 'xlsx';
-import { uploadRawExcel, listRawExcel, getRawExcelUrl, type RawModule } from '../utils/rawExcel';
+import { Modal, Button, Upload, Space, Table, message, Empty, Typography, Input } from 'antd';
+import { UploadOutlined, DownloadOutlined, ReloadOutlined } from '@ant-design/icons';
+import { uploadRawExcel, listRawExcel, downloadRawExcel, type RawModule } from '../utils/rawExcel';
 import { canSubmit } from '../utils/permissions';
 import { useStore } from '../stores/appStore';
 
@@ -15,36 +14,8 @@ interface RawExcelModalProps {
 
 interface RowDef {
   key: string;
-  name: string;
-}
-
-/** 用 xlsx 解析文件内容，取第一个 sheet 前 50 行 */
-function parsePreview(file: File): Promise<{ columns: any[]; rows: { key: number; cells: any[] }[] }> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const wb = XLSX.read(e.target?.result, { type: 'binary' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
-        const head = (rows[0] as any[]) || [];
-        const dataRows = rows.slice(1, 51).map((r: any, i: number) => ({ key: i, cells: (r as any[]) || [] }));
-        const columns = head.map((h: any, i: number) => ({
-          title: String(h !== undefined && h !== null ? h : `列${i + 1}`),
-          dataIndex: 'cells',
-          key: i,
-          render: (cells: any[]) => cells?.[i] ?? '',
-          width: 120,
-          ellipsis: true,
-        }));
-        resolve({ columns, rows: dataRows });
-      } catch (err) {
-        reject(err);
-      }
-    };
-    reader.onerror = () => reject(new Error('读取失败'));
-    reader.readAsBinaryString(file);
-  });
+  name: string;   // 存储英文安全名
+  note: string;   // 中文备注
 }
 
 const RawExcelModal: React.FC<RawExcelModalProps> = ({ open, module, moduleLabel, onClose }) => {
@@ -52,141 +23,116 @@ const RawExcelModal: React.FC<RawExcelModalProps> = ({ open, module, moduleLabel
   const [fileList, setFileList] = useState<RowDef[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  // 预览状态
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewTitle, setPreviewTitle] = useState('');
-  const [previewColumns, setPreviewColumns] = useState<any[]>([]);
-  const [previewRows, setPreviewRows] = useState<any[]>([]);
+  // 上传时填写的备注
+  const [note, setNote] = useState('');
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
-  const canUpload = canSubmit(module); // 仅人事专员可上传（管理员不参与）
+  const canUpload = canSubmit(module); // 仅人事专员可上传
 
   const loadList = async () => {
     setLoading(true);
     try {
       const lst = await listRawExcel(module, period);
-      setFileList(lst.map(f => ({ key: f.id || f.name, name: f.name })));
+      setFileList(lst.map(f => ({ key: f.id || f.name, name: f.name, note: f.note || '' })));
     } catch {
       setFileList([]);
     }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { if (open) { loadList(); } }, [open, period, module]);
+  useEffect(() => { if (open) { loadList(); setNote(''); setPendingFile(null); } }, [open, period, module]);
 
-  const handleUpload = async (file: File) => {
-    if (!canUpload) { message.warning('仅人事专员可上传原始表格'); return false; }
+  // 用户选择文件后，暂存并等待填写备注
+  const handleSelectFile = (file: File) => {
+    setPendingFile(file);
+    return false; // 阻止默认上传
+  };
+
+  // 确认上传：备注必填
+  const handleUpload = async () => {
+    if (!pendingFile) { message.warning('请先选择文件'); return; }
+    if (!note.trim()) { message.warning('请填写备注'); return; }
     setUploading(true);
     try {
-      await uploadRawExcel(module, period, file.name, file);
+      await uploadRawExcel(module, period, pendingFile.name, note.trim(), pendingFile);
       message.success('上传成功');
+      setPendingFile(null);
+      setNote('');
       await loadList();
     } catch (e: any) {
       message.error(e?.message || '上传失败');
     } finally {
       setUploading(false);
     }
-    return false; // 阻止 antd 默认上传
   };
 
-  // 下载（浏览器直接下载）
-  const handleDownload = (name: string) => {
-    const url = getRawExcelUrl(module, period, name);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = name;
-    a.target = '_blank';
-    a.click();
-  };
-
-  // 预览：下载文件并用 xlsx 解析成表格
-  const handlePreview = async (name: string) => {
+  // 下载（用备注作为文件名）
+  const handleDownload = async (r: RowDef) => {
     try {
-      setPreviewTitle(name);
-      const url = getRawExcelUrl(module, period, name);
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('文件获取失败');
-      const blob = await res.blob();
-      const file = new File([blob], name, { type: blob.type });
-      const { columns, rows } = await parsePreview(file);
-      setPreviewColumns(columns);
-      setPreviewRows(rows);
-      setPreviewOpen(true);
+      await downloadRawExcel(module, period, r.name, r.note);
     } catch (e: any) {
-      message.error(e?.message || '预览失败');
+      message.error(e?.message || '下载失败');
     }
   };
 
   return (
-    <>
-      <Modal
-        title={`${moduleLabel} · 原始表格（${period}）`}
-        open={open}
-        onCancel={onClose}
-        footer={null}
-        width={760}
-      >
-        <Space style={{ marginBottom: 12 }}>
-          {canUpload && (
-            <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(f) => { handleUpload(f); return false; }}>
-              <Button type="primary" icon={<UploadOutlined />} loading={uploading}>上传原始表格</Button>
-            </Upload>
-          )}
-          <Button icon={<ReloadOutlined />} onClick={loadList} loading={loading}>刷新</Button>
-          {!canUpload && <Typography.Text type="secondary">上传仅限人事专员，你可下载/预览</Typography.Text>}
-        </Space>
-
-        {fileList.length === 0 ? (
-          <Empty description={`${period} 暂无原始表格文件`} />
-        ) : (
-          <Table
-            size="small"
-            rowKey="key"
-            columns={[
-              { title: '文件名', dataIndex: 'name', key: 'name', ellipsis: true },
-              {
-                title: '操作', key: 'act', width: 160,
-                render: (_: any, r: RowDef) => (
-                  <Space size={4}>
-                    <Button size="small" icon={<FileExcelOutlined />} onClick={() => handlePreview(r.name)}>预览</Button>
-                    <Button size="small" icon={<DownloadOutlined />} onClick={() => handleDownload(r.name)}>下载</Button>
-                  </Space>
-                ),
-              },
-            ]}
-            dataSource={fileList}
-            loading={loading}
-            pagination={false}
+    <Modal
+      title={`${moduleLabel} · 原始表格（${period}）`}
+      open={open}
+      onCancel={onClose}
+      footer={null}
+      width={700}
+    >
+      {canUpload && (
+        <Space style={{ marginBottom: 12 }} wrap>
+          <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={handleSelectFile}>
+            <Button type="primary" icon={<UploadOutlined />}>选择文件</Button>
+          </Upload>
+          <Input
+            placeholder="填写备注，如：6月考勤表"
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            style={{ width: 220 }}
+            maxLength={50}
           />
-        )}
-      </Modal>
+          <Button
+            type="primary"
+            onClick={handleUpload}
+            loading={uploading}
+            disabled={!pendingFile || !note.trim()}
+          >
+            上传
+          </Button>
+          {pendingFile && <Typography.Text type="secondary">{pendingFile.name}</Typography.Text>}
+        </Space>
+      )}
 
-      {/* 预览弹窗 */}
-      <Modal
-        title={`预览 · ${previewTitle}`}
-        open={previewOpen}
-        onCancel={() => setPreviewOpen(false)}
-        footer={null}
-        width={900}
-      >
-        {previewRows.length === 0 ? (
-          <Empty description="表格内容为空" />
-        ) : (
-          <div style={{ maxHeight: 520, overflow: 'auto' }}>
-            <Table
-              size="small"
-              rowKey="key"
-              columns={previewColumns}
-              dataSource={previewRows}
-              pagination={false}
-              scroll={{ x: true }}
-            />
-          </div>
-        )}
-        <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-          预览最多展示前 50 行，完整数据请下载后用 Excel 打开。
-        </Typography.Text>
-      </Modal>
-    </>
+      <Space style={{ marginBottom: 12 }}>
+        <Button icon={<ReloadOutlined />} onClick={loadList} loading={loading}>刷新</Button>
+        {!canUpload && <Typography.Text type="secondary">上传仅限人事专员，你可下载</Typography.Text>}
+      </Space>
+
+      {fileList.length === 0 ? (
+        <Empty description={`${period} 暂无原始表格文件`} />
+      ) : (
+        <Table
+          size="small"
+          rowKey="key"
+          columns={[
+            { title: '备注', dataIndex: 'note', key: 'note', ellipsis: true, render: (v: string) => v || '—' },
+            {
+              title: '操作', key: 'act', width: 100,
+              render: (_: any, r: RowDef) => (
+                <Button size="small" icon={<DownloadOutlined />} onClick={() => handleDownload(r)}>下载</Button>
+              ),
+            },
+          ]}
+          dataSource={fileList}
+          loading={loading}
+          pagination={false}
+        />
+      )}
+    </Modal>
   );
 };
 
