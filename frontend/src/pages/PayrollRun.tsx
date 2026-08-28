@@ -623,7 +623,7 @@ const PayrollPage: React.FC = () => {
           <Button icon={<DownloadOutlined />} onClick={handleExport}>导出工资报表</Button>
           <Button icon={<DownloadOutlined />} onClick={handleExportPayslip}>导出工资条</Button>
           <Button type="primary" onClick={handleSaveResult}>保存计算结果</Button>
-          <Button icon={<FileExcelOutlined />} onClick={() => setRawModalOpen(true)}>原始表格</Button>
+          <Button type="primary" icon={<FileExcelOutlined />} onClick={() => setRawModalOpen(true)}>原始表格</Button>
           {isOperator && (
             <Button type="primary" icon={<SendOutlined />} disabled={!payrollGatePass || payrollSubmitted || payrollLocked} onClick={() => {
               if (!rosterLocked) { message.warning('请先完成花名册的审批'); return; }

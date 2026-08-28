@@ -785,7 +785,7 @@ const AttendancePage: React.FC = () => {
           </Dropdown>
           <Button icon={<SettingOutlined />} onClick={() => setColSettingOpen(true)}>列设置</Button>
           <Button icon={<SettingOutlined />} onClick={() => navigate('/attendance/rules')}>规则配置</Button>
-          <Button icon={<FileExcelOutlined />} onClick={() => setRawModalOpen(true)}>原始表格</Button>
+          <Button type="primary" icon={<FileExcelOutlined />} onClick={() => setRawModalOpen(true)}>原始表格</Button>
           <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
             <Button icon={<UploadOutlined />}>导入考勤</Button>
           </Upload>
