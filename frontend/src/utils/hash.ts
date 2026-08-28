@@ -10,6 +10,12 @@ function normalizeDate(d: any): string {
   // 匹配 YYYY-MM-DD（可能带时间）
   const m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
   if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  // 匹配 YYYY/M/D 斜杠格式（Excel raw:false 会读出 2026/6/1，无补零）
+  const slash = s.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})/);
+  if (slash) return `${slash[1]}-${String(slash[2]).padStart(2, '0')}-${String(slash[3]).padStart(2, '0')}`;
+  // 匹配 YYYY-M-D 无补零横杠
+  const shortDash = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (shortDash) return `${shortDash[1]}-${String(shortDash[2]).padStart(2, '0')}-${String(shortDash[3]).padStart(2, '0')}`;
   // 匹配 Excel 日期序列号（纯数字，如 44927）
   if (/^\d{5}$/.test(s)) {
     const date = new Date(Date.UTC(1899, 11, 30) + parseInt(s, 10) * 86400000);
