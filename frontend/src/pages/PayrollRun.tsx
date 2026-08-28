@@ -76,6 +76,7 @@ const PayrollPage: React.FC = () => {
   const [rosterLocked, setRosterLocked] = useState(false);
   const [attendanceLocked, setAttendanceLocked] = useState(false);
   const [payrollSubmitted, setPayrollSubmitted] = useState(false);
+  const [payrollLocked, setPayrollLocked] = useState(false);
   // 薪资审批通过后询问是否下载 summary PDF 的弹窗
   const [summaryModal, setSummaryModal] = useState(false);
   // 原始表格弹窗
@@ -310,6 +311,7 @@ const PayrollPage: React.FC = () => {
       setRosterLocked(gateStatus.rosterLocked);
       setAttendanceLocked(gateStatus.attendanceLocked);
       setPayrollSubmitted(gateStatus.payrollSubmitted);
+      setPayrollLocked(gateStatus.payrollLocked);
     } catch { message.error('加载薪资数据失败'); }
     finally { setLoading(false); }
   };
@@ -623,7 +625,7 @@ const PayrollPage: React.FC = () => {
           <Button type="primary" onClick={handleSaveResult}>保存计算结果</Button>
           <Button icon={<FileExcelOutlined />} onClick={() => setRawModalOpen(true)}>原始表格</Button>
           {isOperator && (
-            <Button type="primary" icon={<SendOutlined />} disabled={!payrollGatePass || payrollSubmitted} onClick={() => {
+            <Button type="primary" icon={<SendOutlined />} disabled={!payrollGatePass || payrollSubmitted || payrollLocked} onClick={() => {
               if (!rosterLocked) { message.warning('请先完成花名册的审批'); return; }
               if (!attendanceLocked) { message.warning('请先完成考勤的审批'); return; }
               handleSubmit();
