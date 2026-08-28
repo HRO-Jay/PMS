@@ -38,6 +38,7 @@ const EXPORT_DEF: ExportDef = {
     { key: 'position', label: '职位' },
     { key: 'attendance_type', label: '考勤制' },
     { key: 'entry_date', label: '入职日期' },
+    { key: 'seniority_start_date', label: '工龄起算日' },
     // 考勤业务字段
     { key: 'basic_salary', label: '基本工资' },
     { key: 'attendance_wage', label: '考勤工资' },
@@ -155,6 +156,7 @@ const AttendancePage: React.FC = () => {
               id: undefined,
               pay_days: undefined,
               is_attendance: '是',
+              seniority_start_date: undefined,
               sick_days: 0, personal_days: 0, annual_leave: 0, compensatory_leave: 0,
               absenteeism_days: 0, funeral_leave: 0, parental_leave: 0, marriage_leave: 0,
               maternity_leave: 0, regular_overtime_days: 0, weekend_overtime_days: 0,
@@ -220,6 +222,7 @@ const AttendancePage: React.FC = () => {
   const calcRecord = (r: any, rules: AttendanceRules = attRules) => {
     const result = calcAttendance({
       entry_date: r.entry_date,
+      seniority_start_date: r.seniority_start_date,
       period,
       attendance_wage: r.attendance_wage,
       pay_days: r.pay_days,
@@ -388,6 +391,7 @@ const AttendancePage: React.FC = () => {
         holiday_fixed_amount: addForm.holiday_fixed_amount,
         actual_attendance_days: addForm.actual_attendance_days,
         transfer_date: addForm.transfer_date,
+        seniority_start_date: addForm.seniority_start_date,
         is_continuous_sick: addForm.is_continuous_sick,
         continuous_sick_start: addForm.continuous_sick_start,
         continuous_sick_end: addForm.continuous_sick_end,
@@ -433,6 +437,7 @@ const AttendancePage: React.FC = () => {
       { key: 'position', label: '职位' },
       { key: 'attendance_type', label: '考勤制' },
       { key: 'entry_date', label: '入职日期' },
+      { key: 'seniority_start_date', label: '工龄起算日' },
       { key: 'basic_salary', label: '基本工资' },
       { key: 'attendance_wage', label: '考勤工资' },
       { key: 'pay_days', label: '计薪天数' },
@@ -540,6 +545,7 @@ const AttendancePage: React.FC = () => {
           normalized.continuous_sick_start = row.continuous_sick_start || null;
           normalized.continuous_sick_end = row.continuous_sick_end || null;
           normalized.transfer_date = row.transfer_date || null;
+          normalized.seniority_start_date = row.seniority_start_date || null; // 工龄起算日
           normalized.remark = row.remark || null;
           // 调整类型（文本）
           normalized.adjust_type = row.adjust_type || null;
@@ -548,6 +554,7 @@ const AttendancePage: React.FC = () => {
           const emp = Object.values(employees).find((x: any) => x.unique_hash === row.unique_hash);
           const calc = calcAttendance({
             entry_date: emp?.entry_date,
+            seniority_start_date: row.seniority_start_date || emp?.seniority_start_date,
             period,
             attendance_wage: normalized.attendance_wage,
             pay_days: normalized.pay_days ?? pd,
@@ -601,6 +608,7 @@ const AttendancePage: React.FC = () => {
             holiday_fixed_amount: normalized.holiday_fixed_amount,
             actual_attendance_days: normalized.actual_attendance_days,
             transfer_date: normalized.transfer_date,
+            seniority_start_date: normalized.seniority_start_date,
             remark: normalized.remark,
             sick_pay_rate: calc.sick_pay_rate,
             sick_amount: calc.sick_amount,
@@ -733,6 +741,7 @@ const AttendancePage: React.FC = () => {
     { title: withSource('是否参与考勤', '导入'), dataIndex: 'is_attendance', key: 'ia', width: 90,
       render: (v: string) => <Tag color={v === '否' ? 'red' : 'green'}>{v || '是'}</Tag> },
     { title: withSource('计薪天数', '导入'), dataIndex: 'pay_days', key: 'pd', width: 90, render: (v: any) => v || '—' },
+    { title: withSource('工龄起算日', '导入'), dataIndex: 'seniority_start_date', key: 'ssd', width: 110, render: (v: any) => v || '—' },
     { title: withSource('病假(天)', '导入'), dataIndex: 'sick_days', key: 'sd', width: 80, render: (v: any) => v ? v : '—' },
     { title: withSource('病假金额', '系统计算'), dataIndex: 'sick_amount', key: 'sa', width: 90, render: (v: number) => <span style={{ color: v < 0 ? '#e74c3c' : undefined }}>{fmtMoney(v)}</span> },
     { title: withSource('事假(天)', '导入'), dataIndex: 'personal_days', key: 'pd2', width: 80, render: (v: any) => v ? v : '—' },
@@ -976,6 +985,10 @@ const AttendancePage: React.FC = () => {
             <Form.Item label="计薪天数" required>
               <Select style={{ width: 160 }} value={addForm.pay_days} onChange={(v) => setAddForm({ ...addForm, pay_days: v })}
                 options={(attRules.pay_days_options.length ? attRules.pay_days_options : [21.75, 26, 30]).map((d: number) => ({ value: d, label: String(d) }))} />
+            </Form.Item>
+            <Form.Item label="工龄起算日">
+              <DatePicker style={{ width: 160 }} value={addForm.seniority_start_date ? dayjs(addForm.seniority_start_date) : undefined}
+                onChange={(d) => setAddForm({ ...addForm, seniority_start_date: d ? d.format('YYYY-MM-DD') : undefined })} />
             </Form.Item>
           </Space>
           <Space style={{ width: '100%' }} size="large">

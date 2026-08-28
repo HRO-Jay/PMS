@@ -172,6 +172,7 @@ export function calcSickPayRate(
 
 export interface AttendanceInput {
   entry_date?: string;
+  seniority_start_date?: string; // 工龄起算日（集团内换公司不重置工龄，填最初入职时间）
   period: string;
   attendance_wage?: number;     // 考勤工资（导入，作为计薪基数）
   pay_days?: number;            // 计薪天数（由规则 pay_days_options 校验）
@@ -235,7 +236,9 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
   const payDays = Number(input.pay_days || 21.75);
   // 日薪：不做四舍五入，保留所有小数参与计算；显示时才取两位
   const dailyWage = payDays > 0 ? wage / payDays : 0;
-  const seniorityYears = calcSeniorityYears(input.entry_date || '', input.period);
+  // 工龄起算日优先（集团内换公司不重置工龄），否则用入职日期
+  const seniorityBase = input.seniority_start_date || input.entry_date || '';
+  const seniorityYears = calcSeniorityYears(seniorityBase, input.period);
 
   // 病假
   const sickDays = Number(input.sick_days || 0);
@@ -243,18 +246,18 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
     ? calcContinuousSickDays(input.continuous_sick_start || '', input.continuous_sick_end || '')
     : 0;
   const sickPayRate = calcSickPayRate(
-    input.entry_date || '', input.period, !!input.is_continuous_sick, continuousDays, rules
+    seniorityBase, input.period, !!input.is_continuous_sick, continuousDays, rules
   );
   const sickDeductRate = round2(1 - sickPayRate);
-  const sickAmount = round2(dailyWage * sickDays * sickDeductRate);
+  const sickAmount = dailyWage * sickDays * sickDeductRate;   // 全精度，显示时四舍五入
 
   // 事假（日薪×天数，扣款为负）
   const personalDays = Number(input.personal_days || 0);
-  const personalAmount = round2(dailyWage * personalDays);
+  const personalAmount = dailyWage * personalDays;             // 全精度
 
   // 旷工（日薪×天数×100%，扣款为负）
   const absenteeismDays = Number(input.absenteeism_days || 0);
-  const absenteeismAmount = round2(dailyWage * absenteeismDays * 1.0);
+  const absenteeismAmount = dailyWage * absenteeismDays * 1.0; // 全精度
 
   // 加班（三类按天：平时1倍 / 周末2倍 / 节假日3倍；保安法定2倍；延时按小时 × 时薪）
   const regularDays = Number(input.regular_overtime_days || 0);
@@ -271,9 +274,9 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
 
   // 加班金额 = [平时(天)×1 + 周末(天)×2 + 节假日(天)×3 + 保安法定(天)×2] × 日薪 + 延时(小时)×时薪
   // 平时加班金额
-  let regularAmount = round2(regularDays * dailyWage * regularRate);
+  let regularAmount = regularDays * dailyWage * regularRate;   // 全精度
   // 周末加班金额
-  let weekendAmount = round2(weekendDays * dailyWage * weekendRate);
+  let weekendAmount = weekendDays * dailyWage * weekendRate;   // 全精度
   // 节假日加班金额：
   // - 保洁（不含保洁主管）：节假日加班(天) × 法定节假日固定金额
   // - 其他人：节假日加班(天) × 日薪 × 3倍
@@ -281,55 +284,53 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
   if (holidayDays > 0) {
     if (isCleaner(input.position)) {
       const fixed = Number(input.holiday_fixed_amount || 0);
-      holidayAmount = round2(holidayDays * fixed);
+      holidayAmount = holidayDays * fixed;                      // 全精度
     } else {
-      holidayAmount = round2(holidayDays * dailyWage * holidayRate);
+      holidayAmount = holidayDays * dailyWage * holidayRate;    // 全精度
     }
   }
   // 保安法定加班金额 = 保安法定加班(天) × 2 × 日薪
-  const guardAmount = round2(guardDays * dailyWage * guardRate);
+  const guardAmount = guardDays * dailyWage * guardRate;        // 全精度
   // 延时加班金额 = 延时加班小时 × 时薪
-  const delayedAmount = round2(overtimeHours * hourlyRate);
+  const delayedAmount = overtimeHours * hourlyRate;             // 全精度
 
   // 加班金额合计
-  const overtimeAmount = round2(regularAmount + weekendAmount + holidayAmount + guardAmount + delayedAmount);
+  const overtimeAmount = regularAmount + weekendAmount + holidayAmount + guardAmount + delayedAmount;  // 全精度
 
   // 入离职调整（月中入职/离职：折算工资 - 整月工资，通常为负）
   let onOffAdjust = 0;
   const actualDays = Number(input.actual_attendance_days || 0);
   const hasOnOff = actualDays > 0 && actualDays < payDays;
   if (hasOnOff) {
-    const prorated = round2(dailyWage * actualDays);
-    onOffAdjust = round2(prorated - wage);
+    const prorated = dailyWage * actualDays;                    // 全精度
+    onOffAdjust = prorated - wage;                              // 全精度
   }
 
   // 调整金额
   const adjustAmount = Number(input.adjust_amount || 0);
 
-  // 扣款字段存负数，增发字段存正数，合计 = 直接相加
+  // 扣款字段存负数，增发字段存正数，合计 = 直接相加（全精度）
   const sickAmountSigned = -sickAmount;
   const personalAmountSigned = -personalAmount;
   const absenteeismAmountSigned = -absenteeismAmount;
-  const attendanceAdjustTotal = round2(
-    sickAmountSigned + personalAmountSigned + absenteeismAmountSigned + overtimeAmount + onOffAdjust + adjustAmount
-  );
+  const attendanceAdjustTotal = sickAmountSigned + personalAmountSigned + absenteeismAmountSigned + overtimeAmount + onOffAdjust + adjustAmount;  // 全精度
 
   return {
     seniority_years: round2(seniorityYears),
     daily_wage: dailyWage,
     sick_pay_rate: sickPayRate,
     sick_deduct_rate: sickDeductRate,
-    sick_amount: sickAmountSigned,
-    personal_amount: personalAmountSigned,
-    absenteeism_amount: absenteeismAmountSigned,
-    overtime_amount: overtimeAmount,
-    regular_overtime_amount: regularAmount,
-    weekend_overtime_amount: weekendAmount,
-    holiday_overtime_amount: holidayAmount,
-    guard_overtime_amount: guardAmount,
-    delayed_overtime_amount: delayedAmount,
-    on_off_adjust: onOffAdjust,
+    sick_amount: round2(sickAmountSigned),          // 展示用，四舍五入
+    personal_amount: round2(personalAmountSigned),  // 展示用
+    absenteeism_amount: round2(absenteeismAmountSigned), // 展示用
+    overtime_amount: round2(overtimeAmount),        // 展示用
+    regular_overtime_amount: round2(regularAmount),
+    weekend_overtime_amount: round2(weekendAmount),
+    holiday_overtime_amount: round2(holidayAmount),
+    guard_overtime_amount: round2(guardAmount),
+    delayed_overtime_amount: round2(delayedAmount),
+    on_off_adjust: round2(onOffAdjust),             // 展示用
     adjust_amount: adjustAmount,
-    attendance_adjust_total: attendanceAdjustTotal,
+    attendance_adjust_total: round2(attendanceAdjustTotal), // 展示用
   };
 }
