@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Card, Button, Space, Input, Select, message, Upload } from 'antd';
+import { Table, Card, Button, Space, Input, Select, message, Upload, Typography } from 'antd';
 import { DownloadOutlined, UploadOutlined, SearchOutlined } from '@ant-design/icons';
 import api from '../api/client';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
@@ -51,6 +51,23 @@ const EXPORT_DEF: ExportDef = {
     { key: 'service_fee', label: '服务费' },
   ],
 };
+
+// 附加薪酬字段注释（展示在分页器下方）
+const FIELD_NOTES: [string, string][] = [
+  ['补贴/补公积金', '2015年10月前入职可享'],
+  ['其他补贴/调整', '自用保安加班费及岗位津贴'],
+  ['商保金额', '员工福利保险费用'],
+  ['KPI预提', '人才系专享'],
+  ['商办佣金', '商业办公渠道佣金'],
+  ['绩效', '绩效考核奖金'],
+  ['公寓佣金', '公寓渠道销售佣金'],
+  ['人才系KPI', '人才系专项考核指标-每年2、5、8、11月'],
+  ['防暑降温费', '每年6-9月发放，户外岗位专享'],
+  ['津贴', '芦智蔚、王倩、物业部值班津贴'],
+  ['保安奖金', '保安月度绩效奖金'],
+  ['保洁奖金', '保洁月度绩效奖金'],
+  ['服务费', '老龙馄饨发薪平台服务费用'],
+];
 
 const AdditionalSalaryPage: React.FC = () => {
   const { ref: scrollRef, onWheel } = useHorizontalScroll<HTMLDivElement>();
@@ -225,6 +242,19 @@ const AdditionalSalaryPage: React.FC = () => {
       <div ref={scrollRef} onWheel={onWheel}>
         <Table columns={columns} dataSource={records} loading={loading} scroll={{ x: 2200, y: 480 }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />
       </div>
+
+      {/* 字段注释（分页器下方） */}
+      <Card size="small" style={{ marginTop: 12 }}>
+        <Typography.Title level={5} style={{ marginTop: 0, marginBottom: 8 }}>字段注释</Typography.Title>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px 24px', fontSize: 13 }}>
+          {FIELD_NOTES.map(([field, note]) => (
+            <div key={field} style={{ display: 'flex', gap: 8 }}>
+              <span style={{ color: '#333', whiteSpace: 'nowrap', fontWeight: 500 }}>{field}：</span>
+              <span style={{ color: '#888' }}>{note}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
     </div>
   );
 };
