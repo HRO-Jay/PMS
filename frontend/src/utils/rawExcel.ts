@@ -156,3 +156,36 @@ export async function downloadRawExcel(
   document.body.removeChild(a);
   URL.revokeObjectURL(a.href);
 }
+
+/**
+ * 删除原始 Excel 文件及其备注。
+ * 需登录，权限由 storage RLS 控制（仅人事专员/管理员可删）。
+ */
+export async function deleteRawExcel(
+  module: RawModule,
+  period: string,
+  filename: string
+): Promise<void> {
+  const token = getToken();
+  if (!token) throw new Error('未登录，无法删除');
+  const path = objectPath(module, period, filename);
+
+  // 1. 删除 Storage 对象
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
+    method: 'DELETE',
+    headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`删除失败：${t || res.status}`);
+  }
+
+  // 2. 删除备注映射
+  try {
+    const q = `?module=eq.${module}&period=eq.${period}&object_name=eq.${encodeURIComponent(filename)}`;
+    await fetch(`${SUPABASE_URL}/rest/v1/${NOTES_TABLE}${q}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+  } catch { /* 忽略 */ }
+}

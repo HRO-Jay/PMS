@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, Button, Upload, Space, Table, message, Empty, Typography, Input } from 'antd';
-import { UploadOutlined, DownloadOutlined, ReloadOutlined } from '@ant-design/icons';
-import { uploadRawExcel, listRawExcel, downloadRawExcel, type RawModule } from '../utils/rawExcel';
+import { UploadOutlined, DownloadOutlined, ReloadOutlined, DeleteOutlined } from '@ant-design/icons';
+import { uploadRawExcel, listRawExcel, downloadRawExcel, deleteRawExcel, type RawModule } from '../utils/rawExcel';
 import { canSubmit } from '../utils/permissions';
 import { useStore } from '../stores/appStore';
 
@@ -75,6 +75,17 @@ const RawExcelModal: React.FC<RawExcelModalProps> = ({ open, module, moduleLabel
     }
   };
 
+  // 删除（仅人事专员/管理员）
+  const handleDelete = async (r: RowDef) => {
+    try {
+      await deleteRawExcel(module, period, r.name);
+      message.success('已删除');
+      await loadList();
+    } catch (e: any) {
+      message.error(e?.message || '删除失败');
+    }
+  };
+
   return (
     <Modal
       title={`${moduleLabel} · 原始表格（${period}）`}
@@ -121,9 +132,12 @@ const RawExcelModal: React.FC<RawExcelModalProps> = ({ open, module, moduleLabel
           columns={[
             { title: '备注', dataIndex: 'note', key: 'note', ellipsis: true, render: (v: string) => v || '—' },
             {
-              title: '操作', key: 'act', width: 100,
+              title: '操作', key: 'act', width: 160,
               render: (_: any, r: RowDef) => (
-                <Button size="small" icon={<DownloadOutlined />} onClick={() => handleDownload(r)}>下载</Button>
+                <Space size={4}>
+                  <Button size="small" icon={<DownloadOutlined />} onClick={() => handleDownload(r)}>下载</Button>
+                  {canUpload && <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(r)}>删除</Button>}
+                </Space>
               ),
             },
           ]}
