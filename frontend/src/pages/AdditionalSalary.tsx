@@ -9,6 +9,7 @@ import { isActiveInPeriod } from '../utils/employee';
 import { round2 } from '../utils/round';
 import { useStore } from '../stores/appStore';
 import { ensureRoster } from '../utils/roster';
+import { DataStatusTag, anyLocked } from '../components/DataStatusTag';
 
 /**
  * 附加薪酬板块
@@ -57,6 +58,7 @@ const AdditionalSalaryPage: React.FC = () => {
   const [employees, setEmployees] = useState<Record<string, any>>({});
   const period = useStore(s => s.currentPeriod);
   const [loading, setLoading] = useState(false);
+  const [locked, setLocked] = useState(false);
 
   // 筛选
   const [fPayCompany, setFPayCompany] = useState<string>();
@@ -124,6 +126,7 @@ const AdditionalSalaryPage: React.FC = () => {
       if (keyword) merged = merged.filter((r: any) => (r.employee_name || '').includes(keyword));
 
       setRecords(merged);
+      setLocked(anyLocked(recRes.data));
     } catch { message.error('加载附加薪酬数据失败'); }
     finally { setLoading(false); }
   };
@@ -192,6 +195,7 @@ const AdditionalSalaryPage: React.FC = () => {
     { title: withSource('绩效&佣金合计', '系统计算'), dataIndex: 'perf_comm_total', key: 'pct', width: 120, fixed: 'right', render: fmtMoney },
     { title: withSource('附加薪酬合计', '系统计算'), dataIndex: 'additional_total', key: 'at', width: 120, fixed: 'right',
       render: (v: any) => <strong>{fmtMoney(v)}</strong> },
+    { title: withSource('数据状态', '系统计算'), dataIndex: 'data_status', key: 'ds', width: 110, render: (v: string) => <DataStatusTag status={v} /> },
   ];
 
   return (
@@ -199,8 +203,11 @@ const AdditionalSalaryPage: React.FC = () => {
       <Card size="small" style={{ marginBottom: 12 }}>
         <Space wrap>
           <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
-          <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
-            <Button icon={<UploadOutlined />}>导入</Button>
+          <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => {
+            if (locked) { message.warning('该月已冻结，不能导入'); return false; }
+            handleImport(file); return false;
+          }}>
+            <Button icon={<UploadOutlined />} disabled={locked}>导入</Button>
           </Upload>
         </Space>
       </Card>

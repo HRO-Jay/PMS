@@ -9,6 +9,7 @@ import { isActiveInPeriod } from '../../utils/employee';
 import { round2 } from '../../utils/round';
 import { useStore } from '../../stores/appStore';
 import { ensureRoster } from '../../utils/roster';
+import { DataStatusTag, anyLocked } from '../../components/DataStatusTag';
 
 /**
  * 个税扣缴 — Tab 3：月度计算（累计预扣法）
@@ -55,6 +56,7 @@ const TaxMonthlyCalcPage: React.FC = () => {
   const [allRecords, setAllRecords] = useState<any[]>([]);
   const period = useStore(s => s.currentPeriod);
   const [loading, setLoading] = useState(false);
+  const [locked, setLocked] = useState(false);
   const [fKeyword, setFKeyword] = useState('');
   const [fPayCompany, setFPayCompany] = useState<string>();
   const [fDepartment, setFDepartment] = useState<string>();
@@ -167,6 +169,7 @@ const TaxMonthlyCalcPage: React.FC = () => {
 
       setAllRecords(merged);
       setRecords(merged);
+      setLocked(anyLocked(calcRes.data));
     } catch { message.error('加载个税计算数据失败'); }
     finally { setLoading(false); }
   };
@@ -304,8 +307,9 @@ const TaxMonthlyCalcPage: React.FC = () => {
     { title: withSource('累计应纳税所得额', '系统计算'), dataIndex: 'cumul_taxable_income_net', key: 'ctin', width: 140, render: fmtMoney },
     { title: withSource('预扣率', '系统计算'), dataIndex: 'tax_rate', key: 'tr', width: 80, render: (v: any) => v ? `${(v * 100).toFixed(0)}%` : '—' },
     { title: withSource('速算扣除数', '系统计算'), dataIndex: 'quick_deduction', key: 'qd', width: 100, render: fmtMoney },
-    { title: withSource('当月个人所得税', '系统计算'), dataIndex: 'monthly_tax', key: 'mt', width: 130, fixed: 'right',
+    { title: withSource('当月个人所得税', '系统计算'), dataIndex: 'monthly_tax', key: 'mt', width: 130,
       render: (v: any) => <strong style={{ color: '#e74c3c' }}>{fmtMoney(v)}</strong> },
+    { title: withSource('数据状态', '系统计算'), dataIndex: 'data_status', key: 'ds', width: 110, render: (v: string) => <DataStatusTag status={v} /> },
   ];
 
   return (
@@ -316,8 +320,8 @@ const TaxMonthlyCalcPage: React.FC = () => {
           options={records.map((e: any) => ({ value: e.pay_company, label: e.pay_company })).filter((v, i, a) => a.findIndex(x => x.value === v.value) === i)} />
         <Select placeholder="部门" allowClear showSearch optionFilterProp="label" value={fDepartment} onChange={setFDepartment} style={{ width: 130 }}
           options={records.map((e: any) => ({ value: e.department, label: e.department })).filter((v, i, a) => v.value && a.findIndex(x => x.value === v.value) === i)} />
-        <Button type="primary" icon={<CalculatorOutlined />} onClick={handleCalc}>计算当月个税</Button>
-        <Button icon={<LinkOutlined />} onClick={handleSync}>同步到薪酬板块</Button>
+        <Button type="primary" icon={<CalculatorOutlined />} onClick={handleCalc} disabled={locked}>计算当月个税</Button>
+        <Button icon={<LinkOutlined />} onClick={handleSync} disabled={locked}>同步到薪酬板块</Button>
         <Button icon={<DownloadOutlined />} onClick={() => exportXlsx(EXPORT_DEF, filteredRecords, period)}>导出</Button>
       </Space>
       <Table columns={columns} dataSource={filteredRecords} loading={loading} scroll={{ x: 2000, y: 480 }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />

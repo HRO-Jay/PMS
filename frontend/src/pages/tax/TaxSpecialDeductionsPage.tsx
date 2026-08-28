@@ -6,6 +6,7 @@ import { exportXlsx, importXlsx, type ExportDef } from '../../utils/importExport
 import { withSource } from '../../components/SourceTag';
 import { useStore } from '../../stores/appStore';
 import { ensureRoster } from '../../utils/roster';
+import { DataStatusTag, anyLocked } from '../../components/DataStatusTag';
 
 /**
  * 个税扣缴 — Tab 2：专项附加扣除维护（报税系统导入，按月覆盖）
@@ -47,6 +48,7 @@ const TaxSpecialDeductionsPage: React.FC = () => {
   const [employees, setEmployees] = useState<Record<string, any>>({});
   const period = useStore(s => s.currentPeriod);
   const [loading, setLoading] = useState(false);
+  const [locked, setLocked] = useState(false);
   const [fKeyword, setFKeyword] = useState('');
   const [fPayCompany, setFPayCompany] = useState<string>();
   const [fDepartment, setFDepartment] = useState<string>();
@@ -83,6 +85,7 @@ const TaxSpecialDeductionsPage: React.FC = () => {
       });
       setAllRecords(merged);
       setRecords(merged);
+      setLocked(anyLocked(recRes.data));
     } catch { message.error('加载专项附加扣除失败'); }
     finally { setLoading(false); }
   };
@@ -156,6 +159,7 @@ const TaxSpecialDeductionsPage: React.FC = () => {
     { title: withSource('税延养老保险', '导入'), dataIndex: 'cumul_tax_defer_ins', key: 'ctdi', width: 110, render: fmtMoney },
     { title: withSource('准予扣除的捐赠额', '导入'), dataIndex: 'cumul_donation', key: 'cd', width: 130, render: fmtMoney },
     { title: withSource('减免税额', '导入'), dataIndex: 'tax_relief', key: 'tr', width: 100, render: fmtMoney },
+    { title: withSource('数据状态', '系统计算'), dataIndex: 'data_status', key: 'ds', width: 110, render: (v: string) => <DataStatusTag status={v} /> },
   ];
 
   return (
@@ -167,8 +171,11 @@ const TaxSpecialDeductionsPage: React.FC = () => {
         <Select placeholder="部门" allowClear showSearch optionFilterProp="label" value={fDepartment} onChange={setFDepartment} style={{ width: 130 }}
           options={Object.values(employees).map((e: any) => ({ value: e.department, label: e.department })).filter((v, i, a) => v.value && a.findIndex(x => x.value === v.value) === i)} />
         <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
-        <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
-          <Button icon={<UploadOutlined />}>导入</Button>
+        <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => {
+          if (locked) { message.warning('该月已冻结，不能导入'); return false; }
+          handleImport(file); return false;
+        }}>
+          <Button icon={<UploadOutlined />} disabled={locked}>导入</Button>
         </Upload>
       </Space>
       <Table columns={columns} dataSource={filteredRecords} loading={loading} scroll={{ x: 1800, y: 480 }} size="small" pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 30, 50, 100], showTotal: t => `共 ${t} 条` }} />

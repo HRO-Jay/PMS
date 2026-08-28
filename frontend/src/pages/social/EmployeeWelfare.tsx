@@ -8,6 +8,7 @@ import type { SocialWelfareSet, HousingFundSet, EmployeeWelfareRecord } from '..
 import { calcSocial, calcHousingFund } from '../../utils/welfareCalc';
 import { exportXlsx, importXlsx, type ExportDef } from '../../utils/importExport';
 import { withSource } from '../../components/SourceTag';
+import { DataStatusTag, anyLocked } from '../../components/DataStatusTag';
 import { useHorizontalScroll } from '../../utils/useHorizontalScroll';
 import { isActiveInPeriod } from '../../utils/employee';
 import { round2 } from '../../utils/round';
@@ -104,6 +105,7 @@ const EmployeeWelfare: React.FC = () => {
   const [housingSets, setHousingSets] = useState<HousingFundSet[]>([]);
   const period = useStore(s => s.currentPeriod);
   const [loading, setLoading] = useState(false);
+  const [locked, setLocked] = useState(false);
 
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
@@ -210,6 +212,7 @@ const EmployeeWelfare: React.FC = () => {
         });
 
       setRecords(merged);
+      setLocked(anyLocked(recRes.data));
     } catch { message.error('加载数据失败'); }
     finally { setLoading(false); }
   };
@@ -575,13 +578,13 @@ const EmployeeWelfare: React.FC = () => {
       render: (_: any, r: any) => <strong>{fmtMoney(Number((r.personal_social_with_adj || 0) + (r.personal_housing_with_adj || 0)).toFixed(2))}</strong> },
     { title: withSource('公司福利合计', '系统计算'), key: 'ctwa', width: 120,
       render: (_: any, r: any) => <strong>{fmtMoney(Number((r.company_social_with_adj || 0) + (r.company_housing_with_adj || 0)).toFixed(2))}</strong> },
-    { title: withSource('数据状态', '系统计算'), dataIndex: 'data_status', key: 'ds', width: 100, render: statusTag },
+    { title: withSource('数据状态', '系统计算'), dataIndex: 'data_status', key: 'ds', width: 110, render: (v: string) => <DataStatusTag status={v} /> },
     {
       title: '操作', key: 'act', width: 120, fixed: 'right',
       render: (_: any, r: any) => (
         <Space>
           <Button size="small" onClick={() => openDetail(r)}>查看</Button>
-          <Button size="small" onClick={() => openEdit(r)}>编辑</Button>
+          <Button size="small" disabled={locked} onClick={() => openEdit(r)}>编辑</Button>
         </Space>
       ),
     },
@@ -591,8 +594,8 @@ const EmployeeWelfare: React.FC = () => {
     <div>
       <Card size="small" style={{ marginBottom: 12 }}>
         <Space>
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>添加记录</Button>
-          <Button type="primary" icon={<CalculatorOutlined />} onClick={handleBatchCalc}>一键计算</Button>
+          <Button type="primary" icon={<PlusOutlined />} disabled={locked} onClick={openCreate}>添加记录</Button>
+          <Button type="primary" icon={<CalculatorOutlined />} disabled={locked} onClick={handleBatchCalc}>一键计算</Button>
           <Dropdown menu={{
             items: [
               { key: 'template', label: '导出空白模板' },
@@ -603,8 +606,11 @@ const EmployeeWelfare: React.FC = () => {
           }}>
             <Button icon={<DownloadOutlined />}>导出</Button>
           </Dropdown>
-          <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
-            <Button icon={<UploadOutlined />}>导入</Button>
+          <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => {
+            if (locked) { message.warning('该月已冻结，不能导入'); return false; }
+            handleImport(file); return false;
+          }}>
+            <Button icon={<UploadOutlined />} disabled={locked}>导入</Button>
           </Upload>
         </Space>
       </Card>
