@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Table, Card, Button, Space, Input, message, InputNumber, Upload, Popconfirm, Drawer, Tag, Descriptions, Select, DatePicker, Form, Dropdown,
 } from 'antd';
-import { SaveOutlined, DownloadOutlined, UploadOutlined, CalculatorOutlined, PlusOutlined, SettingOutlined, SendOutlined } from '@ant-design/icons';
+import { SaveOutlined, DownloadOutlined, UploadOutlined, CalculatorOutlined, PlusOutlined, SettingOutlined, SendOutlined, FileExcelOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
@@ -14,6 +14,7 @@ import { useStore } from '../stores/appStore';
 import { ensureRoster } from '../utils/roster';
 import { canSubmit, canApprove } from '../utils/permissions';
 import { fetchApprovalStatus, getAttendanceGate } from '../utils/approvalStatus';
+import RawExcelModal from '../components/RawExcelModal';
 import dayjs from 'dayjs';
 
 const defaultPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
@@ -99,6 +100,7 @@ const AttendancePage: React.FC = () => {
   const [attendanceLocked, setAttendanceLocked] = useState(false);
   const [attendanceSubmitted, setAttendanceSubmitted] = useState(false);
   const [rosterLocked, setRosterLocked] = useState(false);
+  const [rawModalOpen, setRawModalOpen] = useState(false);
 
   useEffect(() => { loadData(); }, [period, fPayCompany, fCostCenter, fDepartment, fReportTo, fAttType, fPayDays, fStatus, fAbnormal, keyword]);
 
@@ -778,6 +780,7 @@ const AttendancePage: React.FC = () => {
           </Dropdown>
           <Button icon={<SettingOutlined />} onClick={() => setColSettingOpen(true)}>列设置</Button>
           <Button icon={<SettingOutlined />} onClick={() => navigate('/attendance/rules')}>规则配置</Button>
+          <Button icon={<FileExcelOutlined />} onClick={() => setRawModalOpen(true)}>原始表格</Button>
           <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
             <Button icon={<UploadOutlined />}>导入考勤</Button>
           </Upload>
@@ -1057,6 +1060,9 @@ const AttendancePage: React.FC = () => {
           </Form.Item>
         </Form>
       </Drawer>
+
+      {/* 原始表格弹窗 */}
+      <RawExcelModal open={rawModalOpen} module="attendance" moduleLabel="考勤管理" onClose={() => setRawModalOpen(false)} />
     </div>
   );
 };

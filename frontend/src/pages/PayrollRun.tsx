@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Table, Button, Space, message, Input, Tag, Select, Modal, Input as AntInput, Drawer, Descriptions } from 'antd';
-import { DownloadOutlined, CheckCircleOutlined, RollbackOutlined, SendOutlined, SearchOutlined, SyncOutlined } from '@ant-design/icons';
+import { DownloadOutlined, CheckCircleOutlined, RollbackOutlined, SendOutlined, SearchOutlined, SyncOutlined, FileExcelOutlined } from '@ant-design/icons';
 import api from '../api/client';
 import { exportXlsx, type ExportDef } from '../utils/importExport';
 import { withSource } from '../components/SourceTag';
@@ -9,6 +9,7 @@ import { isActiveInPeriod } from '../utils/employee';
 import { calcServiceTax } from '../utils/taxCalc';
 import { round2 } from '../utils/round';
 import { exportSummaryPdf, type SummaryRow } from '../utils/pdfExport';
+import RawExcelModal from '../components/RawExcelModal';
 import { useStore } from '../stores/appStore';
 import { canSubmit, canApprove } from '../utils/permissions';
 import { fetchApprovalStatus } from '../utils/approvalStatus';
@@ -77,6 +78,8 @@ const PayrollPage: React.FC = () => {
   const [payrollSubmitted, setPayrollSubmitted] = useState(false);
   // 薪资审批通过后询问是否下载 summary PDF 的弹窗
   const [summaryModal, setSummaryModal] = useState(false);
+  // 原始表格弹窗
+  const [rawModalOpen, setRawModalOpen] = useState(false);
   // 详情抽屉
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRecord, setDetailRecord] = useState<any>(null);
@@ -612,6 +615,7 @@ const PayrollPage: React.FC = () => {
           <Button icon={<DownloadOutlined />} onClick={handleExport}>导出工资报表</Button>
           <Button icon={<DownloadOutlined />} onClick={handleExportPayslip}>导出工资条</Button>
           <Button type="primary" onClick={handleSaveResult}>保存计算结果</Button>
+          <Button icon={<FileExcelOutlined />} onClick={() => setRawModalOpen(true)}>原始表格</Button>
           {isOperator && (
             <Button type="primary" icon={<SendOutlined />} disabled={!payrollGatePass || payrollSubmitted} onClick={() => {
               if (!rosterLocked) { message.warning('请先完成花名册的审批'); return; }
@@ -707,6 +711,9 @@ const PayrollPage: React.FC = () => {
           </Descriptions>
         )}
       </Drawer>
+
+      {/* 原始表格弹窗 */}
+      <RawExcelModal open={rawModalOpen} module="payroll" moduleLabel="薪资计算" onClose={() => setRawModalOpen(false)} />
     </div>
   );
 };
