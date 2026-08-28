@@ -796,8 +796,11 @@ const AttendancePage: React.FC = () => {
           <Button icon={<SettingOutlined />} onClick={() => setColSettingOpen(true)}>列设置</Button>
           <Button icon={<SettingOutlined />} onClick={() => navigate('/attendance/rules')}>规则配置</Button>
           <Button type="primary" icon={<FileExcelOutlined />} onClick={() => setRawModalOpen(true)}>原始表格</Button>
-          <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleImport(file); return false; }}>
-            <Button icon={<UploadOutlined />}>导入考勤</Button>
+          <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => {
+            if (attendanceLocked || attendanceSubmitted) { message.warning('该月考勤已冻结/已提交审批，不能导入'); return false; }
+            handleImport(file); return false;
+          }}>
+            <Button icon={<UploadOutlined />} disabled={attendanceLocked || attendanceSubmitted}>导入考勤</Button>
           </Upload>
           {canSubmit('attendance') && !attendanceSubmitted && (
             <Button type="primary" ghost icon={<SendOutlined />}
