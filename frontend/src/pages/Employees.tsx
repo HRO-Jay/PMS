@@ -170,7 +170,8 @@ const EmployeesPage: React.FC = () => {
     }
     const values = await form.validateFields();
     const entryDateStr = values.entry_date ? values.entry_date.format('YYYY-MM-DD') : '';
-    const leaveDateStr = values.leave_date ? values.leave_date.format('YYYY-MM-DD') : undefined;
+    // 离职日期：有值填日期，清空(叉掉)则显式置 null，确保 POSTGREST 能清掉旧值
+    const leaveDateStr = values.leave_date ? values.leave_date.format('YYYY-MM-DD') : null;
 
     // 填了离职日期 → 自动设为离职
     const autoStatus = leaveDateStr ? '离职' : values.status;
@@ -297,7 +298,7 @@ const EmployeesPage: React.FC = () => {
 
           // 6. 日期归一化
           const entryDate = row.entry_date ? String(row.entry_date).slice(0, 10) : '';
-          const leaveDate = row.leave_date ? String(row.leave_date).slice(0, 10) : undefined;
+          const leaveDate = row.leave_date ? String(row.leave_date).slice(0, 10) : null;
           if (!entryDate) {
             failed++;
             failReasons.push(`${row.name || '?'}（缺入职日期）`);

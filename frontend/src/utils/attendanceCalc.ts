@@ -146,6 +146,28 @@ export function calcContinuousSickDays(start: string, end: string): number {
 }
 
 /**
+ * 判断连续病假区间是否覆盖了某个「完整月」（从该月1号到月末都在病假内）。
+ * 条件：start ≤ 该月1日 且 end ≥ 该月最后一天，两条件同时满足。
+ * @returns true 表示病假覆盖了至少一个完整月
+ */
+export function isFullMonthSick(start: string, end: string): boolean {
+  if (!start || !end) return false;
+  const s = new Date(start);
+  const e = new Date(end);
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return false;
+  // 从病假开始月起，逐个检查到结束月
+  const cursor = new Date(s.getFullYear(), s.getMonth(), 1);
+  const last = new Date(e.getFullYear(), e.getMonth(), 1);
+  while (cursor <= last) {
+    const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+    const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59); // 该月最后一天
+    if (s <= monthStart && e >= monthEnd) return true;
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return false;
+}
+
+/**
  * 病假支付系数（按本企业连续工龄分档，规则可配置）
  *
  * 两档规则：
@@ -249,7 +271,16 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
     seniorityBase, input.period, !!input.is_continuous_sick, continuousDays, rules
   );
   const sickDeductRate = round2(1 - sickPayRate);
-  const sickAmount = dailyWage * sickDays * sickDeductRate;   // 全精度，显示时四舍五入
+  // 病假金额：
+  //  - 连续病假且覆盖某个完整月（1号到月末都在病假内）→ -考勤工资 × 病假扣款系数
+  //  - 否则 → -日薪 × 天数 × 扣款系数（全精度，显示时四舍五入）
+  const coversFullMonth = !!input.is_continuous_sick && isFullMonthSick(input.continuous_sick_start || '', input.continuous_sick_end || '');
+  let sickAmount: number;
+  if (coversFullMonth) {
+    sickAmount = -wage * sickDeductRate;
+  } else {
+    sickAmount = dailyWage * sickDays * sickDeductRate;
+  }
 
   // 事假（日薪×天数，扣款为负）
   const personalDays = Number(input.personal_days || 0);
