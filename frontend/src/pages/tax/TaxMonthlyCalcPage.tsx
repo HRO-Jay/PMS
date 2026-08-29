@@ -220,8 +220,21 @@ const TaxMonthlyCalcPage: React.FC = () => {
         const cumulTaxPaid = isFirstMonth
           ? Number(opening.cumul_tax_paid || 0)
           : Number(prev.cumul_tax_paid || 0) + Number(prev.monthly_tax || 0);
-        // 累计减除费用 = 5000 × 已任职月份数
-        const employedMonths = Number(r.employed_months || monthNum);
+        // 累计减除费用：按个税年度（每年1月起）计，不跨年
+        //  - 当年之前入职：累计 = 统计月 × 5000
+        //  - 当年入职：    累计 = (统计月 - 入职月 + 1) × 5000
+        const statYear = parseInt(period.split('-')[0]);
+        let employedMonths = monthNum;
+        const entryDateStr = String(r.entry_date || '');
+        if (entryDateStr) {
+          const entryYear = parseInt(entryDateStr.slice(0, 4));
+          const entryMonth = parseInt(entryDateStr.slice(5, 7));
+          if (!isNaN(entryYear) && !isNaN(entryMonth) && entryYear === statYear) {
+            // 当年入职
+            employedMonths = Math.max(1, monthNum - entryMonth + 1);
+          }
+          // 当年之前入职 = 统计月（已默认）
+        }
         const cumulBasicDeduction = 5000 * employedMonths;
 
         const result = calcIncomeTax({

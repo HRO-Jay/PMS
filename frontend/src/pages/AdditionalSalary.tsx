@@ -100,6 +100,8 @@ const AdditionalSalaryPage: React.FC = () => {
 
       const recMap: Record<string, any> = {};
       recRes.data.forEach((r: any) => { recMap[r.unique_hash] = r; });
+      // 该月是否冻结（提前算，用于给每行设数据状态）
+      const monthLocked = anyLocked(recRes.data);
 
       let merged = empList
         .filter((e: any) => isActiveInPeriod(e, period) || recMap[e.unique_hash])
@@ -133,6 +135,8 @@ const AdditionalSalaryPage: React.FC = () => {
             attendance_type: e.attendance_type || '',
             additional_total: additionalTotal,
             perf_comm_total: perfCommTotal,
+            // 数据状态：冻结=已锁定，有记录=正常，无=未录入
+            data_status: monthLocked ? '已锁定' : (r ? '正常' : '未录入'),
           };
         });
 
@@ -143,7 +147,7 @@ const AdditionalSalaryPage: React.FC = () => {
       if (keyword) merged = merged.filter((r: any) => (r.employee_name || '').includes(keyword));
 
       setRecords(merged);
-      setLocked(anyLocked(recRes.data));
+      setLocked(monthLocked);
     } catch { message.error('加载附加薪酬数据失败'); }
     finally { setLoading(false); }
   };
