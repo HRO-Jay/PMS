@@ -57,6 +57,8 @@ const TaxMonthlyCalcPage: React.FC = () => {
   const period = useStore(s => s.currentPeriod);
   const [loading, setLoading] = useState(false);
   const [locked, setLocked] = useState(false);
+  // 历史各月本期数（用于从1月逐月累加累计数）
+  const [historyMap, setHistoryMap] = useState<Record<string, any[]>>({});
   const [fKeyword, setFKeyword] = useState('');
   const [fPayCompany, setFPayCompany] = useState<string>();
   const [fDepartment, setFDepartment] = useState<string>();
@@ -68,13 +70,16 @@ const TaxMonthlyCalcPage: React.FC = () => {
     try {
       await ensureRoster(period);
       // 并行加载：员工、期初累计数、专项附加、上月专项附加、上月计算、当月计算、社保个人福利、考勤调整、附加薪酬
-      const [empRes, openingRes, specialRes, prevSpecialRes, prevCalcRes, calcRes, welfareRes, attRes, addRes] = await Promise.all([
+      // 说明：累计数改为「从1月到当前月逐月累加本期数」，因此额外拉取1月~当前月所有 tax_monthly_calcs
+      const periodsFromJan = monthsFromJan(period);
+      const [empRes, openingRes, specialRes, prevSpecialRes, prevCalcRes, calcRes, historyCalcRes, welfareRes, attRes, addRes] = await Promise.all([
         api.get(`/employees?select=unique_hash,name,status,pay_company,cost_center,department,report_to,position,entry_date,leave_date,attendance_type,basic_salary&tax_method=eq.normal&period=eq.${period}`),
         api.get('/tax_opening_balances?select=*'),
         api.get(`/tax_special_deductions?select=*&period=eq.${period}`),
         api.get(`/tax_special_deductions?select=*&period=eq.${prevPeriod(period)}`),
         api.get(`/tax_monthly_calcs?select=*&period=eq.${prevPeriod(period)}`),
         api.get(`/tax_monthly_calcs?select=*&period=eq.${period}`),
+        api.get(`/tax_monthly_calcs?select=*&period=in.(${periodsFromJan.join(',')})`),
         api.get(`/employee_welfare_records?select=unique_hash,personal_total,personal_social_adj,personal_housing_adj,effective_month&period=eq.${period}`),
         api.get(`/attendance_records?select=unique_hash,attendance_adjust_total&period=eq.${period}`),
         api.get(`/additional_salary_records?select=*&period=eq.${period}`),
@@ -91,6 +96,19 @@ const TaxMonthlyCalcPage: React.FC = () => {
       prevCalcRes.data.forEach((r: any) => { prevMap[r.unique_hash] = r; });
       const calcMap: Record<string, any> = {};
       calcRes.data.forEach((r: any) => { calcMap[r.unique_hash] = r; });
+      // 历史各月本期数（用于从1月逐月累加累计数）
+      // historyMap[unique_hash] = [ {period, current_taxable_income, current_five_insurance, monthly_tax}, ... ]
+      const newHistoryMap: Record<string, any[]> = {};
+      (historyCalcRes.data || []).forEach((r: any) => {
+        if (!newHistoryMap[r.unique_hash]) newHistoryMap[r.unique_hash] = [];
+        newHistoryMap[r.unique_hash].push({
+          period: r.period,
+          current_taxable_income: Number(r.current_taxable_income || 0),
+          current_five_insurance: Number(r.current_five_insurance || 0),
+          monthly_tax: Number(r.monthly_tax || 0),
+        });
+      });
+      setHistoryMap(newHistoryMap);
       const welfareMap: Record<string, any> = {};
       welfareRes.data.forEach((r: any) => { welfareMap[r.unique_hash] = r; });
       const attMap: Record<string, any> = {};
@@ -138,6 +156,35 @@ const TaxMonthlyCalcPage: React.FC = () => {
           // 本期减免税额 = 本月累计减免 - 上月累计减免
           const currentTaxRelief = Math.max(0, round2((special.tax_relief || 0) - (prevSpecial.tax_relief || 0)));
 
+          // ===== 累计数：从1月到当前月逐月累加本期数（1-5月无记录则按0，期初累计数板块不参与） =====
+          const curPeriod = period;
+          const hist = (historyMap[e.unique_hash] || []).filter((x: any) => x.period <= curPeriod);
+          // 累计应税收入 = 1月~当前月 current_taxable_income 之和
+          const cumulTaxableIncome = hist.reduce((s: number, x: any) => s + (x.current_taxable_income || 0), 0);
+          // 累计五险一金 = 1月~当前月 current_five_insurance 之和
+          const cumulFiveInsurance = hist.reduce((s: number, x: any) => s + (x.current_five_insurance || 0), 0);
+          // 累计已缴税 = 1月~当前月（不含当月）monthly_tax 之和
+          const cumulTaxPaid = hist.filter((x: any) => x.period < curPeriod).reduce((s: number, x: any) => s + (x.monthly_tax || 0), 0);
+          // 累计专项附加 = 报税系统累计值（不逐月累加）
+          const cumulSpecialDeduct = specialTotal;
+          // 累计其他扣除 = 报税系统累计值（不逐月累加）
+          const cumulOtherDeduct = otherTotal;
+          // 累计减免税额 = 报税系统累计值（不逐月累加）
+          const cumulTaxRelief = Number(special.tax_relief || 0);
+          // 累计减除费用：按个税年度（每年1月起）计，不跨年。当年之前入职=统计月，当年入职=(统计月-入职月+1)。
+          const statYear = parseInt(period.split('-')[0]);
+          const monthNum = parseInt(period.split('-')[1]);
+          let employedMonths = monthNum;
+          const entryDateStr = String(e.entry_date || '');
+          if (entryDateStr) {
+            const entryYear = parseInt(entryDateStr.slice(0, 4));
+            const entryMonth = parseInt(entryDateStr.slice(5, 7));
+            if (!isNaN(entryYear) && !isNaN(entryMonth) && entryYear === statYear) {
+              employedMonths = Math.max(1, monthNum - entryMonth + 1);
+            }
+          }
+          const cumulBasicDeduction = 5000 * employedMonths;
+
           return {
             key: calc.id ?? `emp-${e.unique_hash}`,
             unique_hash: e.unique_hash,
@@ -164,6 +211,13 @@ const TaxMonthlyCalcPage: React.FC = () => {
             current_special_deduct: currentSpecialDeduct,
             current_other_deduct: currentOtherDeduct,
             current_tax_relief: currentTaxRelief,
+            // 累计数也用实时计算值覆盖存库旧值（期初数更新后自动刷新）
+            cumul_taxable_income: cumulTaxableIncome,
+            cumul_five_insurance: cumulFiveInsurance,
+            cumul_special_deduct: cumulSpecialDeduct,
+            cumul_other_deduct: cumulOtherDeduct,
+            cumul_tax_relief: cumulTaxRelief,
+            cumul_basic_deduction: cumulBasicDeduction,
           };
         });
 
@@ -188,42 +242,38 @@ const TaxMonthlyCalcPage: React.FC = () => {
     return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
   }
 
+  // 生成从当年1月到当前月的所有月份列表（个税年度内）
+  function monthsFromJan(p: string): string[] {
+    const [y, m] = p.split('-').map(Number);
+    const arr: string[] = [];
+    for (let i = 1; i <= m; i++) arr.push(`${y}-${String(i).padStart(2, '0')}`);
+    return arr;
+  }
+
   // 执行当月计算
   const handleCalc = async () => {
     let success = 0;
     for (const r of records) {
       try {
-        const opening = r.opening || {};
-        const prev = r.prev || {};
-        const isFirstMonth = period === '2026-06'; // 6月首个计算月
-        const monthNum = parseInt(period.split('-')[1]);
-
-        // 累计数
-        const cumulTaxableIncome = isFirstMonth
-          ? Number(opening.cumul_income || 0) + Number(r.current_taxable_income || 0)
-          : Number(prev.cumul_taxable_income || 0) + Number(r.current_taxable_income || 0);
-        const cumulFiveInsurance = isFirstMonth
-          ? Number(opening.cumul_five_insurance || 0) + Number(r.current_five_insurance || 0)
-          : Number(prev.cumul_five_insurance || 0) + Number(r.current_five_insurance || 0);
+        // 累计数：从1月到当前月逐月累加本期数（1-5月无记录则按0）
+        const curPeriodCalc = period;
+        const hist = (historyMap[r.unique_hash] || []).filter((x: any) => x.period <= curPeriodCalc);
+        const cumulTaxableIncome = hist.reduce((s: number, x: any) => s + (x.current_taxable_income || 0), 0);
+        const cumulFiveInsurance = hist.reduce((s: number, x: any) => s + (x.current_five_insurance || 0), 0);
+        const cumulTaxPaid = hist.filter((x: any) => x.period < curPeriodCalc).reduce((s: number, x: any) => s + (x.monthly_tax || 0), 0);
         // 累计专项附加：直接取报税系统累计值
         const specialTotal = (r.special?.cumul_child_edu || 0) + (r.special?.cumul_continuing_edu || 0) + (r.special?.cumul_mortgage || 0) + (r.special?.cumul_rent || 0) + (r.special?.cumul_elder_care || 0) + (r.special?.cumul_infant_care || 0);
         const cumulSpecialDeduct = specialTotal;
         // 累计其他扣除：本月累计（年金+个人养老金+商业健康险+税延养老+捐赠）
         const otherTotal = (r.special?.cumul_pension || 0) + (r.special?.cumul_annuity || 0) + (r.special?.cumul_health_ins || 0) + (r.special?.cumul_tax_defer_ins || 0) + (r.special?.cumul_donation || 0);
-        const cumulOtherDeduct = isFirstMonth
-          ? Number(opening.cumul_other_deduction || 0) + Number(r.current_other_deduct || 0)
-          : otherTotal;
+        const cumulOtherDeduct = otherTotal;
         // 累计减免税额：本月累计减免
-        const cumulTaxRelief = isFirstMonth
-          ? Number(opening.cumul_tax_relief || 0) + Number(r.current_tax_relief || 0)
-          : Number(r.special?.tax_relief || 0);
-        const cumulTaxPaid = isFirstMonth
-          ? Number(opening.cumul_tax_paid || 0)
-          : Number(prev.cumul_tax_paid || 0) + Number(prev.monthly_tax || 0);
+        const cumulTaxRelief = Number(r.special?.tax_relief || 0);
         // 累计减除费用：按个税年度（每年1月起）计，不跨年
         //  - 当年之前入职：累计 = 统计月 × 5000
         //  - 当年入职：    累计 = (统计月 - 入职月 + 1) × 5000
         const statYear = parseInt(period.split('-')[0]);
+        const monthNum = parseInt(period.split('-')[1]);
         let employedMonths = monthNum;
         const entryDateStr = String(r.entry_date || '');
         if (entryDateStr) {
