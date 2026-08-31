@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Card, Button, Space, Input, Select, message, Upload, Typography } from 'antd';
+import { Table, Card, Button, Space, Input, Select, message, Upload, Typography, Progress } from 'antd';
 import { DownloadOutlined, UploadOutlined, SearchOutlined } from '@ant-design/icons';
 import api from '../api/client';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
@@ -76,6 +76,8 @@ const AdditionalSalaryPage: React.FC = () => {
   const period = useStore(s => s.currentPeriod);
   const [loading, setLoading] = useState(false);
   const [locked, setLocked] = useState(false);
+  // 导入进度
+  const [importProgress, setImportProgress] = useState<{ done: number; total: number; importing: boolean }>({ done: 0, total: 0, importing: false });
 
   // 筛选
   const [fPayCompany, setFPayCompany] = useState<string>();
@@ -162,6 +164,7 @@ const AdditionalSalaryPage: React.FC = () => {
 
       let success = 0;
       const failures: string[] = [];
+      setImportProgress({ done: 0, total: data.length, importing: true });
       for (const row of data) {
         try {
           if (!row.unique_hash) {
@@ -179,6 +182,8 @@ const AdditionalSalaryPage: React.FC = () => {
         } catch {
           failures.push(`${row.employee_name || '?'}：导入失败`);
         }
+        // 更新导入进度
+        setImportProgress((p) => ({ ...p, done: p.done + 1 }));
       }
       if (failures.length > 0) {
         message.warning(`导入完成：成功 ${success} 条，失败 ${failures.length} 条。${failures.slice(0, 8).join('；')}`);
@@ -188,6 +193,8 @@ const AdditionalSalaryPage: React.FC = () => {
       loadData();
     } catch (e: any) {
       message.error(e.message || '导入失败');
+    } finally {
+      setImportProgress({ done: 0, total: 0, importing: false });
     }
   };
 
@@ -232,6 +239,16 @@ const AdditionalSalaryPage: React.FC = () => {
           </Upload>
         </Space>
       </Card>
+
+      {/* 导入进度 */}
+      {importProgress.importing && (
+        <Card size="small" style={{ marginBottom: 12 }}>
+          <Progress percent={Math.round((importProgress.done / (importProgress.total || 1)) * 100)} status="active" />
+          <div style={{ textAlign: 'center', color: '#888', marginTop: 4 }}>
+            正在导入，已处理 {importProgress.done} / {importProgress.total} 条
+          </div>
+        </Card>
+      )}
 
       <Card size="small" style={{ marginBottom: 12 }}>
         <Space wrap>

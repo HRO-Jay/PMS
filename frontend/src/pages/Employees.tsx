@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Table, Button, Drawer, Form, Input, Select, Space, message, Tag, Card, DatePicker, Upload, Dropdown, Popconfirm, InputNumber, Modal,
+  Table, Button, Drawer, Form, Input, Select, Space, message, Tag, Card, DatePicker, Upload, Dropdown, Popconfirm, InputNumber, Modal, Progress,
 } from 'antd';
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, SendOutlined } from '@ant-design/icons';
 import type { Employee, CompanyMapping } from '../types';
@@ -68,6 +68,8 @@ const EmployeesPage: React.FC = () => {
   const period = useStore(s => s.currentPeriod);
   const [rosterLocked, setRosterLocked] = useState(false);
   const [rosterSubmitted, setRosterSubmitted] = useState(false);
+  // 导入进度
+  const [importProgress, setImportProgress] = useState<{ done: number; total: number; importing: boolean }>({ done: 0, total: 0, importing: false });
 
   // 筛选器状态
   const [fStatus, setFStatus] = useState<string>();
@@ -254,6 +256,8 @@ const EmployeesPage: React.FC = () => {
 
       let added = 0, updated = 0, dupSkipped = 0, failed = 0;
       const failReasons: string[] = [];
+      // 开始导入，显示进度
+      setImportProgress({ done: 0, total: data.length, importing: true });
 
       for (const row of data) {
         try {
@@ -347,6 +351,8 @@ const EmployeesPage: React.FC = () => {
         } catch {
           failed++;
         }
+        // 更新导入进度
+        setImportProgress((p) => ({ ...p, done: p.done + 1 }));
       }
 
       const parts: string[] = [];
@@ -358,6 +364,9 @@ const EmployeesPage: React.FC = () => {
       loadEmployees();
     } catch (e: any) {
       message.error(e.message || '导入失败');
+    } finally {
+      // 结束导入
+      setImportProgress({ done: 0, total: 0, importing: false });
     }
   };
 
@@ -484,6 +493,16 @@ const EmployeesPage: React.FC = () => {
           )}
         </Space>
       </Card>
+
+      {/* 导入进度 */}
+      {importProgress.importing && (
+        <Card size="small" style={{ marginBottom: 12 }}>
+          <Progress percent={Math.round((importProgress.done / (importProgress.total || 1)) * 100)} status="active" />
+          <div style={{ textAlign: 'center', color: '#888', marginTop: 4 }}>
+            正在导入，已处理 {importProgress.done} / {importProgress.total} 条
+          </div>
+        </Card>
+      )}
 
       {/* 筛选器 */}
       <Card size="small" style={{ marginBottom: 12 }}>

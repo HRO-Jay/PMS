@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Table, Card, Button, Space, Input, message, InputNumber, Upload, Popconfirm, Drawer, Tag, Descriptions, Select, DatePicker, Form, Dropdown, Modal,
+  Table, Card, Button, Space, Input, message, InputNumber, Upload, Popconfirm, Drawer, Tag, Descriptions, Select, DatePicker, Form, Dropdown, Modal, Progress,
 } from 'antd';
 import { SaveOutlined, DownloadOutlined, UploadOutlined, CalculatorOutlined, PlusOutlined, SettingOutlined, SendOutlined, FileExcelOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -101,6 +101,8 @@ const AttendancePage: React.FC = () => {
   const [colSettingOpen, setColSettingOpen] = useState(false);
   const [attendanceLocked, setAttendanceLocked] = useState(false);
   const [attendanceSubmitted, setAttendanceSubmitted] = useState(false);
+  // 导入进度
+  const [importProgress, setImportProgress] = useState<{ done: number; total: number; importing: boolean }>({ done: 0, total: 0, importing: false });
   const [rosterLocked, setRosterLocked] = useState(false);
   const [rawModalOpen, setRawModalOpen] = useState(false);
   // 审批确认弹窗
@@ -485,6 +487,7 @@ const AttendancePage: React.FC = () => {
       const dayFields = ['sick_days', 'personal_days', 'annual_leave', 'compensatory_leave', 'absenteeism_days', 'funeral_leave', 'parental_leave', 'marriage_leave', 'maternity_leave', 'regular_overtime_days', 'weekend_overtime_days', 'holiday_overtime_days', 'guard_overtime_days', 'overtime_hours', 'actual_attendance_days'];
       let success = 0;
       const failures: string[] = [];
+      setImportProgress({ done: 0, total: data.length, importing: true });
 
       for (const row of data) {
         try {
@@ -634,6 +637,8 @@ const AttendancePage: React.FC = () => {
           const name = row.employee_name || row.unique_hash || '?';
           failures.push(`${name}：${detail || '导入失败'}`);
         }
+        // 更新导入进度
+        setImportProgress((p) => ({ ...p, done: p.done + 1 }));
       }
       if (failures.length > 0) {
         message.warning(`导入完成：成功 ${success} 条，失败 ${failures.length} 条。${failures.slice(0, 8).join('；')}`);
@@ -643,6 +648,8 @@ const AttendancePage: React.FC = () => {
       loadData();
     } catch (e: any) {
       message.error(e.message || '导入失败');
+    } finally {
+      setImportProgress({ done: 0, total: 0, importing: false });
     }
   };
 
@@ -829,6 +836,16 @@ const AttendancePage: React.FC = () => {
           )}
         </Space>
       </Card>
+
+      {/* 导入进度 */}
+      {importProgress.importing && (
+        <Card size="small" style={{ marginBottom: 12 }}>
+          <Progress percent={Math.round((importProgress.done / (importProgress.total || 1)) * 100)} status="active" />
+          <div style={{ textAlign: 'center', color: '#888', marginTop: 4 }}>
+            正在导入，已处理 {importProgress.done} / {importProgress.total} 条
+          </div>
+        </Card>
+      )}
 
       {/* 筛选区 */}
       <Card size="small" style={{ marginBottom: 12 }}>
