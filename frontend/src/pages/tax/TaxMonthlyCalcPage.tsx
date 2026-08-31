@@ -156,15 +156,16 @@ const TaxMonthlyCalcPage: React.FC = () => {
           // 本期减免税额 = 本月累计减免 - 上月累计减免
           const currentTaxRelief = Math.max(0, round2((special.tax_relief || 0) - (prevSpecial.tax_relief || 0)));
 
-          // ===== 累计数：从1月到当前月逐月累加本期数（1-5月无记录则按0，期初累计数板块不参与） =====
+          // ===== 累计数：期初累计值 + 从6月到当前月逐月累加本期数 =====
+          // 期初累计数(tax_opening_balances)包含1-5月的累计，作为基数；6月起按月累加本期数
           const curPeriod = period;
-          const hist = (historyMap[e.unique_hash] || []).filter((x: any) => x.period <= curPeriod);
-          // 累计应税收入 = 1月~当前月 current_taxable_income 之和
-          const cumulTaxableIncome = hist.reduce((s: number, x: any) => s + (x.current_taxable_income || 0), 0);
-          // 累计五险一金 = 1月~当前月 current_five_insurance 之和
-          const cumulFiveInsurance = hist.reduce((s: number, x: any) => s + (x.current_five_insurance || 0), 0);
-          // 累计已缴税 = 1月~当前月（不含当月）monthly_tax 之和
-          const cumulTaxPaid = hist.filter((x: any) => x.period < curPeriod).reduce((s: number, x: any) => s + (x.monthly_tax || 0), 0);
+          const hist = (historyMap[e.unique_hash] || []).filter((x: any) => x.period >= '2026-06' && x.period <= curPeriod);
+          // 累计应税收入 = 期初累计应税收入 + 6月~当前月本期应税收入之和
+          const cumulTaxableIncome = Number(opening.cumul_income || 0) + hist.reduce((s: number, x: any) => s + (x.current_taxable_income || 0), 0);
+          // 累计五险一金 = 期初累计五险一金 + 6月~当前月本期五险一金之和
+          const cumulFiveInsurance = Number(opening.cumul_five_insurance || 0) + hist.reduce((s: number, x: any) => s + (x.current_five_insurance || 0), 0);
+          // 累计已缴税 = 期初累计已缴税 + 6月~当前月当月个税之和
+          const cumulTaxPaid = Number(opening.cumul_tax_paid || 0) + hist.reduce((s: number, x: any) => s + (x.monthly_tax || 0), 0);
           // 累计专项附加 = 报税系统累计值（不逐月累加）
           const cumulSpecialDeduct = specialTotal;
           // 累计其他扣除 = 报税系统累计值（不逐月累加）
@@ -255,12 +256,13 @@ const TaxMonthlyCalcPage: React.FC = () => {
     let success = 0;
     for (const r of records) {
       try {
-        // 累计数：从1月到当前月逐月累加本期数（1-5月无记录则按0）
+        // 累计数：期初累计值 + 从6月到当前月逐月累加本期数
         const curPeriodCalc = period;
-        const hist = (historyMap[r.unique_hash] || []).filter((x: any) => x.period <= curPeriodCalc);
-        const cumulTaxableIncome = hist.reduce((s: number, x: any) => s + (x.current_taxable_income || 0), 0);
-        const cumulFiveInsurance = hist.reduce((s: number, x: any) => s + (x.current_five_insurance || 0), 0);
-        const cumulTaxPaid = hist.filter((x: any) => x.period < curPeriodCalc).reduce((s: number, x: any) => s + (x.monthly_tax || 0), 0);
+        const opening = r.opening || {};
+        const hist = (historyMap[r.unique_hash] || []).filter((x: any) => x.period >= '2026-06' && x.period <= curPeriodCalc);
+        const cumulTaxableIncome = Number(opening.cumul_income || 0) + hist.reduce((s: number, x: any) => s + (x.current_taxable_income || 0), 0);
+        const cumulFiveInsurance = Number(opening.cumul_five_insurance || 0) + hist.reduce((s: number, x: any) => s + (x.current_five_insurance || 0), 0);
+        const cumulTaxPaid = Number(opening.cumul_tax_paid || 0) + hist.reduce((s: number, x: any) => s + (x.monthly_tax || 0), 0);
         // 累计专项附加：直接取报税系统累计值
         const specialTotal = (r.special?.cumul_child_edu || 0) + (r.special?.cumul_continuing_edu || 0) + (r.special?.cumul_mortgage || 0) + (r.special?.cumul_rent || 0) + (r.special?.cumul_elder_care || 0) + (r.special?.cumul_infant_care || 0);
         const cumulSpecialDeduct = specialTotal;
