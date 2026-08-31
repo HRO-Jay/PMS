@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Table, Button, Drawer, Form, Input, Select, Space, message, Tag, Card, DatePicker, Upload, Dropdown, Popconfirm, InputNumber, Modal, Progress,
 } from 'antd';
-import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, SendOutlined } from '@ant-design/icons';
+import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, SendOutlined, SyncOutlined } from '@ant-design/icons';
 import type { Employee, CompanyMapping } from '../types';
 import dayjs, { Dayjs } from 'dayjs';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
@@ -68,6 +68,9 @@ const EmployeesPage: React.FC = () => {
   const period = useStore(s => s.currentPeriod);
   const [rosterLocked, setRosterLocked] = useState(false);
   const [rosterSubmitted, setRosterSubmitted] = useState(false);
+  // 更新花名册确认弹窗
+  const [updateModal, setUpdateModal] = useState(false);
+  const [updating, setUpdating] = useState(false);
   // 导入进度
   const [importProgress, setImportProgress] = useState<{ done: number; total: number; importing: boolean }>({ done: 0, total: 0, importing: false });
 
@@ -370,6 +373,22 @@ const EmployeesPage: React.FC = () => {
     }
   };
 
+  // ====== 更新花名册：依照上一个有数据的月份，整体刷新当月（调用数据库函数） ======
+  const handleUpdateRoster = async () => {
+    setUpdating(true);
+    try {
+      const res = await api.post('/rpc/update_roster_from_prev_month', { p_period: period });
+      const added = res.data || 0;
+      message.success(`花名册已更新：从上一月复制 ${added} 人`);
+      setUpdateModal(false);
+      loadEmployees();
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || e?.message || '更新失败，请确认已在 Supabase 执行 update_roster_from_prev_month 函数');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   // ====== 提交审批（人事专员）：把当月所有花名册 data_status 置为 已提交审批 ======
   const doSubmitApproval = async () => {
     try {
@@ -472,6 +491,7 @@ const EmployeesPage: React.FC = () => {
           <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { if (rosterLocked || rosterSubmitted) { message.warning('该月花名册已锁定/已提交审批，不能导入'); return false; } handleImport(file); return false; }}>
             <Button icon={<UploadOutlined />} disabled={rosterLocked || rosterSubmitted}>导入</Button>
           </Upload>
+          <Button icon={<SyncOutlined />} onClick={() => setUpdateModal(true)} disabled={rosterLocked || rosterSubmitted}>更新花名册</Button>
           <Input
             prefix={<SearchOutlined />}
             placeholder="搜索姓名"
@@ -625,6 +645,19 @@ const EmployeesPage: React.FC = () => {
         {approveConfirm?.type === 'submit' && <div>是否确认提交本月员工花名册的审批？提交后当月花名册将冻结，等待审批人处理。</div>}
         {approveConfirm?.type === 'approve' && <div>是否确认通过？通过后当月员工花名册将冻结，仅可查看。</div>}
         {approveConfirm?.type === 'reject' && <div>是否确认退回？退回后当月花名册恢复为可修改状态。</div>}
+      </Modal>
+
+      {/* 更新花名册确认弹窗 */}
+      <Modal
+        title="更新花名册"
+        open={updateModal}
+        onOk={handleUpdateRoster}
+        onCancel={() => setUpdateModal(false)}
+        okText="是，更新"
+        cancelText="否，取消"
+        confirmLoading={updating}
+      >
+        <div>是否依照【上一个有花名册数据的月份】更新本月花名册？<br/>更新后将用上月在职员工整体替换本月，可再手动调整。</div>
       </Modal>
     </div>
   );
