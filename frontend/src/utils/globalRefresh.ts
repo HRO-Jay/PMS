@@ -257,10 +257,10 @@ async function refreshNormalTax(period: string): Promise<RefreshStepResult> {
       const currentOtherDeduct = Math.max(0, round2(otherTotal - prevOtherTotal));
       const currentTaxRelief = Math.max(0, round2((special.tax_relief || 0) - (prevSpecial.tax_relief || 0)));
 
-      // 累计数：期初累计值 + 从6月到当前月逐月累加本期数（与个税页面算法一致）
-      const hist = (historyMap[e.unique_hash] || []).filter((x: any) => x.period >= '2026-06' && x.period <= period);
-      const cumulTaxableIncome = Number(opening.cumul_income || 0) + hist.reduce((s: number, x: any) => s + (x.current_taxable_income || 0), 0);
-      const cumulFiveInsurance = Number(opening.cumul_five_insurance || 0) + hist.reduce((s: number, x: any) => s + (x.current_five_insurance || 0), 0);
+      // 累计数：期初累计值 + 历史月(6月至上月)本期数 + 当前月实时本期数（与个税页面算法一致）
+      const hist = (historyMap[e.unique_hash] || []).filter((x: any) => x.period >= '2026-06' && x.period < period);
+      const cumulTaxableIncome = Number(opening.cumul_income || 0) + hist.reduce((s: number, x: any) => s + (x.current_taxable_income || 0), 0) + Number(currentTaxableIncome || 0);
+      const cumulFiveInsurance = Number(opening.cumul_five_insurance || 0) + hist.reduce((s: number, x: any) => s + (x.current_five_insurance || 0), 0) + Number(currentFiveInsurance || 0);
       const cumulSpecialDeduct = specialTotal;
       const cumulOtherDeduct = otherTotal;
       const cumulTaxRelief = Number(special.tax_relief || 0);
