@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Table, Button, Drawer, Form, Input, Select, Space, message, Card, InputNumber, Switch, Tag, Descriptions, DatePicker, Upload, Dropdown, Popconfirm,
+  Table, Button, Drawer, Form, Input, Select, Space, message, Card, InputNumber, Switch, Tag, Descriptions, DatePicker, Upload, Dropdown, Popconfirm, Progress,
 } from 'antd';
 import { PlusOutlined, DownloadOutlined, UploadOutlined, CalculatorOutlined, SearchOutlined } from '@ant-design/icons';
 import api from '../../api/client';
@@ -109,6 +109,8 @@ const EmployeeWelfare: React.FC = () => {
   const [locked, setLocked] = useState(false);
   // 计算进度
   const [calcProgress, setCalcProgress] = useState<{ done: number; total: number; active: boolean; label: string }>({ done: 0, total: 0, active: false, label: '' });
+  // 导入进度
+  const [importProgress, setImportProgress] = useState<{ done: number; total: number; importing: boolean }>({ done: 0, total: 0, importing: false });
 
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
@@ -514,6 +516,7 @@ const EmployeeWelfare: React.FC = () => {
 
       let added = 0, updated = 0, failed = 0;
       const failReasons: string[] = [];
+      setImportProgress({ done: 0, total: data.length, importing: true });
 
       for (const row of data) {
         try {
@@ -540,11 +543,14 @@ const EmployeeWelfare: React.FC = () => {
         } catch {
           failed++;
         }
+        setImportProgress((p) => ({ ...p, done: p.done + 1 }));
       }
       message.info(`导入完成：新增 ${added}，更新 ${updated}，失败 ${failed}${failReasons.length ? '。' + failReasons.slice(0, 5).join('；') : ''}`);
       loadData();
     } catch (e: any) {
       message.error(e.message || '导入失败');
+    } finally {
+      setImportProgress({ done: 0, total: 0, importing: false });
     }
   };
 
@@ -599,6 +605,14 @@ const EmployeeWelfare: React.FC = () => {
   return (
     <div>
       <CalcProgress {...calcProgress} />
+      {importProgress.importing && (
+        <Card size="small" style={{ marginBottom: 12 }}>
+          <Progress percent={Math.round((importProgress.done / (importProgress.total || 1)) * 100)} status="active" />
+          <div style={{ textAlign: 'center', color: '#888', marginTop: 4 }}>
+            正在导入，已处理 {importProgress.done} / {importProgress.total} 条
+          </div>
+        </Card>
+      )}
       <Card size="small" style={{ marginBottom: 12 }}>
         <Space>
           <Button type="primary" icon={<PlusOutlined />} disabled={locked} onClick={openCreate}>添加记录</Button>
