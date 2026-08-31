@@ -103,6 +103,8 @@ const AttendancePage: React.FC = () => {
   const [attendanceSubmitted, setAttendanceSubmitted] = useState(false);
   // 导入进度
   const [importProgress, setImportProgress] = useState<{ done: number; total: number; importing: boolean }>({ done: 0, total: 0, importing: false });
+  // 自动计算进度
+  const [calcProgress, setCalcProgress] = useState<{ done: number; total: number; active: boolean; label: string }>({ done: 0, total: 0, active: false, label: '' });
   const [rosterLocked, setRosterLocked] = useState(false);
   const [rawModalOpen, setRawModalOpen] = useState(false);
   // 审批确认弹窗
@@ -266,6 +268,7 @@ const AttendancePage: React.FC = () => {
     }
 
     let success = 0;
+    setCalcProgress({ done: 0, total: records.length, active: true, label: '正在自动计算考勤' });
     for (const r of records) {
       if (r.data_status === '已锁定') continue;  // 已锁定跳过
       try {
@@ -290,8 +293,10 @@ const AttendancePage: React.FC = () => {
         }
         success++;
       } catch { /* skip */ }
+      setCalcProgress((p) => ({ ...p, done: p.done + 1 }));
     }
     message.success(`计算完成：${success} / ${records.length} 条`);
+    setCalcProgress({ done: 0, total: 0, active: false, label: '' });
     loadData();
   };
 
@@ -843,6 +848,15 @@ const AttendancePage: React.FC = () => {
           <Progress percent={Math.round((importProgress.done / (importProgress.total || 1)) * 100)} status="active" />
           <div style={{ textAlign: 'center', color: '#888', marginTop: 4 }}>
             正在导入，已处理 {importProgress.done} / {importProgress.total} 条
+          </div>
+        </Card>
+      )}
+
+      {calcProgress.active && (
+        <Card size="small" style={{ marginBottom: 12 }}>
+          <Progress percent={Math.round((calcProgress.done / (calcProgress.total || 1)) * 100)} status="active" />
+          <div style={{ textAlign: 'center', color: '#888', marginTop: 4 }}>
+            {calcProgress.label}，已处理 {calcProgress.done} / {calcProgress.total} 条
           </div>
         </Card>
       )}

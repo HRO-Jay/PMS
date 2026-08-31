@@ -10,6 +10,7 @@ import { round2 } from '../../utils/round';
 import { useStore } from '../../stores/appStore';
 import { ensureRoster } from '../../utils/roster';
 import { DataStatusTag, anyLocked } from '../../components/DataStatusTag';
+import CalcProgress from '../../components/CalcProgress';
 
 /**
  * 个税扣缴 — Tab 3：月度计算（累计预扣法）
@@ -59,6 +60,8 @@ const TaxMonthlyCalcPage: React.FC = () => {
   const [locked, setLocked] = useState(false);
   // 历史各月本期数（用于从1月逐月累加累计数）
   const [historyMap, setHistoryMap] = useState<Record<string, any[]>>({});
+  // 计算进度
+  const [calcProgress, setCalcProgress] = useState<{ done: number; total: number; active: boolean; label: string }>({ done: 0, total: 0, active: false, label: '' });
   const [fKeyword, setFKeyword] = useState('');
   const [fPayCompany, setFPayCompany] = useState<string>();
   const [fDepartment, setFDepartment] = useState<string>();
@@ -164,8 +167,8 @@ const TaxMonthlyCalcPage: React.FC = () => {
           const cumulTaxableIncome = Number(opening.cumul_income || 0) + hist.reduce((s: number, x: any) => s + (x.current_taxable_income || 0), 0);
           // 累计五险一金 = 期初累计五险一金 + 6月~当前月本期五险一金之和
           const cumulFiveInsurance = Number(opening.cumul_five_insurance || 0) + hist.reduce((s: number, x: any) => s + (x.current_five_insurance || 0), 0);
-          // 累计已缴税 = 期初累计已缴税 + 6月~当前月当月个税之和
-          const cumulTaxPaid = Number(opening.cumul_tax_paid || 0) + hist.reduce((s: number, x: any) => s + (x.monthly_tax || 0), 0);
+          // 累计已缴税 = 期初累计已缴税 + 截至上月当月个税之和（不含当月，当月尚未缴）
+          const cumulTaxPaid = Number(opening.cumul_tax_paid || 0) + hist.filter((x: any) => x.period < curPeriod).reduce((s: number, x: any) => s + (x.monthly_tax || 0), 0);
           // 累计专项附加 = 报税系统累计值（不逐月累加）
           const cumulSpecialDeduct = specialTotal;
           // 累计其他扣除 = 报税系统累计值（不逐月累加）
@@ -254,6 +257,7 @@ const TaxMonthlyCalcPage: React.FC = () => {
   // 执行当月计算
   const handleCalc = async () => {
     let success = 0;
+    setCalcProgress({ done: 0, total: records.length, active: true, label: '正在计算当月个税' });
     for (const r of records) {
       try {
         // 累计数：期初累计值 + 从6月到当前月逐月累加本期数
@@ -262,7 +266,7 @@ const TaxMonthlyCalcPage: React.FC = () => {
         const hist = (historyMap[r.unique_hash] || []).filter((x: any) => x.period >= '2026-06' && x.period <= curPeriodCalc);
         const cumulTaxableIncome = Number(opening.cumul_income || 0) + hist.reduce((s: number, x: any) => s + (x.current_taxable_income || 0), 0);
         const cumulFiveInsurance = Number(opening.cumul_five_insurance || 0) + hist.reduce((s: number, x: any) => s + (x.current_five_insurance || 0), 0);
-        const cumulTaxPaid = Number(opening.cumul_tax_paid || 0) + hist.reduce((s: number, x: any) => s + (x.monthly_tax || 0), 0);
+        const cumulTaxPaid = Number(opening.cumul_tax_paid || 0) + hist.filter((x: any) => x.period < curPeriodCalc).reduce((s: number, x: any) => s + (x.monthly_tax || 0), 0);
         // 累计专项附加：直接取报税系统累计值
         const specialTotal = (r.special?.cumul_child_edu || 0) + (r.special?.cumul_continuing_edu || 0) + (r.special?.cumul_mortgage || 0) + (r.special?.cumul_rent || 0) + (r.special?.cumul_elder_care || 0) + (r.special?.cumul_infant_care || 0);
         const cumulSpecialDeduct = specialTotal;
@@ -331,8 +335,10 @@ const TaxMonthlyCalcPage: React.FC = () => {
         }
         success++;
       } catch { /* skip */ }
+      setCalcProgress((p) => ({ ...p, done: p.done + 1 }));
     }
     message.success(`计算完成：${success} / ${records.length} 条`);
+    setCalcProgress({ done: 0, total: 0, active: false, label: '' });
     loadData();
   };
 
@@ -379,6 +385,7 @@ const TaxMonthlyCalcPage: React.FC = () => {
 
   return (
     <Card size="small" title="个税月度计算（累计预扣法，正常计税人员）">
+      <CalcProgress {...calcProgress} />
       <Space style={{ marginBottom: 12 }} wrap>
         <Input placeholder="搜索姓名" prefix={<SearchOutlined />} value={fKeyword} onChange={e => setFKeyword(e.target.value)} style={{ width: 140 }} allowClear />
         <Select placeholder="发薪公司" allowClear showSearch optionFilterProp="label" value={fPayCompany} onChange={setFPayCompany} style={{ width: 150 }}

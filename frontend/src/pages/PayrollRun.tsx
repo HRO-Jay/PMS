@@ -10,6 +10,7 @@ import { calcServiceTax } from '../utils/taxCalc';
 import { round2 } from '../utils/round';
 import { exportSummaryPdf, type SummaryRow } from '../utils/pdfExport';
 import RawExcelModal from '../components/RawExcelModal';
+import CalcProgress from '../components/CalcProgress';
 import { useStore } from '../stores/appStore';
 import { canSubmit, canApprove } from '../utils/permissions';
 import { fetchApprovalStatus } from '../utils/approvalStatus';
@@ -62,6 +63,8 @@ const PayrollPage: React.FC = () => {
   // 全局月份：来自顶部月份选择器
   const period = useStore(s => s.currentPeriod);
   const [loading, setLoading] = useState(false);
+  // 刷新同步进度
+  const [calcProgress, setCalcProgress] = useState<{ done: number; total: number; active: boolean; label: string }>({ done: 0, total: 0, active: false, label: '' });
 
   // 筛选
   const [fPayCompany, setFPayCompany] = useState<string>();
@@ -325,6 +328,7 @@ const PayrollPage: React.FC = () => {
 
       let success = 0;
       let skippedLocked = 0;
+      setCalcProgress({ done: 0, total: merged.length, active: true, label: '正在刷新同步薪资' });
       for (const r of merged) {
         try {
           // 已锁定的记录跳过，不覆盖（冻结数据不随刷新变动）
@@ -358,9 +362,11 @@ const PayrollPage: React.FC = () => {
           }
           success++;
         } catch { /* skip */ }
+        setCalcProgress((p) => ({ ...p, done: p.done + 1 }));
       }
 
       setRecords(applyFilters(merged));
+      setCalcProgress({ done: 0, total: 0, active: false, label: '' });
       if (skippedLocked > 0) {
         message.success(`刷新同步完成：已保存 ${success} 条，跳过 ${skippedLocked} 条（已锁定，冻结不更新）`);
       } else {
@@ -617,6 +623,7 @@ const PayrollPage: React.FC = () => {
 
   return (
     <div>
+      <CalcProgress {...calcProgress} />
       <Card size="small" style={{ marginBottom: 12 }}>
         <Space wrap>
           <Button type="primary" icon={<SyncOutlined />} onClick={handleRefreshSync} loading={loading}>刷新同步数据</Button>

@@ -8,6 +8,7 @@ import { isActiveInPeriod } from '../../utils/employee';
 import { round2 } from '../../utils/round';
 import { useStore } from '../../stores/appStore';
 import { ensureRoster } from '../../utils/roster';
+import CalcProgress from '../../components/CalcProgress';
 
 /**
  * 个税扣缴 — 灵工个税计算（计税方式为"灵工计税"的人员）
@@ -42,6 +43,8 @@ const FlexibleTaxPage: React.FC = () => {
   const [allRecords, setAllRecords] = useState<any[]>([]);
   const period = useStore(s => s.currentPeriod);
   const [loading, setLoading] = useState(false);
+  // 计算进度
+  const [calcProgress, setCalcProgress] = useState<{ done: number; total: number; active: boolean; label: string }>({ done: 0, total: 0, active: false, label: '' });
   const [fKeyword, setFKeyword] = useState('');
   const [fPayCompany, setFPayCompany] = useState<string>();
   const [fDepartment, setFDepartment] = useState<string>();
@@ -102,6 +105,7 @@ const FlexibleTaxPage: React.FC = () => {
   // 计算并保存灵工个税
   const handleCalc = async () => {
     let success = 0;
+    setCalcProgress({ done: 0, total: records.length, active: true, label: '正在计算灵工个税' });
     for (const r of records) {
       try {
         const basicSalary = Number(r.basic_salary || 0);
@@ -120,8 +124,10 @@ const FlexibleTaxPage: React.FC = () => {
         }
         success++;
       } catch { /* skip */ }
+      setCalcProgress((p) => ({ ...p, done: p.done + 1 }));
     }
     message.success(`灵工个税计算完成：${success} / ${records.length} 条`);
+    setCalcProgress({ done: 0, total: 0, active: false, label: '' });
     loadData();
   };
 
@@ -139,6 +145,7 @@ const FlexibleTaxPage: React.FC = () => {
 
   return (
     <Card size="small" title="灵工个税计算（计税方式为灵工计税的人员）">
+      <CalcProgress {...calcProgress} />
       <Space style={{ marginBottom: 12 }} wrap>
         <Input placeholder="搜索姓名" prefix={<SearchOutlined />} value={fKeyword} onChange={e => setFKeyword(e.target.value)} style={{ width: 140 }} allowClear />
         <Select placeholder="发薪公司" allowClear showSearch optionFilterProp="label" value={fPayCompany} onChange={setFPayCompany} style={{ width: 150 }}

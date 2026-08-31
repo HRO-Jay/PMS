@@ -264,7 +264,7 @@ async function refreshNormalTax(period: string): Promise<RefreshStepResult> {
       const cumulSpecialDeduct = specialTotal;
       const cumulOtherDeduct = otherTotal;
       const cumulTaxRelief = Number(special.tax_relief || 0);
-      const cumulTaxPaid = Number(opening.cumul_tax_paid || 0) + hist.reduce((s: number, x: any) => s + (x.monthly_tax || 0), 0);
+      const cumulTaxPaid = Number(opening.cumul_tax_paid || 0) + hist.filter((x: any) => x.period < period).reduce((s: number, x: any) => s + (x.monthly_tax || 0), 0);
       // 累计减除费用：按个税年度，当年之前入职=统计月，当年入职=(统计月-入职月+1)
       const statYear = parseInt(period.split('-')[0]);
       const monthNum = parseInt(period.split('-')[1]);

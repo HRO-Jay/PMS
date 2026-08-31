@@ -8,6 +8,7 @@ import type { SocialWelfareSet, HousingFundSet, EmployeeWelfareRecord } from '..
 import { calcSocial, calcHousingFund } from '../../utils/welfareCalc';
 import { exportXlsx, importXlsx, type ExportDef } from '../../utils/importExport';
 import { withSource } from '../../components/SourceTag';
+import CalcProgress from '../../components/CalcProgress';
 import { DataStatusTag, anyLocked } from '../../components/DataStatusTag';
 import { useHorizontalScroll } from '../../utils/useHorizontalScroll';
 import { isActiveInPeriod } from '../../utils/employee';
@@ -106,6 +107,8 @@ const EmployeeWelfare: React.FC = () => {
   const period = useStore(s => s.currentPeriod);
   const [loading, setLoading] = useState(false);
   const [locked, setLocked] = useState(false);
+  // 计算进度
+  const [calcProgress, setCalcProgress] = useState<{ done: number; total: number; active: boolean; label: string }>({ done: 0, total: 0, active: false, label: '' });
 
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
@@ -334,6 +337,7 @@ const EmployeeWelfare: React.FC = () => {
   const handleBatchCalc = async () => {
     let success = 0;
     let skipped = 0;
+    setCalcProgress({ done: 0, total: records.length, active: true, label: '正在一键计算社保' });
     for (const rec of records) {
       try {
         const v = rec;
@@ -409,8 +413,10 @@ const EmployeeWelfare: React.FC = () => {
         }
         success++;
       } catch { skipped++; }
+      setCalcProgress((p) => ({ ...p, done: p.done + 1 }));
     }
     message.success(`一键计算完成：${success} 条，跳过 ${skipped} 条（缺少福利套或基数）`);
+    setCalcProgress({ done: 0, total: 0, active: false, label: '' });
     loadData();
   };
 
@@ -592,6 +598,7 @@ const EmployeeWelfare: React.FC = () => {
 
   return (
     <div>
+      <CalcProgress {...calcProgress} />
       <Card size="small" style={{ marginBottom: 12 }}>
         <Space>
           <Button type="primary" icon={<PlusOutlined />} disabled={locked} onClick={openCreate}>添加记录</Button>
