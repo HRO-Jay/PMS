@@ -97,7 +97,7 @@ const InternTaxPage: React.FC = () => {
       salaryRes.data.forEach((r: any) => { salaryMap[r.unique_hash] = r; });
 
       const merged = empList
-        .filter((e: any) => isActiveInPeriod(e, period) || calcMap[e.unique_hash])
+        .filter((e: any) => isActiveInPeriod(e, period))
         .map((e: any) => {
           const opening = openingMap[e.unique_hash] || {};
           const prev = prevMap[e.unique_hash] || {};

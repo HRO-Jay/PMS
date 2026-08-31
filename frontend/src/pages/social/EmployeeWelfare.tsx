@@ -152,7 +152,7 @@ const EmployeeWelfare: React.FC = () => {
 
       // 左连接：以花名册在职员工为准自动列出，离职但当月有记录也显示
       const merged = empList
-        .filter((e: any) => isActiveInPeriod(e, period) || recMap[e.unique_hash])
+        .filter((e: any) => isActiveInPeriod(e, period))
         .map((e: any) => {
           const r = recMap[e.unique_hash];
           // 生效日期识别：生效日期(如2026-07) > 当前月份(如2026-06) 时，该月社保/公积金金额为 0

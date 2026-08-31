@@ -68,7 +68,7 @@ const FlexibleTaxPage: React.FC = () => {
       salaryRes.data.forEach((r: any) => { salaryMap[r.unique_hash] = r; });
 
       const merged = empRes.data
-        .filter((e: any) => isActiveInPeriod(e, period) || attMap[e.unique_hash])
+        .filter((e: any) => isActiveInPeriod(e, period))
         .map((e: any) => {
           const att = attMap[e.unique_hash] || {};
           const basicSalary = Number(e.basic_salary || 0);

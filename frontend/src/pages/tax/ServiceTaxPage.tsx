@@ -62,7 +62,7 @@ const ServiceTaxPage: React.FC = () => {
       salaryRes.data.forEach((r: any) => { salaryMap[r.unique_hash] = r; });
 
       const merged = empRes.data
-        .filter((e: any) => isActiveInPeriod(e, period) || salaryMap[e.unique_hash])
+        .filter((e: any) => isActiveInPeriod(e, period))
         .map((e: any) => {
           const sal = salaryMap[e.unique_hash] || {};
           const wageSubtotal = Number(sal.wage_subtotal || 0);

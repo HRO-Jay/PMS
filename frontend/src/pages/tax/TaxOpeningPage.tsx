@@ -4,6 +4,7 @@ import { DownloadOutlined, UploadOutlined, SearchOutlined } from '@ant-design/ic
 import api from '../../api/client';
 import { exportXlsx, importXlsx, type ExportDef } from '../../utils/importExport';
 import { withSource } from '../../components/SourceTag';
+import { isActiveInPeriod } from '../../utils/employee';
 
 /**
  * 个税扣缴 — Tab 1：期初累计数（1-5月一次性录入）
@@ -59,7 +60,7 @@ const TaxOpeningPage: React.FC = () => {
 
       // 左连接：在职员工全列出
       const merged = empRes.data
-        .filter((e: any) => e.status === '在职' || recMap[e.unique_hash])
+        .filter((e: any) => isActiveInPeriod(e))
         .map((e: any) => {
           const r = recMap[e.unique_hash];
           return {

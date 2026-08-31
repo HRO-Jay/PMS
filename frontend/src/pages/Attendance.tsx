@@ -137,7 +137,7 @@ const AttendancePage: React.FC = () => {
 
       // 左连接：以花名册员工为准，自动列出所有人（当月在职 + 离职但离职月份含当月 + 当月有记录也显示）
       const merged = empList
-        .filter((e: any) => isActiveInPeriod(e, period) || recMap[e.unique_hash])
+        .filter((e: any) => isActiveInPeriod(e, period))
         .map((e: any) => {
           const rec = recMap[e.unique_hash];
           return {

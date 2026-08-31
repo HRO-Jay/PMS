@@ -106,7 +106,7 @@ const AdditionalSalaryPage: React.FC = () => {
       const monthLocked = anyLocked(recRes.data);
 
       let merged = empList
-        .filter((e: any) => isActiveInPeriod(e, period) || recMap[e.unique_hash])
+        .filter((e: any) => isActiveInPeriod(e, period))
         .map((e: any) => {
           const r = recMap[e.unique_hash];
           // 附加薪酬合计 = 13项之和（含服务费）
