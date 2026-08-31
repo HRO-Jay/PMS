@@ -626,10 +626,10 @@ const PayrollPage: React.FC = () => {
       <CalcProgress {...calcProgress} />
       <Card size="small" style={{ marginBottom: 12 }}>
         <Space wrap>
-          <Button type="primary" icon={<SyncOutlined />} onClick={handleRefreshSync} loading={loading}>刷新同步数据</Button>
+          <Button type="primary" icon={<SyncOutlined />} onClick={handleRefreshSync} loading={loading} disabled={payrollLocked}>刷新同步数据</Button>
           <Button icon={<DownloadOutlined />} onClick={handleExport}>导出工资报表</Button>
           <Button icon={<DownloadOutlined />} onClick={handleExportPayslip}>导出工资条</Button>
-          <Button type="primary" onClick={handleSaveResult}>保存计算结果</Button>
+          <Button type="primary" onClick={handleSaveResult} disabled={payrollLocked}>保存计算结果</Button>
           <Button type="primary" icon={<FileExcelOutlined />} onClick={() => setRawModalOpen(true)}>原始表格</Button>
           {isOperator && (
             <Button type="primary" icon={<SendOutlined />} disabled={!payrollGatePass || payrollSubmitted || payrollLocked} onClick={() => {

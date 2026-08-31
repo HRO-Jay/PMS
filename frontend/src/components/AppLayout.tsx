@@ -60,6 +60,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const [dragging, setDragging] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshStep, setRefreshStep] = useState('');
+  // 当前月份薪资是否已锁定（薪资审批通过后，全局刷新应禁用）
+  const [payrollLockedForPeriod, setPayrollLockedForPeriod] = useState(false);
   const dragStartRef = useRef<{ x: number; width: number } | null>(null);
   // 审批提醒弹窗
   const [approvalAlert, setApprovalAlert] = useState<{ title: string; alerts: { text: string; path: string }[] } | null>(null);
@@ -90,6 +92,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         if (alerts.length > 0) {
           setApprovalAlert({ title: '待审批提醒', alerts });
         }
+        // 当前月份薪资是否已锁定（审批通过后）
+        setPayrollLockedForPeriod(status.payrollLocked);
       } catch { /* 忽略，不影响使用 */ }
     };
     checkApprovalAlert();
@@ -105,13 +109,14 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     navigate('/login');
   };
 
-  // 全局刷新：任何页面点击，按 考勤→社保→个税→实习生→薪资 重算所有模块
+  // 全局刷新：只刷新【顶部选择的月份】，按 考勤→社保→个税→实习生→薪资 重算
   const handleGlobalRefresh = async () => {
     if (refreshing) return;
+    if (!currentPeriod) return;
     setRefreshing(true);
     setRefreshStep('正在准备...');
     try {
-      const result = await globalRefresh(undefined, (step, index, total) => {
+      const result = await globalRefresh(currentPeriod, (step, index, total) => {
         setRefreshStep(`正在处理 ${step}（${index + 1}/${total}）...`);
       });
       const lines = result.steps
@@ -218,6 +223,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             icon={<SyncOutlined />}
             onClick={handleGlobalRefresh}
             loading={refreshing}
+            disabled={payrollLockedForPeriod}
+            title={payrollLockedForPeriod ? '该月薪资已审批通过并冻结，不能全局刷新' : ''}
           >
             全局刷新
           </Button>
