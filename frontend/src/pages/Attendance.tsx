@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Table, Card, Button, Space, Input, message, InputNumber, Upload, Popconfirm, Drawer, Tag, Descriptions, Select, DatePicker, Form, Dropdown, Modal, Progress,
 } from 'antd';
-import { SaveOutlined, DownloadOutlined, UploadOutlined, CalculatorOutlined, PlusOutlined, SettingOutlined, SendOutlined, FileExcelOutlined } from '@ant-design/icons';
+import { SaveOutlined, DownloadOutlined, UploadOutlined, CalculatorOutlined, PlusOutlined, SettingOutlined, SendOutlined, FileExcelOutlined, UnlockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
@@ -101,6 +101,11 @@ const AttendancePage: React.FC = () => {
   const [colSettingOpen, setColSettingOpen] = useState(false);
   const [attendanceLocked, setAttendanceLocked] = useState(false);
   const [attendanceSubmitted, setAttendanceSubmitted] = useState(false);
+  // 薪资是否已审批锁定（薪资审批通过后，考勤不能解锁）
+  const [payrollLockedForPeriod, setPayrollLockedForPeriod] = useState(false);
+  // 解锁确认弹窗
+  const [unlockModal, setUnlockModal] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
   // 导入进度
   const [importProgress, setImportProgress] = useState<{ done: number; total: number; importing: boolean }>({ done: 0, total: 0, importing: false });
   // 自动计算进度
@@ -218,6 +223,7 @@ const AttendancePage: React.FC = () => {
       // 前置：花名册是否已审批锁定（提交考勤审批的前提）
       const gateStatus = await fetchApprovalStatus(period);
       setRosterLocked(gateStatus.rosterLocked);
+      setPayrollLockedForPeriod(gateStatus.payrollLocked);
     } catch { message.error('加载考勤数据失败'); }
     finally { setLoading(false); }
   };
@@ -693,6 +699,26 @@ const AttendancePage: React.FC = () => {
   };
   const handleApprove = () => setApproveConfirm({ type: 'approve' });
 
+  // ====== 解锁（考勤审批人）：把当月考勤从 已锁定 恢复为 正常，需重新审批 ======
+  const handleUnlock = async () => {
+    if (payrollLockedForPeriod) { message.warning('当月薪资已审批通过并冻结，考勤不能再解锁'); return; }
+    setUnlocking(true);
+    try {
+      const res = await api.get(`/attendance_records?select=id&period=eq.${period}`);
+      const ids = res.data.map((r: any) => r.id);
+      if (ids.length === 0) { message.warning('该月暂无考勤数据'); return; }
+      const updated = ids.map((id: number) => api.patch(`/attendance_records?id=eq.${id}`, { data_status: '正常' }));
+      await Promise.all(updated);
+      message.success('考勤已解锁，需重新提交审批');
+      setUnlockModal(false);
+      loadData();
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || '解锁失败');
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
   // ====== 退回修改（考勤审批人）：恢复为 已计算 ======
   const doReject = async () => {
     try {
@@ -838,6 +864,9 @@ const AttendancePage: React.FC = () => {
               <Button type="primary" onClick={handleApprove}>审批通过</Button>
               <Button danger onClick={handleReject}>退回</Button>
             </>
+          )}
+          {canApprove('attendance') && attendanceLocked && !payrollLockedForPeriod && (
+            <Button icon={<UnlockOutlined />} onClick={() => setUnlockModal(true)}>解锁</Button>
           )}
         </Space>
       </Card>
@@ -1148,6 +1177,19 @@ const AttendancePage: React.FC = () => {
         {approveConfirm?.type === 'submit' && <div>是否确认提交本月考勤管理的审批？提交后当月考勤将冻结，等待审批人处理。</div>}
         {approveConfirm?.type === 'approve' && <div>是否确认通过？通过后当月考勤将冻结，仅可查看。</div>}
         {approveConfirm?.type === 'reject' && <div>是否确认退回？退回后当月考勤恢复为可修改状态。</div>}
+      </Modal>
+
+      {/* 解锁确认弹窗 */}
+      <Modal
+        title="解锁当前月份"
+        open={unlockModal}
+        onOk={handleUnlock}
+        onCancel={() => setUnlockModal(false)}
+        okText="是，解锁"
+        cancelText="否，取消"
+        confirmLoading={unlocking}
+      >
+        <div>是否解锁当前月份的数据冻结？解锁后该模块恢复为可编辑，<b>后续需要重新提交并再次审批</b>。</div>
       </Modal>
     </div>
   );

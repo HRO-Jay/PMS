@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Table, Button, Drawer, Form, Input, Select, Space, message, Tag, Card, DatePicker, Upload, Dropdown, Popconfirm, InputNumber, Modal, Progress,
 } from 'antd';
-import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, SendOutlined, SyncOutlined } from '@ant-design/icons';
+import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, SendOutlined, SyncOutlined, UnlockOutlined } from '@ant-design/icons';
 import type { Employee, CompanyMapping } from '../types';
 import dayjs, { Dayjs } from 'dayjs';
 import { exportXlsx, importXlsx, type ExportDef } from '../utils/importExport';
@@ -10,6 +10,7 @@ import { genUniqueHash } from '../utils/hash';
 import { withSource } from '../components/SourceTag';
 import { useStore } from '../stores/appStore';
 import { canSubmit, canApprove } from '../utils/permissions';
+import { fetchApprovalStatus } from '../utils/approvalStatus';
 import { ensureRoster } from '../utils/roster';
 import api from '../api/client';
 
@@ -68,6 +69,11 @@ const EmployeesPage: React.FC = () => {
   const period = useStore(s => s.currentPeriod);
   const [rosterLocked, setRosterLocked] = useState(false);
   const [rosterSubmitted, setRosterSubmitted] = useState(false);
+  // 薪资是否已审批锁定（薪资审批通过后，花名册不能解锁）
+  const [payrollLockedForPeriod, setPayrollLockedForPeriod] = useState(false);
+  // 解锁确认弹窗
+  const [unlockModal, setUnlockModal] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
   // 更新花名册确认弹窗
   const [updateModal, setUpdateModal] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -116,6 +122,11 @@ const EmployeesPage: React.FC = () => {
       const hasSubmitted = data.some((e: any) => e.data_status === '已提交审批');
       setRosterLocked(hasLocked);
       setRosterSubmitted(hasSubmitted);
+      // 当前月薪资是否已审批锁定（薪资审批通过后，花名册不能再解锁）
+      try {
+        const gate = await fetchApprovalStatus(period);
+        setPayrollLockedForPeriod(gate.payrollLocked);
+      } catch { setPayrollLockedForPeriod(false); }
       // 收集可选的成本中心和部门（用于筛选下拉）
       const ccOptions = Array.from(new Set(data.map(e => e.cost_center).filter(Boolean))).sort();
       const deptOptions = Array.from(new Set(data.map(e => e.department).filter(Boolean))).sort();
@@ -422,6 +433,26 @@ const EmployeesPage: React.FC = () => {
   };
   const handleApprove = () => setApproveConfirm({ type: 'approve' });
 
+  // ====== 解锁（花名册审批人）：把当月花名册从 已锁定 恢复为 正常，需重新审批 ======
+  const handleUnlock = async () => {
+    if (payrollLockedForPeriod) { message.warning('当月薪资已审批通过并冻结，花名册不能再解锁'); return; }
+    setUnlocking(true);
+    try {
+      const recs = await api.get(`/employees?select=id&period=eq.${period}`);
+      const ids = recs.data.map((r: any) => r.id);
+      if (ids.length === 0) { message.warning('该月暂无花名册数据'); return; }
+      const updated = ids.map((id: number) => api.patch(`/employees?id=eq.${id}`, { data_status: '正常' }));
+      await Promise.all(updated);
+      message.success('花名册已解锁，需重新提交审批');
+      setUnlockModal(false);
+      loadEmployees();
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || '解锁失败');
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
   // ====== 退回修改（花名册审批人）：恢复为 草稿 状态 ======
   const doReject = async () => {
     try {
@@ -510,6 +541,9 @@ const EmployeesPage: React.FC = () => {
               <Button type="primary" onClick={handleApprove}>审批通过</Button>
               <Button danger onClick={handleReject}>退回</Button>
             </>
+          )}
+          {canApprove('roster') && rosterLocked && !payrollLockedForPeriod && (
+            <Button icon={<UnlockOutlined />} onClick={() => setUnlockModal(true)}>解锁</Button>
           )}
         </Space>
       </Card>
@@ -658,6 +692,19 @@ const EmployeesPage: React.FC = () => {
         confirmLoading={updating}
       >
         <div>是否依照【上一个有花名册数据的月份】更新本月花名册？<br/>更新后将用上月在职员工整体替换本月，可再手动调整。</div>
+      </Modal>
+
+      {/* 解锁确认弹窗 */}
+      <Modal
+        title="解锁当前月份"
+        open={unlockModal}
+        onOk={handleUnlock}
+        onCancel={() => setUnlockModal(false)}
+        okText="是，解锁"
+        cancelText="否，取消"
+        confirmLoading={unlocking}
+      >
+        <div>是否解锁当前月份的数据冻结？解锁后该模块恢复为可编辑，<b>后续需要重新提交并再次审批</b>。</div>
       </Modal>
     </div>
   );
