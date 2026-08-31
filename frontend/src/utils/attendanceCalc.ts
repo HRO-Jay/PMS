@@ -272,12 +272,12 @@ export function calcAttendance(input: AttendanceInput): AttendanceResult {
   );
   const sickDeductRate = round2(1 - sickPayRate);
   // 病假金额：
-  //  - 连续病假且覆盖某个完整月（1号到月末都在病假内）→ -考勤工资 × 病假扣款系数
-  //  - 否则 → -日薪 × 天数 × 扣款系数（全精度，显示时四舍五入）
+  //  - 连续病假且覆盖某个完整月（1号到月末都在病假内）→ 考勤工资 × 病假扣款系数（扣款，输出时取负）
+  //  - 否则 → 日薪 × 天数 × 扣款系数（扣款，输出时取负）
   const coversFullMonth = !!input.is_continuous_sick && isFullMonthSick(input.continuous_sick_start || '', input.continuous_sick_end || '');
   let sickAmount: number;
   if (coversFullMonth) {
-    sickAmount = -wage * sickDeductRate;
+    sickAmount = wage * sickDeductRate;
   } else {
     sickAmount = dailyWage * sickDays * sickDeductRate;
   }
