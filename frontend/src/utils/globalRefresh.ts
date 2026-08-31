@@ -172,15 +172,25 @@ async function refreshSocial(period: string): Promise<RefreshStepResult> {
   return { step: '社保', success, skipped };
 }
 
+/** 生成从当年1月到某月的所有月份（个税年度内） */
+function monthsFromJan(p: string): string[] {
+  const [y, m] = p.split('-').map(Number);
+  const arr: string[] = [];
+  for (let i = 1; i <= m; i++) arr.push(`${y}-${String(i).padStart(2, '0')}`);
+  return arr;
+}
+
 /** 3. 个税月度计算（正常计税） */
 async function refreshNormalTax(period: string): Promise<RefreshStepResult> {
   const prev = prevPeriod(period);
-  const [empRes, openingRes, specialRes, prevSpecialRes, prevCalcRes, welfareRes, attRes, addRes] = await Promise.all([
+  const periodsFromJan = monthsFromJan(period);
+  const [empRes, openingRes, specialRes, prevSpecialRes, prevCalcRes, historyCalcRes, welfareRes, attRes, addRes] = await Promise.all([
     api.get(`/employees?select=unique_hash,name,status,pay_company,department,entry_date,leave_date,basic_salary&period=eq.${period}&tax_method=eq.normal`),
     api.get('/tax_opening_balances?select=*'),
     api.get(`/tax_special_deductions?select=*&period=eq.${period}`),
     api.get(`/tax_special_deductions?select=*&period=eq.${prev}`),
     api.get(`/tax_monthly_calcs?select=*&period=eq.${prev}`),
+    api.get(`/tax_monthly_calcs?select=*&period=in.(${periodsFromJan.join(',')})`),
     api.get(`/employee_welfare_records?select=unique_hash,personal_total,personal_social_adj,personal_housing_adj,effective_month&period=eq.${period}`),
     api.get(`/attendance_records?select=unique_hash,attendance_adjust_total,data_status&period=eq.${period}`),
     api.get(`/additional_salary_records?select=*&period=eq.${period}`),
@@ -200,6 +210,17 @@ async function refreshNormalTax(period: string): Promise<RefreshStepResult> {
   attRes.data.forEach((r: any) => { attMap[r.unique_hash] = r; });
   const addMap: Record<string, any> = {};
   addRes.data.forEach((r: any) => { addMap[r.unique_hash] = r; });
+  // 历史各月本期数（用于从6月起逐月累加累计数）
+  const historyMap: Record<string, any[]> = {};
+  (historyCalcRes.data || []).forEach((r: any) => {
+    if (!historyMap[r.unique_hash]) historyMap[r.unique_hash] = [];
+    historyMap[r.unique_hash].push({
+      period: r.period,
+      current_taxable_income: Number(r.current_taxable_income || 0),
+      current_five_insurance: Number(r.current_five_insurance || 0),
+      monthly_tax: Number(r.monthly_tax || 0),
+    });
+  });
 
   let success = 0;
   let skipped = 0;
@@ -236,25 +257,26 @@ async function refreshNormalTax(period: string): Promise<RefreshStepResult> {
       const currentOtherDeduct = Math.max(0, round2(otherTotal - prevOtherTotal));
       const currentTaxRelief = Math.max(0, round2((special.tax_relief || 0) - (prevSpecial.tax_relief || 0)));
 
-      const isFirstMonth = period === '2026-06';
-      const monthNum = parseInt(period.split('-')[1]);
-      const cumulTaxableIncome = isFirstMonth
-        ? Number(opening.cumul_income || 0) + currentTaxableIncome
-        : Number(prev.cumul_taxable_income || 0) + currentTaxableIncome;
-      const cumulFiveInsurance = isFirstMonth
-        ? Number(opening.cumul_five_insurance || 0) + currentFiveInsurance
-        : Number(prev.cumul_five_insurance || 0) + currentFiveInsurance;
+      // 累计数：期初累计值 + 从6月到当前月逐月累加本期数（与个税页面算法一致）
+      const hist = (historyMap[e.unique_hash] || []).filter((x: any) => x.period >= '2026-06' && x.period <= period);
+      const cumulTaxableIncome = Number(opening.cumul_income || 0) + hist.reduce((s: number, x: any) => s + (x.current_taxable_income || 0), 0);
+      const cumulFiveInsurance = Number(opening.cumul_five_insurance || 0) + hist.reduce((s: number, x: any) => s + (x.current_five_insurance || 0), 0);
       const cumulSpecialDeduct = specialTotal;
-      const cumulOtherDeduct = isFirstMonth
-        ? Number(opening.cumul_other_deduction || 0) + currentOtherDeduct
-        : otherTotal;
-      const cumulTaxRelief = isFirstMonth
-        ? Number(opening.cumul_tax_relief || 0) + currentTaxRelief
-        : Number(special.tax_relief || 0);
-      const cumulTaxPaid = isFirstMonth
-        ? Number(opening.cumul_tax_paid || 0)
-        : Number(prev.cumul_tax_paid || 0) + Number(prev.monthly_tax || 0);
-      const employedMonths = Number(opening.employed_months || monthNum);
+      const cumulOtherDeduct = otherTotal;
+      const cumulTaxRelief = Number(special.tax_relief || 0);
+      const cumulTaxPaid = Number(opening.cumul_tax_paid || 0) + hist.reduce((s: number, x: any) => s + (x.monthly_tax || 0), 0);
+      // 累计减除费用：按个税年度，当年之前入职=统计月，当年入职=(统计月-入职月+1)
+      const statYear = parseInt(period.split('-')[0]);
+      const monthNum = parseInt(period.split('-')[1]);
+      let employedMonths = monthNum;
+      const entryDateStr = String(e.entry_date || '');
+      if (entryDateStr) {
+        const entryYear = parseInt(entryDateStr.slice(0, 4));
+        const entryMonth = parseInt(entryDateStr.slice(5, 7));
+        if (!isNaN(entryYear) && !isNaN(entryMonth) && entryYear === statYear) {
+          employedMonths = Math.max(1, monthNum - entryMonth + 1);
+        }
+      }
       const cumulBasicDeduction = 5000 * employedMonths;
 
       const result = calcIncomeTax({
@@ -463,17 +485,25 @@ async function refreshPayroll(period: string): Promise<RefreshStepResult> {
   return { step: '薪资', success, skipped };
 }
 
-/** 全局刷新（按依赖顺序执行所有模块） */
-export async function globalRefresh(period?: string): Promise<GlobalRefreshResult> {
+/** 全局刷新（按依赖顺序执行所有模块），onStep 每完成一步回调一次，用于显示进度 */
+export async function globalRefresh(period?: string, onStep?: (step: string, index: number, total: number) => void): Promise<GlobalRefreshResult> {
   const p = period || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
   const steps: RefreshStepResult[] = [];
   // 先确保该月花名册已生成（未生成自动按需生成）
   await ensureRoster(p);
-  steps.push(await refreshAttendance(p));
-  steps.push(await refreshSocial(p));
-  steps.push(await refreshNormalTax(p));
-  steps.push(await refreshInternTax(p));
-  steps.push(await refreshPayroll(p));
+  const total = 5;
+  const run = async (name: string, fn: () => Promise<RefreshStepResult>): Promise<RefreshStepResult> => {
+    // 回调"开始处理该步骤"
+    if (onStep) onStep(name, steps.length, total);
+    const r = await fn();
+    steps.push(r);
+    return r;
+  };
+  await run('考勤', () => refreshAttendance(p));
+  await run('社保', () => refreshSocial(p));
+  await run('个税月度', () => refreshNormalTax(p));
+  await run('实习生个税', () => refreshInternTax(p));
+  await run('薪资', () => refreshPayroll(p));
   return { steps };
 }
 

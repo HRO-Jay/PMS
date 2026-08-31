@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Layout, Menu, Typography, Avatar, Dropdown, Button, message, Tag, Input, Modal } from 'antd';
+import { Layout, Menu, Typography, Avatar, Dropdown, Button, message, Tag, Input, Modal, Progress } from 'antd';
 import {
   TeamOutlined, DollarOutlined, CalculatorOutlined,
   LogoutOutlined, ScheduleOutlined, SyncOutlined,
@@ -59,6 +59,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const [siderWidth, setSiderWidth] = useState(DEFAULT_WIDTH);
   const [dragging, setDragging] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshStep, setRefreshStep] = useState('');
   const dragStartRef = useRef<{ x: number; width: number } | null>(null);
   // 审批提醒弹窗
   const [approvalAlert, setApprovalAlert] = useState<{ title: string; alerts: { text: string; path: string }[] } | null>(null);
@@ -108,8 +109,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const handleGlobalRefresh = async () => {
     if (refreshing) return;
     setRefreshing(true);
+    setRefreshStep('正在准备...');
     try {
-      const result = await globalRefresh();
+      const result = await globalRefresh(undefined, (step, index, total) => {
+        setRefreshStep(`正在处理 ${step}（${index + 1}/${total}）...`);
+      });
       const lines = result.steps
         .map(s => `${s.step}：成功 ${s.success}${s.skipped > 0 ? `，跳过 ${s.skipped}` : ''}`)
         .join('；');
@@ -118,6 +122,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       message.error(e?.message || '全局刷新失败', 5);
     } finally {
       setRefreshing(false);
+      setRefreshStep('');
     }
   };
 
@@ -216,6 +221,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           >
             全局刷新
           </Button>
+          {refreshing && refreshStep && (
+            <span style={{ color: '#666', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Progress percent={100} status="active" size="small" style={{ width: 120 }} showInfo={false} />
+              {refreshStep}
+            </span>
+          )}
           <Dropdown menu={{
             items: [
               { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', danger: true },
