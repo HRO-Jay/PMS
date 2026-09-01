@@ -529,7 +529,8 @@ const PayrollPage: React.FC = () => {
       const attMap: Record<string, any> = {};
       attRes.data.forEach((r: any) => { attMap[r.unique_hash] = r; });
 
-      const perfComm = (add: any) => (add.performance_pay || 0) + (add.kpi_provision || 0) + (add.office_comm || 0) + (add.apartment_comm || 0) + (add.talent_kpi || 0);
+      // 绩效&佣金 与「附加薪酬」页保持一致（8项）：商办佣金 + 绩效 + 公寓佣金 + 人才系KPI + 防暑降温费 + 津贴 + 保安奖金 + 保洁奖金
+      const perfComm = (add: any) => (add.office_comm || 0) + (add.performance_pay || 0) + (add.apartment_comm || 0) + (add.talent_kpi || 0) + (add.heat_allowance || 0) + (add.other_allowance || 0) + (add.security_bonus || 0) + (add.cleaning_bonus || 0);
 
       const buildRows = (key: 'pay_company' | 'department'): SummaryRow[] => {
         const by: Record<string, SummaryRow> = {};

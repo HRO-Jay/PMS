@@ -343,8 +343,10 @@ const Dashboard: React.FC = () => {
       setAvgPayList(avgList);
 
       // ===== 图表4：工资构成占比（应发口径） =====
-      const perfComm = (add: any) => (add.performance_pay || 0) + (add.kpi_provision || 0) + (add.office_comm || 0) + (add.apartment_comm || 0) + (add.talent_kpi || 0);
-      const allowSum = (add: any) => (add.allowance_supp || 0) + (add.other_adjust || 0) + (add.heat_allowance || 0) + (add.other_allowance || 0) + (add.security_bonus || 0) + (add.cleaning_bonus || 0);
+      // 绩效&佣金 与「附加薪酬」页保持一致（8项）：商办佣金 + 绩效 + 公寓佣金 + 人才系KPI + 防暑降温费 + 津贴 + 保安奖金 + 保洁奖金
+      // KPI预提 / 服务费 / 商保 归入「其他」，保证构成占比覆盖全部收入项、不重不漏
+      const perfComm = (add: any) => (add.office_comm || 0) + (add.performance_pay || 0) + (add.apartment_comm || 0) + (add.talent_kpi || 0) + (add.heat_allowance || 0) + (add.other_allowance || 0) + (add.security_bonus || 0) + (add.cleaning_bonus || 0);
+      const allowSum = (add: any) => (add.allowance_supp || 0) + (add.other_adjust || 0);
       const calcComp = (salArr: any[], addMapX: Record<string, any>, attMapX: Record<string, any>) => {
         const c = { '基本工资': 0, '绩效&佣金': 0, '津贴补贴': 0, '加班费': 0, '其他': 0 };
         salArr.forEach((r: any) => {
@@ -353,7 +355,7 @@ const Dashboard: React.FC = () => {
           c['绩效&佣金'] += perfComm(add);
           c['津贴补贴'] += allowSum(add);
           c['加班费'] += Number(attMapX[r.unique_hash]?.overtime_amount || 0);
-          c['其他'] += Number(add.insurance_amount || 0);
+          c['其他'] += Number(add.insurance_amount || 0) + Number(add.kpi_provision || 0) + Number(add.service_fee || 0);
         });
         return c;
       };
@@ -385,7 +387,8 @@ const Dashboard: React.FC = () => {
   };
 
   // 切换 Tab 时，仅用已加载的原始数据按维度重算 Summary，不重新请求
-  const perfCommLocal = (add: any) => (add.performance_pay || 0) + (add.kpi_provision || 0) + (add.office_comm || 0) + (add.apartment_comm || 0) + (add.talent_kpi || 0);
+  // 绩效&佣金 与「附加薪酬」页保持一致（8项）
+  const perfCommLocal = (add: any) => (add.office_comm || 0) + (add.performance_pay || 0) + (add.apartment_comm || 0) + (add.talent_kpi || 0) + (add.heat_allowance || 0) + (add.other_allowance || 0) + (add.security_bonus || 0) + (add.cleaning_bonus || 0);
 
   const buildSummaryByGroup = (groupKey: 'pay_company' | 'cost_center' | 'department') => {
     const { activeEmps, salList, empMap, addMap, welfareMap, attMap } = summaryRaw;
