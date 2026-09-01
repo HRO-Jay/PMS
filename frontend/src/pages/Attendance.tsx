@@ -179,6 +179,8 @@ const AttendancePage: React.FC = () => {
             // 以下必须在考勤记录展开之后再赋值，避免被记录里的空值覆盖成横杠
             // 考勤工资来自考勤记录导入
             attendance_wage: rec?.attendance_wage ?? undefined,
+            // 工龄起算日来自考勤记录（花名册无此字段），确保病假按起算日计算
+            seniority_start_date: rec?.seniority_start_date ?? undefined,
             // 调整类型（文本，来自考勤记录，展示到详情抽屉）
             adjust_type: rec?.adjust_type ?? undefined,
           };

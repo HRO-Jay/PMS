@@ -55,6 +55,7 @@ async function refreshAttendance(period: string): Promise<RefreshStepResult> {
       const emp = empMap[rec.unique_hash] || {};
       const result = calcAttendance({
         entry_date: emp.entry_date || rec.entry_date,
+        seniority_start_date: rec.seniority_start_date,
         period,
         attendance_wage: rec.attendance_wage,
         pay_days: rec.pay_days,
