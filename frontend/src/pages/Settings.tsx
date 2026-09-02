@@ -3,6 +3,7 @@ import { Card, Button, Typography, Space, message, Form, Input, Modal } from 'an
 import axios from 'axios';
 import { AUTH_URL, SCF_CONFIG } from '../config';
 import AccountManagement from './settings/AccountManagement';
+import CompanyManagement from './settings/CompanyManagement';
 
 const SettingsPage: React.FC = () => {
   const [apiTestResult, setApiTestResult] = useState<string>('');
@@ -83,6 +84,10 @@ const SettingsPage: React.FC = () => {
           <AccountManagement />
         </Card>
       )}
+
+      <Card title="公司管理" style={{ marginBottom: 16 }}>
+        <CompanyManagement />
+      </Card>
 
       <Card title="API 连接测试" style={{ marginBottom: 16 }}>
         <Space>
