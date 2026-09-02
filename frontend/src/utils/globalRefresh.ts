@@ -444,6 +444,9 @@ async function refreshPayroll(period: string): Promise<RefreshStepResult> {
       let monthlyTax = 0;
       if (taxMethod === 'service') {
         monthlyTax = calcServiceTax(wageSubtotal).monthly_tax;
+      } else if (taxMethod === 'cash') {
+        // 现金计税：薪资小计 × 3%
+        monthlyTax = round2(wageSubtotal * 0.03);
       } else if (taxMethod === 'non_taxable') {
         monthlyTax = 0;
       } else if (taxMethod === 'flexible') {

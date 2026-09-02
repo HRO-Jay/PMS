@@ -20,7 +20,7 @@ export interface Employee {
   status: '在职' | '离职';
   cost_center?: string;
   pay_company: string;          // 发薪公司（简称）
-  tax_method: 'normal' | 'service' | 'non_taxable';
+  tax_method: 'normal' | 'service' | 'non_taxable' | 'intern' | 'flexible' | 'cash';
   department?: string;
   report_to?: string;
   position?: string;

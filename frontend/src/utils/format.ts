@@ -15,6 +15,7 @@ export function taxTypeLabel(type: string): string {
   const map: Record<string, string> = {
     normal: '正常计税',
     service: '劳务报酬',
+    cash: '现金计税',
     non_taxable: '不计税',
   };
   return map[type] ?? type;

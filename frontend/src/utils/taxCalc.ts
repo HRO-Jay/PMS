@@ -133,6 +133,16 @@ export function calcInternTax(input: InternTaxInput): InternTaxResult {
   };
 }
 
+/**
+ * ===== 现金计税 =====
+ * 适用计税方式为"现金计税"(cash) 的人员。
+ * 个税 = 薪资小计 × 3%
+ */
+export function calcCashTax(income: number): number {
+  const amount = Math.max(0, Number(income) || 0);
+  return round2(amount * 0.03);
+}
+
 export interface TaxCalcInput {
   cumul_taxable_income: number;   // 累计应税收入
   cumul_tax_free_income: number;  // 累计免税收入

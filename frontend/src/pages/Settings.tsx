@@ -106,6 +106,7 @@ const SettingsPage: React.FC = () => {
           <strong>计税模式：</strong>
           正常计税（normal）— 七级累进税率 3%-45%，累计预扣法，每月减除费用 5000 元<br />
           劳务报酬（service）—（薪资小计 - 800）× 20%<br />
+          现金计税（cash）— 薪资小计 × 3%<br />
           不计税（non_taxable）— 个税为 0，适用于香港员工
         </Typography.Paragraph>
       </Card>

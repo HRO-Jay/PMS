@@ -25,10 +25,11 @@ const TAX_METHODS = [
   { value: 'service', label: '劳务计税' },
   { value: 'intern', label: '实习生计税' },
   { value: 'flexible', label: '灵工计税' },
+  { value: 'cash', label: '现金计税' },
   { value: 'non_taxable', label: '不计税' },
 ];
 const TAX_VALUE_TO_LABEL: Record<string, string> = {
-  normal: '正常计税', service: '劳务计税', intern: '实习生计税', flexible: '灵工计税', non_taxable: '不计税',
+  normal: '正常计税', service: '劳务计税', intern: '实习生计税', flexible: '灵工计税', cash: '现金计税', non_taxable: '不计税',
 };
 // 中文/英文 → 枚举
 const TAX_LABEL_TO_VALUE: Record<string, string> = {
@@ -36,6 +37,7 @@ const TAX_LABEL_TO_VALUE: Record<string, string> = {
   '劳务计税': 'service', '劳务报酬': 'service', 'service': 'service',
   '实习生计税': 'intern', '实习': 'intern', 'intern': 'intern',
   '灵工计税': 'flexible', '灵工': 'flexible', 'flexible': 'flexible',
+  '现金计税': 'cash', '现金': 'cash', 'cash': 'cash',
   '不计税': 'non_taxable', '国内不计税': 'non_taxable', 'non_taxable': 'non_taxable',
 };
 
