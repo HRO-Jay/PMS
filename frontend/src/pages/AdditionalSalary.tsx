@@ -83,9 +83,10 @@ const AdditionalSalaryPage: React.FC = () => {
   const [fPayCompany, setFPayCompany] = useState<string>();
   const [fCostCenter, setFCostCenter] = useState<string>();
   const [fDepartment, setFDepartment] = useState<string>();
+  const [fDataStatus, setFDataStatus] = useState<string>();
   const [keyword, setKeyword] = useState('');
 
-  useEffect(() => { loadData(); }, [period, fPayCompany, fCostCenter, fDepartment, keyword]);
+  useEffect(() => { loadData(); }, [period, fPayCompany, fCostCenter, fDepartment, fDataStatus, keyword]);
 
   const loadData = async () => {
     setLoading(true);
@@ -146,6 +147,7 @@ const AdditionalSalaryPage: React.FC = () => {
       if (fPayCompany) merged = merged.filter((r: any) => r.pay_company === fPayCompany);
       if (fCostCenter) merged = merged.filter((r: any) => (r.cost_center || '').includes(fCostCenter));
       if (fDepartment) merged = merged.filter((r: any) => (r.department || '').includes(fDepartment));
+      if (fDataStatus) merged = merged.filter((r: any) => r.data_status === fDataStatus);
       if (keyword) merged = merged.filter((r: any) => (r.employee_name || '').includes(keyword));
 
       setRecords(merged);
@@ -256,6 +258,8 @@ const AdditionalSalaryPage: React.FC = () => {
             options={Object.values(employees).map((e: any) => ({ value: e.pay_company, label: e.pay_company })).filter((v, i, a) => a.findIndex(x => x.value === v.value) === i)} />
           <Input placeholder="成本中心" value={fCostCenter} onChange={e => setFCostCenter(e.target.value)} style={{ width: 120 }} allowClear />
           <Input placeholder="部门" value={fDepartment} onChange={e => setFDepartment(e.target.value)} style={{ width: 120 }} allowClear />
+          <Select placeholder="数据状态" allowClear value={fDataStatus} onChange={setFDataStatus} style={{ width: 120 }}
+            options={['已锁定', '正常', '未录入'].map(s => ({ value: s, label: s }))} />
           <Input prefix={<SearchOutlined />} placeholder="搜索姓名" value={keyword} onChange={e => setKeyword(e.target.value)} style={{ width: 140 }} allowClear />
         </Space>
       </Card>
