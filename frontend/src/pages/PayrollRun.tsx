@@ -549,8 +549,8 @@ const PayrollPage: React.FC = () => {
           if (!by[g]) by[g] = { group: g, count: 0, net: 0, company_welfare: 0, personal_welfare: 0, perf_comm: 0, attendance_adjust: 0, insurance: 0, provision: 0, total_cost: 0 };
           const add = addMap[r.unique_hash] || {};
           by[g].net += Number(r.net_pay || 0);
-          by[g].company_welfare += Number(welfareMap[r.unique_hash]?.company_total || 0);
-          by[g].personal_welfare += Number(welfareMap[r.unique_hash]?.personal_total || 0);
+          by[g].company_welfare += Number(r.company_welfare_total || 0);
+          by[g].personal_welfare += Number(r.personal_welfare_total || 0);
           by[g].perf_comm += perfComm(add);
           by[g].attendance_adjust += Number(attMap[r.unique_hash]?.attendance_adjust_total || 0);
           by[g].insurance += Number(add.insurance_amount || 0);

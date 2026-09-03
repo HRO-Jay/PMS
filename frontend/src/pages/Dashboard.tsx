@@ -405,8 +405,8 @@ const Dashboard: React.FC = () => {
       if (!byGroup[g]) byGroup[g] = { group: g, count: 0, net: 0, company_welfare: 0, personal_welfare: 0, perf_comm: 0, attendance_adjust: 0, insurance: 0, provision: 0, total_cost: 0 };
       const add = addMap[r.unique_hash] || {};
       byGroup[g].net += Number(r.net_pay || 0);
-      byGroup[g].company_welfare += Number(welfareMap[r.unique_hash]?.company_total || 0);
-      byGroup[g].personal_welfare += Number(welfareMap[r.unique_hash]?.personal_total || 0);
+      byGroup[g].company_welfare += Number(r.company_welfare_total || 0);
+      byGroup[g].personal_welfare += Number(r.personal_welfare_total || 0);
       byGroup[g].perf_comm += perfCommLocal(add);
       byGroup[g].attendance_adjust += Number(attMap[r.unique_hash]?.attendance_adjust_total || 0);
       byGroup[g].insurance += Number(add.insurance_amount || 0);
